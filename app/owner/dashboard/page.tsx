@@ -3,6 +3,7 @@ import ImportantLinks from '@/components/owner/ImportantLinks';
 import GoalsSection from '@/components/owner/GoalsSection';
 import FinanceSection from '@/components/owner/FinanceSection';
 import ProductionSection from '@/components/owner/ProductionSection';
+import WeeklySection from '@/components/owner/WeeklySection';
 
 const PLACEHOLDER = (
   <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>
@@ -21,7 +22,7 @@ export default function DashboardPage() {
       <CollapsibleSection index="1" title="Goals"><GoalsSection /></CollapsibleSection>
       <CollapsibleSection index="2" title="Finance"><FinanceSection /></CollapsibleSection>
       <CollapsibleSection index="3" title="Production"><ProductionSection /></CollapsibleSection>
-      <CollapsibleSection index="4" title="Weekly Performance">{PLACEHOLDER}</CollapsibleSection>
+      <CollapsibleSection index="4" title="Weekly Performance"><WeeklySection /></CollapsibleSection>
       <CollapsibleSection index="5" title="Monthly Performance">{PLACEHOLDER}</CollapsibleSection>
 
     </div>
