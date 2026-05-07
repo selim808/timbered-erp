@@ -1,23 +1,29 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-export async function login(formData: FormData) {
-  const supabase = await createClient();
+export async function ownerLogin(formData: FormData) {
+  const pin = formData.get('pin') as string;
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  if (pin !== process.env.OWNER_PIN) {
+    return { error: 'Incorrect PIN' };
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set('owner_session', 'true', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    path: '/',
   });
 
-  if (error) return { error: error.message };
-
-  redirect('/dashboard');
+  redirect('/owner/dashboard');
 }
 
-export async function logout() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+export async function ownerLogout() {
+  const cookieStore = await cookies();
+  cookieStore.delete('owner_session');
   redirect('/login');
 }

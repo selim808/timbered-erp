@@ -1,18 +1,9 @@
-import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'owner') redirect('/dashboard');
-
+  const cookieStore = await cookies();
+  const isOwner = cookieStore.get('owner_session')?.value === 'true';
+  if (!isOwner) redirect('/login');
   return <>{children}</>;
 }

@@ -32,7 +32,7 @@ Each has its own route group with a layout.tsx permission gate.
 - [x] dependencies installed
 - [x] .env.local created
 - [x] CLAUDE.md created
-- [ ] types/index.ts
-- [ ] Supabase clients
-- [ ] WooCommerce client
-- [ ] SQL migrations
+- [x] types/index.ts
+- [x] Supabase clients
+- [x] WooCommerce client
+- [x] SQL migrations
