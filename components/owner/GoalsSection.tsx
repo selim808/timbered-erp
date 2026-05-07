@@ -27,22 +27,34 @@ function mktClass(act: number | null, tgt: number) {
 
 const COLOR: Record<string, string> = { good: '#2a7a3b', bad: '#b0341e', empty: '#9e9087' };
 
-const td: React.CSSProperties = {
-  textAlign: 'center', padding: '8px 14px',
-  border: '1px solid #C8AA88', whiteSpace: 'nowrap',
-  fontSize: 13, color: '#1C1A17',
-};
+const STYLES = `
+  .goals-tbl { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .goals-tbl th, .goals-tbl td {
+    text-align: center; border: 1px solid #C8AA88;
+    white-space: nowrap; padding: 8px 14px; font-size: 13px;
+  }
+  .goals-month-col { position: sticky; left: 0; z-index: 1; }
+  .goals-full  { display: inline; }
+  .goals-short { display: none; }
+  @media (max-width: 600px) {
+    .goals-tbl th, .goals-tbl td { padding: 5px 6px; font-size: 11px; }
+    .goals-sub-th { font-size: 10px !important; letter-spacing: 0 !important; }
+    .goals-full  { display: none; }
+    .goals-short { display: inline; }
+    .goals-roas  { display: none; }
+  }
+`;
 
-function Th({ children, span, rowSpan, muted, small }: {
-  children: React.ReactNode; span?: number; rowSpan?: number; muted?: boolean; small?: boolean;
+function Th({ children, span, rowSpan, muted, small, sticky }: {
+  children: React.ReactNode; span?: number; rowSpan?: number;
+  muted?: boolean; small?: boolean; sticky?: boolean;
 }) {
   return (
     <th
       colSpan={span} rowSpan={rowSpan}
+      className={`${small ? 'goals-sub-th' : ''} ${sticky ? 'goals-month-col' : ''}`}
       style={{
-        textAlign: 'center', padding: '8px 14px',
-        border: '1px solid #C8AA88', whiteSpace: 'nowrap',
-        fontSize: small ? 11 : 13, fontWeight: 600,
+        fontWeight: 600,
         background: muted ? '#FBF5EC' : '#B86E1A',
         color: muted ? '#7A6F65' : '#fff',
         letterSpacing: small ? '0.6px' : undefined,
@@ -92,51 +104,58 @@ export default function GoalsSection() {
     tMktAct   += r.mktAct ?? 0;
   });
 
+  const tdBase: React.CSSProperties = { color: '#1C1A17' };
+  const tdMonth: React.CSSProperties = { ...tdBase, background: '#FBF5EC', color: '#7A6F65', fontWeight: 500 };
+
   return (
-    <div style={{ padding: '10px 12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
-        <thead>
-          <tr>
-            <Th muted rowSpan={2}>Month</Th>
-            <Th span={2}>{year} Sales</Th>
-            <Th span={2}>{year} Marketing</Th>
-          </tr>
-          <tr>
-            <Th muted small>Target</Th>
-            <Th muted small>Actual</Th>
-            <Th muted small>Target</Th>
-            <Th muted small>Actual</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => {
-            const sc   = salesClass(r.salesAct, r.salesTgt);
-            const mc   = mktClass(r.mktAct, r.mktTgt);
-            const roas = r.mktAct && r.salesAct ? Math.round(r.salesAct / r.mktAct) : null;
-            return (
-              <tr key={r.month} style={{ background: i % 2 === 0 ? '#fff' : '#fdf9f4' }}>
-                <td style={td}>{r.month}</td>
-                <td style={td}>{fmt(r.salesTgt)}</td>
-                <td style={{ ...td, color: COLOR[sc], fontWeight: sc !== 'empty' ? 500 : undefined }}>
-                  {fmt(r.salesAct)}
+    <>
+      <style>{STYLES}</style>
+      <div style={{ padding: '10px 12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className="goals-tbl">
+          <thead>
+            <tr>
+              <Th muted sticky rowSpan={2}>Month</Th>
+              <Th span={2}><span className="goals-full">{year} Sales</span><span className="goals-short">Sales</span></Th>
+              <Th span={2}><span className="goals-full">{year} Marketing</span><span className="goals-short">Mkt</span></Th>
+            </tr>
+            <tr>
+              <Th muted small><span className="goals-full">Target</span><span className="goals-short">Tgt</span></Th>
+              <Th muted small><span className="goals-full">Actual</span><span className="goals-short">Act</span></Th>
+              <Th muted small><span className="goals-full">Target</span><span className="goals-short">Tgt</span></Th>
+              <Th muted small><span className="goals-full">Actual</span><span className="goals-short">Act</span></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const sc   = salesClass(r.salesAct, r.salesTgt);
+              const mc   = mktClass(r.mktAct, r.mktTgt);
+              const roas = r.mktAct && r.salesAct ? Math.round(r.salesAct / r.mktAct) : null;
+              const rowBg = i % 2 === 0 ? '#fff' : '#fdf9f4';
+              return (
+                <tr key={r.month} style={{ background: rowBg }}>
+                  <td className="goals-month-col" style={{ ...tdMonth, background: rowBg }}>{r.month}</td>
+                  <td style={tdBase}>{fmt(r.salesTgt)}</td>
+                  <td style={{ ...tdBase, color: COLOR[sc], fontWeight: sc !== 'empty' ? 500 : undefined }}>
+                    {fmt(r.salesAct)}
+                  </td>
+                  <td style={tdBase}>{fmt(r.mktTgt)}</td>
+                  <td style={{ ...tdBase, color: COLOR[mc], fontWeight: mc !== 'empty' ? 500 : undefined }}>
+                    {fmt(r.mktAct)}
+                    {roas && <span className="goals-roas" style={{ fontSize: 10, opacity: 0.7 }}> ({roas}x)</span>}
+                  </td>
+                </tr>
+              );
+            })}
+            <tr>
+              {(['Total', fmt(tSalesTgt), fmt(tSalesAct) || '—', fmt(tMktTgt), fmt(tMktAct) || '—'] as string[]).map((v, i) => (
+                <td key={i} style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>
+                  {v}
                 </td>
-                <td style={td}>{fmt(r.mktTgt)}</td>
-                <td style={{ ...td, color: COLOR[mc], fontWeight: mc !== 'empty' ? 500 : undefined }}>
-                  {fmt(r.mktAct)}
-                  {roas && <span style={{ fontSize: 10, opacity: 0.7 }}> ({roas}x)</span>}
-                </td>
-              </tr>
-            );
-          })}
-          <tr>
-            {(['Total', fmt(tSalesTgt), fmt(tSalesAct) || '—', fmt(tMktTgt), fmt(tMktAct) || '—'] as string[]).map((v, i) => (
-              <td key={i} style={{ ...td, background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>
-                {v}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
