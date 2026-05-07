@@ -34,14 +34,9 @@ const STYLES = `
     white-space: nowrap; padding: 8px 14px; font-size: 13px;
   }
   .goals-month-col { position: sticky; left: 0; z-index: 1; }
-  .goals-full  { display: inline; }
-  .goals-short { display: none; }
   @media (max-width: 600px) {
     .goals-tbl th, .goals-tbl td { padding: 5px 6px; font-size: 11px; }
     .goals-sub-th { font-size: 10px !important; letter-spacing: 0 !important; }
-    .goals-full  { display: none; }
-    .goals-short { display: inline; }
-    .goals-roas  { display: none; }
   }
 `;
 
@@ -115,14 +110,14 @@ export default function GoalsSection() {
           <thead>
             <tr>
               <Th muted sticky rowSpan={2}>Month</Th>
-              <Th span={2}><span className="goals-full">{year} Sales</span><span className="goals-short">Sales</span></Th>
-              <Th span={2}><span className="goals-full">{year} Marketing</span><span className="goals-short">Mkt</span></Th>
+              <Th span={2}>Sales</Th>
+              <Th span={2}>Marketing</Th>
             </tr>
             <tr>
-              <Th muted small><span className="goals-full">Target</span><span className="goals-short">Tgt</span></Th>
-              <Th muted small><span className="goals-full">Actual</span><span className="goals-short">Act</span></Th>
-              <Th muted small><span className="goals-full">Target</span><span className="goals-short">Tgt</span></Th>
-              <Th muted small><span className="goals-full">Actual</span><span className="goals-short">Act</span></Th>
+              <Th muted small>Target</Th>
+              <Th muted small>Actual</Th>
+              <Th muted small>Target</Th>
+              <Th muted small>Actual</Th>
             </tr>
           </thead>
           <tbody>
@@ -141,7 +136,7 @@ export default function GoalsSection() {
                   <td style={tdBase}>{fmt(r.mktTgt)}</td>
                   <td style={{ ...tdBase, color: COLOR[mc], fontWeight: mc !== 'empty' ? 500 : undefined }}>
                     {fmt(r.mktAct)}
-                    {roas && <span className="goals-roas" style={{ fontSize: 10, opacity: 0.7 }}> ({roas}x)</span>}
+                    {roas && <span style={{ fontSize: 10, opacity: 0.7 }}> ({roas}x)</span>}
                   </td>
                 </tr>
               );
