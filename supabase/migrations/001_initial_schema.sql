@@ -8,11 +8,6 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function get_user_role()
-returns text as $$
-  select role from profiles where id = auth.uid();
-$$ language sql security definer stable;
-
 -- ─── Profiles ─────────────────────────────────────────────────────────────────
 
 create table profiles (
@@ -24,6 +19,11 @@ create table profiles (
 );
 
 alter table profiles enable row level security;
+
+create or replace function get_user_role()
+returns text as $$
+  select role from profiles where id = auth.uid();
+$$ language sql security definer stable;
 
 create policy "profiles: read own or owner/manager"
   on profiles for select
