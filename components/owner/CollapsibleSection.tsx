@@ -34,8 +34,9 @@ export default function CollapsibleSection({ index, title, defaultOpen = false, 
         style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '11px 16px', background: '#F4CFA5',
+          borderTop: 'none', borderLeft: 'none', borderRight: 'none',
           borderBottom: open ? '1.5px solid #C8AA88' : 'none',
-          cursor: 'pointer', border: 'none', textAlign: 'left',
+          cursor: 'pointer', textAlign: 'left',
         }}
         onMouseEnter={e => (e.currentTarget.style.background = '#f0c488')}
         onMouseLeave={e => (e.currentTarget.style.background = '#F4CFA5')}
