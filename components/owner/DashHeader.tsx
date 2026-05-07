@@ -21,23 +21,51 @@ export default function DashHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-gold flex items-center px-4 h-16 gap-3">
-      {/* Logo */}
-      <form action={ownerLogout} className="flex-shrink-0">
-        <button title="Exit">
-          <Image src={LOGO} alt="Timbered" width={44} height={44} className="object-contain rounded-lg" />
-        </button>
-      </form>
-
-      {/* Title */}
-      <div className="flex-1 text-center">
-        <p className="font-sans font-black text-brown text-base tracking-widest leading-none">TIMBERED</p>
-        <p className="font-sans text-[10px] font-semibold text-brown-mid tracking-widest">DASHBOARD</p>
+    <header style={{
+      background: '#F0AE66',
+      borderBottom: '2.5px solid #1C1A17',
+      height: 64,
+      padding: '0 16px',
+      display: 'grid',
+      gridTemplateColumns: '1fr auto 1fr',
+      alignItems: 'center',
+      position: 'sticky',
+      top: 0,
+      zIndex: 200,
+    }}>
+      {/* Left — logo (click to exit) */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+        <form action={ownerLogout}>
+          <button title="Exit" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <Image
+              src={LOGO} alt="Timbered" width={44} height={44}
+              style={{ background: '#fff', borderRadius: 4, padding: 1, objectFit: 'contain', display: 'block' }}
+            />
+          </button>
+        </form>
       </div>
 
-      {/* Date */}
-      <div className="flex-shrink-0 bg-surface border border-border-strong rounded-full px-3 py-1">
-        <p className="text-[11px] font-semibold text-brown">{date}</p>
+      {/* Center — title */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 19, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', color: '#1C1A17', lineHeight: 1.1 }}>
+          Timbered
+        </span>
+        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: '#7A4610' }}>
+          Dashboard
+        </span>
+      </div>
+
+      {/* Right — date */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <span style={{
+          fontSize: 12, color: '#7A4610',
+          background: 'rgba(255,255,255,0.45)',
+          border: '1px solid #B86E1A',
+          borderRadius: 20, padding: '3px 10px',
+          whiteSpace: 'nowrap',
+        }}>
+          {date}
+        </span>
       </div>
     </header>
   );

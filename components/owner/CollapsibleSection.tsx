@@ -3,41 +3,65 @@
 import { useState } from 'react';
 
 interface Props {
-  index: string | number;
+  index: React.ReactNode;
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-  accent?: string;
 }
 
-export default function CollapsibleSection({
-  index, title, defaultOpen = false, children, accent = 'bg-brown',
-}: Props) {
+const ChevronSVG = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#7A4610" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="2 5 7 10 12 5" />
+  </svg>
+);
+
+const LinkSVG = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </svg>
+);
+
+export default function CollapsibleSection({ index, title, defaultOpen = false, children }: Props) {
   const [open, setOpen] = useState(defaultOpen);
 
+  const isLink = index === '🔗';
+
   return (
-    <div className="rounded-2xl overflow-hidden bg-surface shadow-card">
+    <div style={{ background: '#fff', border: '1.5px solid #E8D9C4', borderRadius: 18, overflow: 'hidden', animation: 'fadeUp 0.4s ease both' }}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-4 px-4 py-4 hover:bg-surface-2 transition-colors"
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '11px 16px', background: '#F4CFA5',
+          borderBottom: open ? '1.5px solid #C8AA88' : 'none',
+          cursor: 'pointer', border: 'none', textAlign: 'left',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.background = '#f0c488')}
+        onMouseLeave={e => (e.currentTarget.style.background = '#F4CFA5')}
       >
-        <span className={`${accent} text-white text-xs font-black w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0`}>
-          {index}
-        </span>
-        <span className="flex-1 text-left font-bold text-text text-[15px]">{title}</span>
-        <span
-          className="text-brown-mid text-sm transition-transform duration-300"
-          style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
-        >
-          ›
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            width: 26, height: 26, borderRadius: '50%',
+            background: '#B86E1A', color: '#fff',
+            fontSize: 12, fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            {isLink ? <LinkSVG /> : index}
+          </span>
+          <span style={{ fontFamily: "'DM Serif Display', serif", fontSize: 16, fontWeight: 400, color: '#1C1A17' }}>
+            {title}
+          </span>
+        </div>
+        <span style={{ transition: 'transform 0.3s ease', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', display: 'flex' }}>
+          <ChevronSVG />
         </span>
       </button>
-      <div
-        className="grid transition-all duration-300"
-        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
-      >
-        <div className="overflow-hidden">
-          <div className="border-t border-border">{children}</div>
+
+      <div style={{ display: 'grid', gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows 0.35s ease' }}>
+        <div style={{ overflow: 'hidden' }}>
+          <div>{children}</div>
         </div>
       </div>
     </div>

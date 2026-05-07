@@ -9,7 +9,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
   if (!isOwner) redirect('/login');
 
   return (
-    <div className="min-h-screen bg-gold">
+    <div className="min-h-screen bg-surface-2">
       <DashHeader />
       <main>{children}</main>
       <BottomNav />
