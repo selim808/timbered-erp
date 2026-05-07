@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { ownerLogout } from '@/app/actions/auth';
+
+const LOGO = 'https://timberedgroup.com/wp-content/uploads/2024/04/Asset-14.png';
 
 export default function DashHeader() {
   const [date, setDate] = useState('');
@@ -18,20 +21,23 @@ export default function DashHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-surface border-b-2 border-border h-16 flex items-center px-5 gap-4">
-      <div className="flex-1">
-        <p className="font-serif text-lg text-brown leading-none">Timbered</p>
-        <p className="text-[10px] font-bold text-text-muted tracking-widest uppercase">Dashboard</p>
+    <header className="sticky top-0 z-40 bg-gold flex items-center px-4 h-16 gap-3">
+      {/* Logo */}
+      <form action={ownerLogout} className="flex-shrink-0">
+        <button title="Exit">
+          <Image src={LOGO} alt="Timbered" width={44} height={44} className="object-contain rounded-lg" />
+        </button>
+      </form>
+
+      {/* Title */}
+      <div className="flex-1 text-center">
+        <p className="font-sans font-black text-brown text-base tracking-widest leading-none">TIMBERED</p>
+        <p className="font-sans text-[10px] font-semibold text-brown-mid tracking-widest">DASHBOARD</p>
       </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-medium text-text-muted bg-cream border border-border px-3 py-1 rounded-full hidden sm:block">
-          {date}
-        </span>
-        <form action={ownerLogout}>
-          <button className="text-xs text-text-muted hover:text-brown transition-colors">
-            Exit
-          </button>
-        </form>
+
+      {/* Date */}
+      <div className="flex-shrink-0 bg-surface border border-border-strong rounded-full px-3 py-1">
+        <p className="text-[11px] font-semibold text-brown">{date}</p>
       </div>
     </header>
   );
