@@ -20,6 +20,18 @@ export default function PinModal({ open, onClose }: Props) {
     if (!open) { setPin(''); setDotState('empty'); }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key >= '0' && e.key <= '9') handleKey(e.key);
+      else if (e.key === 'Backspace') handleDelete();
+      else if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pin, loading]);
+
   async function handleKey(digit: string) {
     if (pin.length >= 4 || loading) return;
     const next = pin + digit;
