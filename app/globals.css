@@ -1,26 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Colors */
+  --color-brown:        #7A4610;
+  --color-brown-mid:    #B86E1A;
+  --color-gold:         #F0AE66;
+  --color-gold-light:   #F4CFA5;
+  --color-cream:        #f5f0eb;
+  --color-surface:      #FFFDF9;
+  --color-surface-2:    #FBF5EC;
+  --color-accent-bg:    #fef3e2;
+  --color-text:         #1C1A17;
+  --color-text-muted:   #7A6F65;
+  --color-border:       #E8D9C4;
+  --color-border-strong:#C8AA88;
+  --color-success:      #27ae60;
+  --color-danger:       #e74c3c;
+  --color-info:         #2980b9;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Fonts */
+  --font-serif: 'DM Serif Display', serif;
+  --font-sans:  'DM Sans', system-ui, sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Shadows */
+  --shadow-card: 0 4px 16px rgba(122, 70, 16, 0.12);
+  --shadow-hover: 0 6px 24px rgba(122, 70, 16, 0.18);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
 }
