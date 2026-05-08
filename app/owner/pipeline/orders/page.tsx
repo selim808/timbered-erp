@@ -700,14 +700,21 @@ export default function OrdersPipelinePage() {
   }
 
   async function handlePhaseChange(orderId: number, liId: number, phase: string) {
-    setOrders(prev => prev.map(o =>
+    const prev = orders.find(o => o.id === orderId)?.lineItems.find(li => li.id === liId)?.phase ?? '';
+    setOrders(os => os.map(o =>
       o.id !== orderId ? o : { ...o, lineItems: o.lineItems.map(li => li.id === liId ? { ...li, phase } : li) }
     ));
-    await fetch(`/api/pipeline/orders/${orderId}/phase`, {
+    const res = await fetch(`/api/pipeline/orders/${orderId}/phase`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lineItemId: String(liId), phase }),
     });
+    if (!res.ok) {
+      setOrders(os => os.map(o =>
+        o.id !== orderId ? o : { ...o, lineItems: o.lineItems.map(li => li.id === liId ? { ...li, phase: prev } : li) }
+      ));
+      showToast('Failed to save phase change');
+    }
   }
 
   async function handleBulkApply() {

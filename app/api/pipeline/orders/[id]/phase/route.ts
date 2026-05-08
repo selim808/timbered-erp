@@ -13,10 +13,21 @@ export async function PATCH(
   }
 
   const db = createAdminClient();
-  const { error } = await db.from('order_phases').upsert(
-    { order_id: id, line_item_id: String(lineItemId), phase, updated_at: new Date().toISOString() },
-    { onConflict: 'order_id,line_item_id' }
-  );
+
+  const { data: existing } = await db
+    .from('order_phases')
+    .select('id')
+    .eq('order_id', id)
+    .eq('line_item_id', lineItemId)
+    .maybeSingle();
+
+  const { error } = existing
+    ? await db.from('order_phases')
+        .update({ phase, updated_at: new Date().toISOString() })
+        .eq('order_id', id)
+        .eq('line_item_id', lineItemId)
+    : await db.from('order_phases')
+        .insert({ order_id: id, line_item_id: lineItemId, phase });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
