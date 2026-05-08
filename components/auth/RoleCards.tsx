@@ -22,7 +22,7 @@ export default function RoleCards() {
 
         {/* Employee */}
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={() => router.push('/employee')}
           className="flex flex-col items-center justify-center gap-2.5 w-[140px] h-[140px] bg-white rounded-[20px] border-2 border-border hover:border-brown hover:shadow-card transition-all cursor-pointer"
         >
           <span className="text-[42px]">👷</span>
