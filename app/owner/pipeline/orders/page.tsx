@@ -367,6 +367,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
 }) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [chartDrill, setChartDrill] = useState<string | null>(null);
+  const [showAllPhases, setShowAllPhases] = useState(false);
 
   const allItems = useMemo(() =>
     orders.flatMap(o => o.lineItems.map((li, idx) => ({
@@ -393,7 +394,23 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
 
   const fmtK = (v: number) => v >= 1000 ? `${Math.round(v / 1000)}K` : String(Math.round(v));
 
-  const drilledGroup = chartDrill ? phaseGroups.find(g => g.id === chartDrill) : null;
+  const allPhaseStats = useMemo(() => {
+    const result: { phase: string; color: string; value: number; qty: number; orders: number }[] = [];
+    phaseGroups.forEach(g => {
+      g.phases.forEach(phase => {
+        const items = allItems.filter(li => li.phase === phase);
+        if (items.length > 0) result.push({
+          phase, color: g.color,
+          value: items.reduce((s, li) => s + li.total, 0),
+          qty: items.reduce((s, li) => s + li.quantity, 0),
+          orders: new Set(items.map(li => li.orderId)).size,
+        });
+      });
+    });
+    return result;
+  }, [allItems, phaseGroups]);
+
+  const drilledGroup = !showAllPhases && chartDrill ? phaseGroups.find(g => g.id === chartDrill) : null;
 
   const drillStats = useMemo(() => {
     if (!drilledGroup) return [];
@@ -408,20 +425,26 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
     }).filter(d => d.qty > 0);
   }, [drilledGroup, allItems]);
 
-  const activeStats = drilledGroup ? drillStats : groupStats;
+  const activeStats = showAllPhases ? allPhaseStats : drilledGroup ? drillStats : groupStats;
   const activeColor = drilledGroup?.color ?? null;
 
+  const canDrill = !showAllPhases && !chartDrill;
+
   const chartData = {
-    labels: activeStats.map(d => 'phase' in d ? d.phase : d.label),
+    labels: activeStats.map(d => 'phase' in d ? d.phase : 'label' in d ? d.label : (d as { phase: string }).phase),
     datasets: [{
       label: 'Value',
       data: activeStats.map(d => d.value),
-      backgroundColor: activeColor
-        ? activeStats.map(() => activeColor + 'bb')
-        : (activeStats as typeof groupStats).map(g => g.color + 'bb'),
-      borderColor: activeColor
-        ? activeStats.map(() => activeColor)
-        : (activeStats as typeof groupStats).map(g => g.color),
+      backgroundColor: showAllPhases
+        ? allPhaseStats.map(d => d.color + 'bb')
+        : activeColor
+          ? activeStats.map(() => activeColor + 'bb')
+          : (activeStats as typeof groupStats).map(g => g.color + 'bb'),
+      borderColor: showAllPhases
+        ? allPhaseStats.map(d => d.color)
+        : activeColor
+          ? activeStats.map(() => activeColor)
+          : (activeStats as typeof groupStats).map(g => g.color),
       borderWidth: 1.5,
       borderRadius: 4,
     }],
@@ -431,12 +454,12 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
     responsive: true,
     maintainAspectRatio: false,
     onClick: (_: unknown, elements: { index: number }[]) => {
-      if (!chartDrill && elements.length > 0) {
+      if (canDrill && elements.length > 0) {
         setChartDrill(groupStats[elements[0].index].id);
       }
     },
     onHover: (_: unknown, elements: { index: number }[], chart: { canvas: HTMLCanvasElement }) => {
-      chart.canvas.style.cursor = !chartDrill && elements.length > 0 ? 'pointer' : 'default';
+      chart.canvas.style.cursor = canDrill && elements.length > 0 ? 'pointer' : 'default';
     },
     plugins: {
       legend: { display: false },
@@ -479,15 +502,27 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: `1px solid ${drilledGroup ? drilledGroup.color + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 300, marginBottom: 10, position: 'relative' }}>
-        {drilledGroup && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <button onClick={() => setChartDrill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#7A4610', fontWeight: 700, padding: '0 4px' }}>← All Groups</button>
-            <span style={{ fontSize: 11, color: '#aaa' }}>›</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: drilledGroup.color }}>{drilledGroup.label}</span>
-          </div>
-        )}
-        <Bar data={chartData} options={chartOptions} />
+      <div style={{ background: '#fff', border: `1px solid ${drilledGroup ? drilledGroup.color + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 320, marginBottom: 10, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          {drilledGroup ? (
+            <>
+              <button onClick={() => setChartDrill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#7A4610', fontWeight: 700, padding: '0 4px' }}>← All Groups</button>
+              <span style={{ fontSize: 11, color: '#aaa' }}>›</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: drilledGroup.color }}>{drilledGroup.label}</span>
+            </>
+          ) : (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#aaa', flex: 1 }}>{showAllPhases ? 'All Phases' : 'By Group'}</span>
+          )}
+          <button
+            onClick={() => { setShowAllPhases(v => !v); setChartDrill(null); }}
+            style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, padding: '2px 10px', borderRadius: 20, border: '1.5px solid #e8ddd4', background: showAllPhases ? '#7A4610' : '#fff', color: showAllPhases ? '#fff' : '#888', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            {showAllPhases ? 'By Group' : 'All Phases'}
+          </button>
+        </div>
+        <div style={{ height: 260 }}>
+          <Bar data={chartData} options={chartOptions} />
+        </div>
       </div>
 
       {groupStats.map(g => (
