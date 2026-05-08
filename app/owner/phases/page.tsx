@@ -48,8 +48,11 @@ const CSS = `
 .pg-grp-edit:hover { background:#fef3c7; }
 .pg-card-hdr:hover .pg-grp-edit { opacity:1; }
 .pg-card-count { font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; background:#f5f0eb; color:#7A4610; }
-.pg-chevron { font-size:10px; color:#aaa; transition:transform .2s; }
+.pg-chevron { font-size:10px; color:#aaa; transition:transform .25s ease; }
 .pg-chevron.collapsed { transform:rotate(-90deg); }
+.pg-collapse-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .25s ease; }
+.pg-collapse-wrap.expanded { grid-template-rows:1fr; }
+.pg-collapse-inner { overflow:hidden; }
 .pg-phases { flex:1; padding:6px 0; }
 .pg-empty-phases { padding:12px 14px; font-size:12px; color:#bbb; font-style:italic; }
 .pg-phase-row { display:flex; align-items:center; gap:8px; padding:5px 14px 5px 8px; font-size:13px; transition:background .15s; cursor:default; }
@@ -165,7 +168,7 @@ export default function PhasesPage() {
       .then((data: Group[] | { error: string }) => {
         if (!Array.isArray(data)) throw new Error((data as { error: string }).error);
         setGroups(data);
-        setCollapsed(new Set(data.map(g => g.id))); // all collapsed initially
+        setCollapsed(new Set(data.map((g: Group) => g.id))); // all collapsed initially
         setLoad('done');
       })
       .catch((e: Error) => { setErrMsg(e.message); setLoad('error'); });
@@ -486,9 +489,9 @@ export default function PhasesPage() {
                     <span className={`pg-chevron${isCollapsed ? ' collapsed' : ''}`}>▼</span>
                   </div>
 
-                  {/* Phases list */}
-                  {!isCollapsed && (
-                    <>
+                  {/* Phases list — animated collapse */}
+                  <div className={`pg-collapse-wrap${isCollapsed ? '' : ' expanded'}`}>
+                    <div className="pg-collapse-inner">
                       <div className="pg-phases">
                         {g.phases.length === 0 && <div className="pg-empty-phases">No phases yet</div>}
                         {g.phases.map((phase, idx) => {
@@ -542,8 +545,8 @@ export default function PhasesPage() {
                         />
                         <button className="pg-add-btn" onClick={() => addPhase(g.id)}>Add</button>
                       </div>
-                    </>
-                  )}
+                    </div>
+                  </div>
                 </div>
               );
             })}
