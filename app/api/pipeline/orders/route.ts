@@ -49,14 +49,10 @@ export async function GET() {
 
     const orderIds = wcOrders.map((o: any) => String(o.id));
 
-    const [{ data: phaseRows }, { data: groupRows }] = await Promise.all([
-      db.from('order_phases').select('order_id, line_item_id, phase').in('order_id', orderIds),
-      db.from('phase_groups').select('phases'),
-    ]);
-
-    // Build set of valid phase names from phase_groups
-    const validPhases = new Set<string>();
-    (groupRows ?? []).forEach((g: any) => (g.phases ?? []).forEach((p: string) => validPhases.add(p)));
+    const { data: phaseRows } = await db
+      .from('order_phases')
+      .select('order_id, line_item_id, phase')
+      .in('order_id', orderIds);
 
     const phaseMap = new Map<string, string>();
     (phaseRows ?? []).forEach((r: any) => {
@@ -74,7 +70,7 @@ export async function GET() {
         price: parseFloat(li.price ?? '0'),
         total: parseFloat(li.total ?? '0'),
         imageUrl: li.image?.src ?? '',
-        phase: (() => { const s = phaseMap.get(`${o.id}-${li.id}`) ?? ''; return validPhases.has(s) ? s : ''; })(),
+        phase: phaseMap.get(`${o.id}-${li.id}`) ?? '',
       }));
 
       return {

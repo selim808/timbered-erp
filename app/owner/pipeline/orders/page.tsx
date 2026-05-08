@@ -12,7 +12,7 @@ interface PhaseGroup {
 }
 
 type Tab = 'orders' | 'kanban' | 'wip' | 'noresponse';
-type GroupBy = 'order' | 'phase' | 'product' | 'table';
+type GroupBy = 'order' | 'phase' | 'product';
 
 function daysBadgeClass(days: number) {
   if (days >= 15) return 'op-badge urgent';
@@ -311,57 +311,6 @@ function ProductView({ orders, groups, bulkMode, selectedItems, prodSort, onTogg
   );
 }
 
-// ── Table View ─────────────────────────────────────────────────────────────
-function TableView({ orders, groups, onPhaseChange }: {
-  orders: PipelineOrder[];
-  groups: PhaseGroup[];
-  onPhaseChange: (orderId: number, liId: number, phase: string) => void;
-}) {
-  const rows = useMemo(() => {
-    const result: { o: PipelineOrder; li: PipelineLineItem; liIndex: number }[] = [];
-    orders.forEach(o => o.lineItems.forEach((li, idx) => result.push({ o, li, liIndex: idx + 1 })));
-    return result;
-  }, [orders]);
-
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table className="op-flat-tbl">
-        <thead>
-          <tr>
-            <th style={{ width: 44 }}></th>
-            <th>Order</th>
-            <th>Customer</th>
-            <th>Age</th>
-            <th>Item</th>
-            <th>Qty</th>
-            <th>Total</th>
-            <th>Phase</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ o, li }) => (
-            <tr key={`${o.id}-${li.id}`}>
-              <td style={{ padding: '3px 6px', width: 44 }}>
-                {li.imageUrl
-                  ? <img src={li.imageUrl} alt="" className="op-tbl-thumb" />
-                  : <div className="op-tbl-thumb-ph" />
-                }
-              </td>
-              <td style={{ fontWeight: 700, color: '#7A4610', whiteSpace: 'nowrap' }}>#{o.number}</td>
-              <td style={{ whiteSpace: 'nowrap', color: '#333', fontWeight: 600 }}>{o.customerName}</td>
-              <td><span className={daysBadgeClass(o.daysOpen)}>{o.daysOpen}d</span></td>
-              <td style={{ color: '#333' }}>{li.name}</td>
-              <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>×{li.quantity}</td>
-              <td style={{ textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtPrice(li.total)}</td>
-              <td><PhaseSelect groups={groups} value={li.phase} onChange={v => onPhaseChange(o.id, li.id, v)} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 // ── Order Detail Modal ─────────────────────────────────────────────────────
 function OrderDetailModal({ order, onClose }: { order: PipelineOrder; onClose: () => void }) {
   return (
@@ -544,14 +493,6 @@ export default function OrdersPipelinePage() {
         .op-search { width:100%; font-size:12px; padding:5px 10px; border:1.5px solid #e8ddd4; border-radius:8px; outline:none; color:#333; flex-basis:100%; }
         .op-prod-sort-btn { font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; border:1.5px solid #e8ddd4; background:#fff; color:#888; cursor:pointer; }
         .op-prod-sort-btn.active { background:#7A4610; color:#fff; border-color:#7A4610; }
-        /* ── flat table ── */
-        .op-flat-tbl { width:100%; border-collapse:collapse; background:#fff; font-size:12px; }
-        .op-flat-tbl thead th { background:#fef3e2; color:#7A4610; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; padding:8px 10px; text-align:left; border-bottom:1px solid #e8ddd4; white-space:nowrap; }
-        .op-flat-tbl tbody tr { border-bottom:1px solid #f5f0eb; }
-        .op-flat-tbl tbody tr:hover { background:#fdf8f4; }
-        .op-flat-tbl td { padding:6px 10px; vertical-align:middle; }
-        .op-tbl-thumb { width:36px; height:36px; object-fit:cover; border-radius:4px; border:1px solid #e8ddd4; display:block; }
-        .op-tbl-thumb-ph { width:36px; height:36px; background:#f0e8e0; border-radius:4px; }
         .op-action-btn { font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; border:1.5px solid; cursor:pointer; white-space:nowrap; }
         .op-complete-btn { border-color:#1a7a3c; background:#1a7a3c; color:#fff; }
         .op-cancel-btn  { border-color:#c0392b; background:#c0392b; color:#fff; }
@@ -691,7 +632,7 @@ export default function OrdersPipelinePage() {
 
             <div className="op-tb-group" style={{ flexBasis: '100%', flexWrap: 'wrap', gap: 5 }}>
               <span className="op-tb-label">Group</span>
-              {(['order','phase','product','table'] as GroupBy[]).map(v => (
+              {(['order','phase','product'] as GroupBy[]).map(v => (
                 <button key={v} className={`op-view-btn${groupBy === v ? ' active' : ''}`} onClick={() => setGroupBy(v)}>
                   {v.charAt(0).toUpperCase() + v.slice(1)}
                 </button>
@@ -754,9 +695,6 @@ export default function OrdersPipelinePage() {
                 <ProductView orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
                   selectedItems={selectedItems} prodSort={prodSort} onToggleItem={toggleItem}
                   onPhaseChange={handlePhaseChange} />
-              )}
-              {groupBy === 'table' && (
-                <TableView orders={visibleOrders} groups={phaseGroups} onPhaseChange={handlePhaseChange} />
               )}
             </div>
           )}
