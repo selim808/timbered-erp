@@ -26,6 +26,17 @@ export default function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t-2 border-border px-4 py-2">
       <div className="max-w-4xl mx-auto flex items-center gap-2 overflow-x-auto scrollbar-none">
+        <Link
+          href="/owner/dashboard"
+          className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+            pathname === '/owner/dashboard'
+              ? 'bg-brown text-white border-brown'
+              : 'border-border text-brown hover:border-brown hover:bg-surface-2'
+          }`}
+        >
+          Dashboard
+        </Link>
+        <div className="w-px h-4 bg-border flex-shrink-0 mx-1" />
         {PIPELINE.map(({ label, href }) => (
           <Link
             key={href}
