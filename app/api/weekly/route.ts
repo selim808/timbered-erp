@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import wcClient from '@/lib/woocommerce/client';
 
+export const maxDuration = 60;
+
 interface WCOrder {
   status: string;
   total: string;
@@ -76,9 +78,9 @@ function ensureDay(week: WeekEntry, dayStr: string): DayData {
 // ─── Main handler ─────────────────────────────────────────────────
 export async function GET() {
   try {
-    const twoYearsAgo = new Date();
-    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-    const after = twoYearsAgo.toISOString().split('T')[0] + 'T00:00:00';
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const after = oneYearAgo.toISOString().split('T')[0] + 'T00:00:00';
 
     const first = await wcClient.get('/orders', { params: { per_page: 100, after, orderby: 'date', order: 'desc', page: 1 } });
     const totalPages = parseInt(first.headers['x-wp-totalpages'] ?? '1', 10);

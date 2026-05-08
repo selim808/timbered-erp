@@ -6,7 +6,7 @@ const wc = axios.create({
     username: process.env.WC_CONSUMER_KEY!,
     password: process.env.WC_CONSUMER_SECRET!,
   },
-  timeout: 15000,
+  timeout: 45000,
 });
 
 export default wc;
