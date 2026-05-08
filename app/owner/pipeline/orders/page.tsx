@@ -670,6 +670,7 @@ export default function OrdersPipelinePage() {
   const [sortAsc, setSortAsc]     = useState(false);
   const [noteFilter, setNoteFilter] = useState(false);
   const [stockFilter, setStockFilter] = useState(false);
+  const [hideNoResp, setHideNoResp] = useState(false);
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkPhase, setBulkPhase] = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -757,6 +758,7 @@ export default function OrdersPipelinePage() {
     let list = [...orders];
     if (noteFilter) list = list.filter(o => o.customerNote);
     if (stockFilter) list = list.filter(o => o.lineItems.some(li => li.stock > 0));
+    if (hideNoResp) list = list.filter(o => o.lineItems.some(li => !/no.?response/i.test(li.phase)));
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(o =>
@@ -769,7 +771,7 @@ export default function OrdersPipelinePage() {
       : new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()
     );
     return list;
-  }, [orders, noteFilter, stockFilter, search, sortAsc]);
+  }, [orders, noteFilter, stockFilter, hideNoResp, search, sortAsc]);
 
   const totalItems = useMemo(() => visibleOrders.reduce((s, o) => s + o.lineItems.length, 0), [visibleOrders]);
   const totalValue = useMemo(() => visibleOrders.reduce((s, o) => s + o.total, 0), [visibleOrders]);
@@ -1016,6 +1018,7 @@ export default function OrdersPipelinePage() {
 
             <div className="op-tb-group" style={{ flexBasis: '100%' }}>
               <button className={`op-filter-btn stock${stockFilter ? ' active' : ''}`} onClick={() => setStockFilter(f => !f)}>📦 In Stock</button>
+              <button className={`op-filter-btn${hideNoResp ? ' active' : ''}`} onClick={() => setHideNoResp(f => !f)}>🚫 No Response</button>
             </div>
 
             <input type="search" className="op-search" placeholder="Search item, order #, customer or phone…"
