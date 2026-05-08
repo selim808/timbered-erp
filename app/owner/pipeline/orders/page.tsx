@@ -669,6 +669,7 @@ export default function OrdersPipelinePage() {
   const [search, setSearch]       = useState('');
   const [sortAsc, setSortAsc]     = useState(false);
   const [noteFilter, setNoteFilter] = useState(false);
+  const [stockFilter, setStockFilter] = useState(false);
   const [bulkMode, setBulkMode]   = useState(false);
   const [bulkPhase, setBulkPhase] = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -738,9 +739,24 @@ export default function OrdersPipelinePage() {
     showToast(`${ids.length} order(s) ${action === 'complete' ? 'completed' : 'cancelled'}`);
   }
 
+  const stockSummary = useMemo(() => {
+    const seen = new Map<number, { stock: number; price: number; orderedQty: number }>();
+    orders.forEach(o => o.lineItems.forEach(li => {
+      if (li.stock > 0 && !seen.has(li.productId))
+        seen.set(li.productId, { stock: li.stock, price: li.price, orderedQty: li.orderedQty });
+    }));
+    let totalStock = 0, sellableValue = 0;
+    seen.forEach(({ stock, price, orderedQty }) => {
+      totalStock += stock;
+      sellableValue += Math.min(stock, orderedQty) * price;
+    });
+    return { totalStock, sellableValue, productCount: seen.size };
+  }, [orders]);
+
   const visibleOrders = useMemo(() => {
     let list = [...orders];
     if (noteFilter) list = list.filter(o => o.customerNote);
+    if (stockFilter) list = list.filter(o => o.lineItems.some(li => li.stock > 0));
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(o =>
@@ -753,7 +769,7 @@ export default function OrdersPipelinePage() {
       : new Date(b.dateCreated).getTime() - new Date(a.dateCreated).getTime()
     );
     return list;
-  }, [orders, noteFilter, search, sortAsc]);
+  }, [orders, noteFilter, stockFilter, search, sortAsc]);
 
   const totalItems = useMemo(() => visibleOrders.reduce((s, o) => s + o.lineItems.length, 0), [visibleOrders]);
   const totalValue = useMemo(() => visibleOrders.reduce((s, o) => s + o.total, 0), [visibleOrders]);
@@ -801,6 +817,13 @@ export default function OrdersPipelinePage() {
         .op-toggle input:checked + .op-toggle-slider:before { transform:translateX(16px); }
         .op-filter-btn { font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; border:1.5px solid #e8ddd4; background:#fff; color:#888; cursor:pointer; white-space:nowrap; }
         .op-filter-btn.active { background:#7A4610; color:#fff; border-color:#7A4610; }
+        .op-filter-btn.stock { border-color:#1a7a3c; color:#1a7a3c; }
+        .op-filter-btn.stock.active { background:#1a7a3c; color:#fff; }
+        .op-stock-bar { display:flex; align-items:stretch; gap:0; border-bottom:2px solid #b7dfc8; background:#e8f5ee; }
+        .op-stock-kpi { flex:1; padding:8px 14px; border-right:1px solid #b7dfc8; }
+        .op-stock-kpi:last-child { border-right:none; }
+        .op-stock-kpi-label { font-size:10px; font-weight:700; color:#1a7a3c; text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px; }
+        .op-stock-kpi-value { font-size:16px; font-weight:700; color:#145a32; }
         .op-view-btn { font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; border:1.5px solid #e8ddd4; background:#fff; color:#888; cursor:pointer; }
         .op-view-btn.active { background:#7A4610; color:#fff; border-color:#7A4610; }
         .op-sort-btn { font-size:14px; background:none; border:1.5px solid #e8ddd4; border-radius:8px; padding:2px 8px; cursor:pointer; color:#7A4610; }
@@ -977,6 +1000,7 @@ export default function OrdersPipelinePage() {
                 </button>
               ))}
               <button className="op-sort-btn" onClick={() => setSortAsc(s => !s)}>{sortAsc ? '↑' : '↓'}</button>
+              <button className={`op-filter-btn stock${stockFilter ? ' active' : ''}`} onClick={() => setStockFilter(f => !f)}>📦 In Stock</button>
               {groupBy === 'product' && (
                 <>
                   <button className={`op-prod-sort-btn${prodSort === 'qty' ? ' active' : ''}`} onClick={() => setProdSort('qty')}>Qty</button>
@@ -994,6 +1018,24 @@ export default function OrdersPipelinePage() {
             <input type="search" className="op-search" placeholder="Search item, order #, customer or phone…"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+
+          {/* Stock summary bar */}
+          {stockFilter && (
+            <div className="op-stock-bar">
+              <div className="op-stock-kpi">
+                <div className="op-stock-kpi-label">Products in Stock</div>
+                <div className="op-stock-kpi-value">{stockSummary.productCount}</div>
+              </div>
+              <div className="op-stock-kpi">
+                <div className="op-stock-kpi-label">Units in Stock</div>
+                <div className="op-stock-kpi-value">{stockSummary.totalStock}</div>
+              </div>
+              <div className="op-stock-kpi">
+                <div className="op-stock-kpi-label">Sellable Value</div>
+                <div className="op-stock-kpi-value">{fmtPrice(stockSummary.sellableValue)} EGP</div>
+              </div>
+            </div>
+          )}
 
           {/* Complete / Cancel bar */}
           {(completeMode || cancelMode) && (
