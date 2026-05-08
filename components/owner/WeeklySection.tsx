@@ -445,7 +445,7 @@ export default function WeeklySection() {
       )}
 
       {/* Order detail modal */}
-      {(selOrderLoad === 'loading' || selOrderLoad === 'done' || selOrderLoad === 'error') && selOrderLoad !== 'idle' && (
+      {(selOrderLoad === 'loading' || selOrderLoad === 'done' || selOrderLoad === 'error') && (
         <div className="wk-detail-overlay" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); }}>
           <div className="wk-detail-modal" onClick={e => e.stopPropagation()}>
             <div className="wk-detail-hdr">
