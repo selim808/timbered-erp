@@ -15,6 +15,7 @@ const PIPELINE = [
 ];
 
 const ADMIN = [
+  { label: 'Phases',   href: '/owner/phases' },
   { label: 'Database', href: '/admin/database' },
 ];
 
