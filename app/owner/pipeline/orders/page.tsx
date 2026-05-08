@@ -366,6 +366,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
   onPhaseChange: (orderId: number, liId: number, phase: string) => void;
 }) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [chartDrill, setChartDrill] = useState<string | null>(null);
 
   const allItems = useMemo(() =>
     orders.flatMap(o => o.lineItems.map((li, idx) => ({
@@ -392,13 +393,35 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
 
   const fmtK = (v: number) => v >= 1000 ? `${Math.round(v / 1000)}K` : String(Math.round(v));
 
+  const drilledGroup = chartDrill ? phaseGroups.find(g => g.id === chartDrill) : null;
+
+  const drillStats = useMemo(() => {
+    if (!drilledGroup) return [];
+    return drilledGroup.phases.map(phase => {
+      const items = allItems.filter(li => li.phase === phase);
+      return {
+        phase,
+        value: items.reduce((s, li) => s + li.total, 0),
+        qty: items.reduce((s, li) => s + li.quantity, 0),
+        orders: new Set(items.map(li => li.orderId)).size,
+      };
+    }).filter(d => d.qty > 0);
+  }, [drilledGroup, allItems]);
+
+  const activeStats = drilledGroup ? drillStats : groupStats;
+  const activeColor = drilledGroup?.color ?? null;
+
   const chartData = {
-    labels: groupStats.map(g => g.label),
+    labels: activeStats.map(d => 'phase' in d ? d.phase : d.label),
     datasets: [{
       label: 'Value',
-      data: groupStats.map(g => g.value),
-      backgroundColor: groupStats.map(g => g.color + 'bb'),
-      borderColor: groupStats.map(g => g.color),
+      data: activeStats.map(d => d.value),
+      backgroundColor: activeColor
+        ? activeStats.map(() => activeColor + 'bb')
+        : (activeStats as typeof groupStats).map(g => g.color + 'bb'),
+      borderColor: activeColor
+        ? activeStats.map(() => activeColor)
+        : (activeStats as typeof groupStats).map(g => g.color),
       borderWidth: 1.5,
       borderRadius: 4,
     }],
@@ -407,6 +430,14 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: (_: unknown, elements: { index: number }[]) => {
+      if (!chartDrill && elements.length > 0) {
+        setChartDrill(groupStats[elements[0].index].id);
+      }
+    },
+    onHover: (_: unknown, elements: { index: number }[], chart: { canvas: HTMLCanvasElement }) => {
+      chart.canvas.style.cursor = !chartDrill && elements.length > 0 ? 'pointer' : 'default';
+    },
     plugins: {
       legend: { display: false },
       datalabels: {
@@ -419,8 +450,8 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
       tooltip: {
         callbacks: {
           label: (ctx: TooltipItem<'bar'>) => {
-            const g = groupStats[ctx.dataIndex];
-            return [`Value: ${fmtPrice(g.value)} EGP`, `Items: ${g.qty}`, `Orders: ${g.orders}`];
+            const d = activeStats[ctx.dataIndex];
+            return [`Value: ${fmtPrice(d.value)} EGP`, `Items: ${d.qty}`, `Orders: ${d.orders}`];
           },
         },
       },
@@ -448,7 +479,14 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #e8ddd4', borderRadius: 8, padding: '12px 8px 8px', height: 300, marginBottom: 10, position: 'relative' }}>
+      <div style={{ background: '#fff', border: `1px solid ${drilledGroup ? drilledGroup.color + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 300, marginBottom: 10, position: 'relative' }}>
+        {drilledGroup && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <button onClick={() => setChartDrill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#7A4610', fontWeight: 700, padding: '0 4px' }}>← All Groups</button>
+            <span style={{ fontSize: 11, color: '#aaa' }}>›</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: drilledGroup.color }}>{drilledGroup.label}</span>
+          </div>
+        )}
         <Bar data={chartData} options={chartOptions} />
       </div>
 
