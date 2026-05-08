@@ -1000,7 +1000,6 @@ export default function OrdersPipelinePage() {
                 </button>
               ))}
               <button className="op-sort-btn" onClick={() => setSortAsc(s => !s)}>{sortAsc ? '↑' : '↓'}</button>
-              <button className={`op-filter-btn stock${stockFilter ? ' active' : ''}`} onClick={() => setStockFilter(f => !f)}>📦 In Stock</button>
               {groupBy === 'product' && (
                 <>
                   <button className={`op-prod-sort-btn${prodSort === 'qty' ? ' active' : ''}`} onClick={() => setProdSort('qty')}>Qty</button>
@@ -1013,6 +1012,10 @@ export default function OrdersPipelinePage() {
                   <button className={`op-action-btn op-cancel-btn`} onClick={() => { setCancelMode(m => !m); setCompleteMode(false); setSelectedOrders(new Set()); }}>✕ Cancel</button>
                 </>
               )}
+            </div>
+
+            <div className="op-tb-group" style={{ flexBasis: '100%' }}>
+              <button className={`op-filter-btn stock${stockFilter ? ' active' : ''}`} onClick={() => setStockFilter(f => !f)}>📦 In Stock</button>
             </div>
 
             <input type="search" className="op-search" placeholder="Search item, order #, customer or phone…"
