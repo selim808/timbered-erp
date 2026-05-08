@@ -760,7 +760,7 @@ export default function OrdersPipelinePage() {
     if (noteFilter) list = list.filter(o => o.customerNote);
     if (stockFilter) list = list.filter(o => o.lineItems.some(li => li.stock > 0));
     if (hideNoResp) list = list.filter(o => o.lineItems.some(li => !/no.?response/i.test(li.phase)));
-    if (hidePartial) list = list.filter(o => o.lineItems.some(li => !/delivered.?partial/i.test(li.phase)));
+    if (hidePartial) list = list.filter(o => o.lineItems.every(li => !/partial/i.test(li.phase)));
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(o =>
