@@ -367,7 +367,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
 }) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [chartDrill, setChartDrill] = useState<string | null>(null);
-  const [showAllPhases, setShowAllPhases] = useState(false);
+  const [showAllPhases, setShowAllPhases] = useState(true);
 
   const allItems = useMemo(() =>
     orders.flatMap(o => o.lineItems.map((li, idx) => ({
