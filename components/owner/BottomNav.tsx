@@ -15,8 +15,9 @@ const PIPELINE = [
 ];
 
 const ADMIN = [
-  { label: 'Phases',   href: '/owner/phases' },
-  { label: 'Database', href: '/admin/database' },
+  { label: 'Production', href: '/owner/production' },
+  { label: 'Phases',     href: '/owner/phases' },
+  { label: 'Database',   href: '/admin/database' },
 ];
 
 export default function BottomNav() {
