@@ -207,6 +207,7 @@ export default function PlanningPage() {
         .pl-bulk-apply:disabled { background:#ccc; cursor:default; }
         .pl-item-check { width:16px; height:16px; accent-color:#7A4610; flex-shrink:0; cursor:pointer; }
         .pl-item.selected { background:#fef3e2; }
+        .pl-create-jo { font-size:11px; font-weight:700; padding:4px 14px; border-radius:8px; border:1.5px solid #1a7a3c; background:#1a7a3c; color:#fff; cursor:pointer; white-space:nowrap; margin-left:auto; }
 
         /* ── toast ── */
         .pl-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; font-size:12px; font-weight:600; padding:8px 18px; border-radius:20px; z-index:500; pointer-events:none; white-space:nowrap; }
@@ -259,6 +260,9 @@ export default function PlanningPage() {
               Apply ({selectedItems.size})
             </button>
           </>
+        )}
+        {/jo/i.test(activePhase) && (
+          <button className="pl-create-jo">+ Create JO</button>
         )}
       </div>
 
