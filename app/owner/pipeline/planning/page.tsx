@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 
 interface PhaseGroup {
@@ -38,6 +39,7 @@ function PhaseSelect({ groups, value, onChange }: {
 }
 
 export default function PlanningPage() {
+  const router = useRouter();
   const [orders, setOrders]         = useState<PipelineOrder[]>([]);
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -262,7 +264,7 @@ export default function PlanningPage() {
           </>
         )}
         {/jo/i.test(activePhase) && (
-          <button className="pl-create-jo">+ Create JO</button>
+          <button className="pl-create-jo" onClick={() => router.push('/owner/pipeline/job-orders')}>+ Create JO</button>
         )}
       </div>
 
