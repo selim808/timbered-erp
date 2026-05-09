@@ -27,6 +27,7 @@ interface MtsOnlyItem {
   name: string;
   image: string;
   qty: number;
+  price: number;
 }
 
 interface SearchProduct {
@@ -34,6 +35,7 @@ interface SearchProduct {
   name: string;
   image: string;
   material: string;
+  price: number;
 }
 
 interface StoredJOItem {
@@ -141,7 +143,7 @@ export default function JobOrdersPage() {
     const map = new Map<number, JoProduct>();
     orders.forEach(order => {
       order.lineItems
-        .filter(li => li.phase === 'JO Preparation')
+        .filter(li => li.phase === 'JO preparation')
         .forEach(li => {
           if (excludedPids.has(li.productId)) return;
           if (excludedOrdersByPid[li.productId]?.has(order.id)) return;
@@ -173,7 +175,11 @@ export default function JobOrdersPage() {
       joValue += (p.mtoQty + mtsQty) * p.price;
       mtsValue += mtsQty * p.price;
     });
-    mtsOnly.forEach(p => { units += p.qty; });
+    mtsOnly.forEach(p => {
+      units    += p.qty;
+      joValue  += p.qty * p.price;
+      mtsValue += p.qty * p.price;
+    });
     const mtsPct = joValue > 0 ? Math.round((mtsValue / joValue) * 100) : 0;
     return { products: joProducts.length + mtsOnly.length, units, joValue, mtsValue, mtsPct };
   }, [joProducts, mtsOnly, mtsQtyMap]);
@@ -219,7 +225,7 @@ export default function JobOrdersPage() {
   function addMtsProduct(prod: SearchProduct) {
     if (mtsOnly.find(p => p.productId === prod.id)) return;
     if (joProducts.find(p => p.productId === prod.id)) return;
-    setMtsOnly(prev => [...prev, { productId: prod.id, name: prod.name, image: prod.image, qty: 1 }]);
+    setMtsOnly(prev => [...prev, { productId: prod.id, name: prod.name, image: prod.image, qty: 1, price: prod.price }]);
     setProductQuery('');
   }
 
@@ -499,7 +505,7 @@ export default function JobOrdersPage() {
           ) : (
             <div className="jo-wrap">
               {joProducts.length === 0 && mtsOnly.length === 0 && (
-                <p className="jo-loading-hint">No items in JO Preparation phase. Items move here when their phase is set to "JO Preparation" in the planning view.</p>
+                <p className="jo-loading-hint">No items in JO preparation phase. Items move here when their phase is set to "JO preparation" in the planning view.</p>
               )}
 
               {/* MTO product cards */}

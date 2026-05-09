@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
+import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import PipelineOrderList, { PhaseGroup, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
-import type { OrderSheetRow } from '@/components/shared/OrderDetailSheet';
+import ProductPopup from '@/components/shared/ProductPopup';
 
 export default function PlanningPage() {
   const router = useRouter();
@@ -18,6 +18,7 @@ export default function PlanningPage() {
   const [bulkPhase, setBulkPhase]     = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
+  const [productPopup, setProductPopup] = useState<PipelineLineItem | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -117,10 +118,6 @@ export default function PlanningPage() {
   const phaseItemsCount = phaseCounts.get(activePhase) ?? 0;
 
   const detailOrder = detailOrderId != null ? (orders.find(o => o.id === detailOrderId) ?? null) : null;
-  const detailRows = useMemo<OrderSheetRow[]>(() =>
-    detailOrder ? detailOrder.lineItems.map(item => ({ o: detailOrder, item })) : [],
-    [detailOrder]
-  );
 
   return (
     <>
@@ -196,7 +193,7 @@ export default function PlanningPage() {
             </button>
           </>
         )}
-        {/jo/i.test(activePhase) && (
+        {activePhase === 'JO preparation' && (
           <button className="pl-create-jo" onClick={() => router.push('/owner/pipeline/job-orders')}>+ Create JO</button>
         )}
       </div>
@@ -211,7 +208,6 @@ export default function PlanningPage() {
             orders={phaseOrders}
             groups={phaseGroups}
             filterLineItems={(_, li) => li.phase === activePhase}
-            defaultOpen
             accentColor={activeColor}
             bulkMode={bulkMode}
             selectedItems={selectedItems}
@@ -219,16 +215,16 @@ export default function PlanningPage() {
             onToggleGroup={toggleGroup}
             onPhaseChange={handlePhaseChange}
             onOpenDetail={o => setDetailOrderId(o.id)}
+            onImageClick={li => setProductPopup(li)}
           />
         </div>
       )}
 
       {detailOrder && (
-        <OrderDetailSheet
-          title={`#${detailOrder.number} · ${detailOrder.customerName}`}
-          rows={detailRows}
-          onClose={() => setDetailOrderId(null)}
-        />
+        <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrderId(null)} />
+      )}
+      {productPopup && (
+        <ProductPopup li={productPopup} orders={orders} onClose={() => setProductPopup(null)} />
       )}
 
       {toast && <div className="pl-toast">{toast}</div>}

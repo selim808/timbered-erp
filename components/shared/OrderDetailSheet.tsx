@@ -9,21 +9,28 @@ export interface OrderSheetRow {
 }
 
 interface Props {
-  title: string;
-  rows: OrderSheetRow[];
+  title?: string;
+  rows?: OrderSheetRow[];
+  order?: PipelineOrder;   // direct single-order mode — skips the list
   onClose: () => void;
-  onBack?: () => void; // called when back is pressed from the list level
+  onBack?: () => void;
 }
 
 function fmtPrice(n: number) {
   return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
 }
 
-export default function OrderDetailSheet({ title, rows, onClose, onBack }: Props) {
+export default function OrderDetailSheet({ title, rows, order, onClose, onBack }: Props) {
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
-  const detailOrder = detailOrderId != null
-    ? (rows.find(r => r.o.id === detailOrderId)?.o ?? null)
-    : null;
+
+  const isDirectMode = !!order;
+  const detailOrder: PipelineOrder | null =
+    order ?? (detailOrderId != null ? (rows?.find(r => r.o.id === detailOrderId)?.o ?? null) : null);
+
+  const showBack = isDirectMode ? !!onBack : !!(detailOrder || onBack);
+  const handleBack = isDirectMode
+    ? () => onBack?.()
+    : () => (detailOrder ? setDetailOrderId(null) : onBack?.());
 
   return (
     <>
@@ -62,12 +69,9 @@ export default function OrderDetailSheet({ title, rows, onClose, onBack }: Props
       <div className="od-overlay" onClick={onClose}>
         <div className="od-box" onClick={e => e.stopPropagation()}>
           <div className="od-header">
-            {(detailOrder || onBack) && (
-              <button className="od-back"
-                onClick={() => detailOrder ? setDetailOrderId(null) : onBack?.()}>←</button>
-            )}
+            {showBack && <button className="od-back" onClick={handleBack}>←</button>}
             <span className="od-title">
-              {detailOrder ? `#${detailOrder.number} · ${detailOrder.customerName}` : title}
+              {detailOrder ? `#${detailOrder.number} · ${detailOrder.customerName}` : (title ?? '')}
             </span>
             <button className="od-close" onClick={onClose}>✕</button>
           </div>
@@ -124,9 +128,9 @@ export default function OrderDetailSheet({ title, rows, onClose, onBack }: Props
             </div>
           ) : (
             <div className="od-body">
-              {rows.length === 0
+              {(rows ?? []).length === 0
                 ? <div className="od-empty">No orders found</div>
-                : rows.map(({ o, item }) => (
+                : (rows ?? []).map(({ o, item }) => (
                     <div key={o.id} className="od-order-row" onClick={() => setDetailOrderId(o.id)}>
                       <span className="od-order-num">#{o.number}</span>
                       <span className="od-order-name">{o.customerName}</span>

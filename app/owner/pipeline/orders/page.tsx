@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import PipelineOrderList, { PhaseGroup, fmtPrice, waPhone, daysBadgeClass, PhaseSelect } from '@/components/shared/PipelineOrderCard';
+import ProductPopup from '@/components/shared/ProductPopup';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -357,130 +358,6 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
   );
 }
 
-// ── Product Popup ──────────────────────────────────────────────────────────
-function ProductPopup({ li, orders, onClose }: {
-  li: PipelineLineItem; orders: PipelineOrder[]; onClose: () => void;
-}) {
-  const [details, setDetails] = useState<{ dim: string; material: string; imageUrl: string } | null>(null);
-  const [showOrders, setShowOrders] = useState(false);
-
-  useEffect(() => {
-    fetch(`/api/pipeline/product/${li.productId}`)
-      .then(r => r.json())
-      .then(d => setDetails(d))
-      .catch(() => setDetails({ dim: '', material: '', imageUrl: '' }));
-  }, [li.productId]);
-
-  const ordersWithProduct = useMemo(() =>
-    orders.flatMap(o => {
-      const item = o.lineItems.find(i => i.productId === li.productId);
-      return item ? [{ o, item }] : [];
-    }),
-    [orders, li.productId]
-  );
-
-  const imgSrc = details?.imageUrl || li.imageUrl;
-
-  if (showOrders) {
-    return (
-      <OrderDetailSheet
-        title={`Orders · ${li.name}`}
-        rows={ordersWithProduct}
-        onClose={onClose}
-        onBack={() => setShowOrders(false)}
-      />
-    );
-  }
-
-  return (
-    <div className="op-od-overlay open" onClick={onClose}>
-      <div className="op-od-box" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
-        <div className="op-od-header">
-          <span className="op-od-id" style={{ flex: 1 }}>{li.name}</span>
-          <button className="op-od-close" onClick={onClose}>✕</button>
-        </div>
-        {imgSrc && (
-          <img src={imgSrc} alt={li.name}
-            style={{ width: '100%', maxHeight: 260, objectFit: 'contain', background: '#f8f4f0', borderBottom: '1px solid #f0e8e0', display: 'block' }} />
-        )}
-        <div className="op-od-section">
-          {details === null
-            ? <div style={{ fontSize: 12, color: '#aaa' }}>Loading…</div>
-            : <>
-                {details.dim      && <div className="op-od-val" style={{ marginBottom: 4 }}>📐 {details.dim} cm</div>}
-                {details.material && <div className="op-od-val" style={{ marginBottom: 4 }}>🪵 {details.material}</div>}
-              </>
-          }
-          <div className="op-od-val" style={{ marginTop: 8 }}>📦 <strong>{li.stock}</strong> in stock</div>
-          <div className="op-od-val" style={{ marginTop: 4, cursor: 'pointer', color: '#e67e22' }}
-            onClick={() => setShowOrders(true)}>
-            🛒 <strong>{li.orderedQty}</strong> ordered
-            <span style={{ fontSize: 11, marginLeft: 6, textDecoration: 'underline' }}>view orders →</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Order Detail Modal ─────────────────────────────────────────────────────
-function OrderDetailModal({ order, onClose }: { order: PipelineOrder; onClose: () => void }) {
-  return (
-    <div className="op-od-overlay open" onClick={onClose}>
-      <div className="op-od-box" onClick={e => e.stopPropagation()}>
-        <div className="op-od-header">
-          <span className="op-od-id">#{order.number}</span>
-          <span className="op-od-date">{fmtDate(order.dateCreated)}</span>
-          <button className="op-od-close" onClick={onClose}>✕</button>
-        </div>
-        <div className="op-od-section">
-          <div className="op-od-label">Customer</div>
-          <div className="op-od-val">{order.customerName}</div>
-          {order.customerPhone && (
-            <>
-              <div className="op-od-val">{order.customerPhone}</div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                <a style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 12px', textDecoration: 'none', background: '#25D366', color: '#fff' }}
-                  href={`https://wa.me/${order.customerPhone.replace(/\D/g, '')}`}
-                  target="_blank" rel="noreferrer">WA</a>
-                <a style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 12px', textDecoration: 'none', background: '#f0e8e0', color: '#7A4610' }}
-                  href={`tel:${order.customerPhone.replace(/\D/g, '')}`}>Call</a>
-              </div>
-            </>
-          )}
-          {order.customerAddress && (
-            <div className="op-od-val">{[order.customerAddress, order.customerAddress2, order.customerState].filter(Boolean).join(', ')}</div>
-          )}
-        </div>
-        {order.customerNote && (
-          <div className="op-od-section">
-            <div className="op-od-label">Note</div>
-            <div className="op-od-val">{order.customerNote}</div>
-          </div>
-        )}
-        <div className="op-od-section">
-          <div className="op-od-label">Items</div>
-          <table className="op-od-table">
-            <thead><tr><th>Item</th><th>Qty</th><th>Total</th><th>Phase</th></tr></thead>
-            <tbody>
-              {order.lineItems.map(li => (
-                <tr key={li.id}>
-                  <td>{li.name}</td>
-                  <td>×{li.quantity}</td>
-                  <td>{fmtPrice(li.total)}</td>
-                  <td style={{ color: '#aaa', fontSize: 11 }}>{li.phase || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="op-od-total">
-          <span>Total</span><span>{fmtPrice(order.total)} EGP</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function OrdersPipelinePage() {
@@ -917,7 +794,7 @@ export default function OrdersPipelinePage() {
         </>
       )}
 
-      {detailOrder && <OrderDetailModal order={detailOrder} onClose={() => setDetailOrderId(null)} />}
+      {detailOrder && <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrderId(null)} />}
       {productPopup && <ProductPopup li={productPopup} orders={orders} onClose={() => setProductPopup(null)} />}
       {toast && <div className="op-toast">{toast}</div>}
     </>

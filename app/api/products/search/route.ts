@@ -47,6 +47,7 @@ export async function GET(req: Request) {
       name: p.name,
       image: p.images?.[0]?.src ?? '',
       material: extractMaterial(p),
+      price: parseFloat(p.price ?? p.regular_price ?? '0') || 0,
     }));
 
     return NextResponse.json(results);
