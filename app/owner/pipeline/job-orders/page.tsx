@@ -320,9 +320,14 @@ export default function JobOrdersPage() {
         .jo-badge { font-size:10px; background:#f0e8e0; color:#888; border-radius:10px; padding:1px 6px; margin-left:4px; }
         .jo-nav-btn.active .jo-badge { background:#7A4610; color:#fff; }
 
-        .jo-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; position:sticky; top:98px; z-index:50; }
+        .jo-toolbar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; position:sticky; top:98px; z-index:50; }
         .jo-chip { font-size:10px; color:#666; background:#f5f0eb; border:1px solid #e8ddd4; border-radius:7px; padding:3px 7px; white-space:nowrap; }
         .jo-chip strong { color:#333; font-weight:800; }
+        .jo-chip.jo-val { background:#fef3e2; border-color:#f0d8c0; color:#7A4610; }
+        .jo-chip.jo-val strong { color:#7A4610; }
+        .jo-chip.mts-val { background:#e8f5ee; border-color:#b7dfc8; color:#1a7a3c; }
+        .jo-chip.mts-val strong { color:#1a7a3c; }
+        .jo-toolbar-sep { width:1px; height:16px; background:#e8ddd4; flex-shrink:0; }
 
         .jo-wrap { padding:8px; padding-bottom:90px; }
         .jo-empty { text-align:center; color:#aaa; padding:60px 20px; font-size:14px; }
@@ -485,10 +490,20 @@ export default function JobOrdersPage() {
 
       {activeTab === 'new' && (
         <>
-          {/* Summary toolbar */}
+          {/* Summary toolbar — live values update as MTS qty changes */}
           <div className="jo-toolbar">
             <span className="jo-chip">Products <strong>{summary.products}</strong></span>
             <span className="jo-chip">Units <strong>{summary.units}</strong></span>
+            {summary.joValue > 0 && (
+              <>
+                <span className="jo-toolbar-sep" />
+                <span className="jo-chip jo-val">JO <strong>{fmtVal(summary.joValue)} EGP</strong></span>
+                <span className="jo-chip mts-val">
+                  MTS <strong>{fmtVal(summary.mtsValue)} EGP</strong>
+                  {' '}({summary.mtsPct}%)
+                </span>
+              </>
+            )}
           </div>
 
           {loadingOrders ? (
@@ -620,17 +635,7 @@ export default function JobOrdersPage() {
 
           {/* Fixed submit bar */}
           <div className="jo-submit-bar">
-            <div className="jo-submit-left">
-              <div className="jo-submit-summary">{summary.products} products · {summary.units} units</div>
-              {summary.joValue > 0 && (
-                <div className="jo-submit-vals">
-                  JO <strong>{fmtVal(summary.joValue)} EGP</strong>
-                  {' · '}MTS <strong>{fmtVal(summary.mtsValue)} EGP</strong>
-                  {' '}
-                  <span className="mts-pct">({summary.mtsPct}%)</span>
-                </div>
-              )}
-            </div>
+            <span className="jo-submit-summary">{summary.products} products · {summary.units} units</span>
             <button className="jo-submit-btn" disabled={summary.products === 0 || submitting} onClick={submitJO}>
               {submitting ? 'Submitting…' : 'Submit JO'}
             </button>
