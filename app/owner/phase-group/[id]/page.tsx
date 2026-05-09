@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import PipelineOrderList, { PhaseGroup, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
+import ProductPopup from '@/components/shared/ProductPopup';
 
 export default function PhaseGroupPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,7 +15,8 @@ export default function PhaseGroupPage() {
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
-  const [detailOrder, setDetailOrder] = useState<PipelineOrder | null>(null);
+  const [detailOrder, setDetailOrder]   = useState<PipelineOrder | null>(null);
+  const [productPopup, setProductPopup] = useState<PipelineLineItem | null>(null);
   const [bulkMode, setBulkMode]       = useState(false);
   const [bulkPhase, setBulkPhase]     = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -233,12 +235,16 @@ export default function PhaseGroupPage() {
             onToggleGroup={toggleGroup}
             onPhaseChange={handlePhaseChange}
             onOpenDetail={o => setDetailOrder(o)}
+            onImageClick={li => setProductPopup(li)}
           />
         )}
       </div>
 
       {detailOrder && (
         <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrder(null)} />
+      )}
+      {productPopup && (
+        <ProductPopup li={productPopup} orders={orders} onClose={() => setProductPopup(null)} />
       )}
 
       {toast && <div className="pg-toast">{toast}</div>}
