@@ -53,7 +53,8 @@ export default function PlanningPage() {
       if (Array.isArray(ords)) setOrders(ords);
       if (Array.isArray(grps)) {
         setPhaseGroups(grps);
-        if (grps[0]?.phases[0]) setActivePhase(grps[0].phases[0]);
+        const pg = grps.find((g: PhaseGroup) => g.id === 'planning' || g.label.toLowerCase() === 'planning');
+        if (pg?.phases[0]) setActivePhase(pg.phases[0]);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -82,6 +83,11 @@ export default function PlanningPage() {
       showToast('Failed to save phase change');
     }
   }
+
+  const planningGroup = useMemo(() =>
+    phaseGroups.find(g => g.id === 'planning' || g.label.toLowerCase() === 'planning'),
+    [phaseGroups]
+  );
 
   // item count per phase for tab badges
   const phaseCounts = useMemo(() => {
@@ -165,23 +171,20 @@ export default function PlanningPage() {
 
       {/* Phase tabs */}
       <div className="pl-tabs">
-        {phaseGroups.flatMap((g, gi) => [
-          gi > 0 ? <div key={`sep-${g.id}`} className="pl-tab-sep" /> : null,
-          ...g.phases.map(p => (
-            <button
-              key={p}
-              className={`pl-tab${activePhase === p ? ' active' : ''}`}
-              style={{ '--pl-color': g.color } as React.CSSProperties}
-              onClick={() => setActivePhase(p)}
-            >
-              {p}
-              <span className="pl-tab-count"
-                style={activePhase === p ? { background: g.color } : {}}>
-                {phaseCounts.get(p) ?? 0}
-              </span>
-            </button>
-          )),
-        ])}
+        {(planningGroup?.phases ?? []).map(p => (
+          <button
+            key={p}
+            className={`pl-tab${activePhase === p ? ' active' : ''}`}
+            style={{ '--pl-color': planningGroup!.color } as React.CSSProperties}
+            onClick={() => setActivePhase(p)}
+          >
+            {p}
+            <span className="pl-tab-count"
+              style={activePhase === p ? { background: planningGroup!.color } : {}}>
+              {phaseCounts.get(p) ?? 0}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Summary */}
