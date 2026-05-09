@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
-import PipelineOrderList, { PhaseGroup, fmtPrice, waPhone, daysBadgeClass, PhaseSelect } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PhaseGroup, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
 import { Bar } from 'react-chartjs-2';
 import {

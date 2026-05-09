@@ -47,7 +47,7 @@ export function PhaseSelect({ groups, value, onChange }: {
 
 // ── Internal sub-components ────────────────────────────────────────────────
 
-function GroupCheckbox({ keys, selectedItems, onToggleGroup }: {
+export function GroupCheckbox({ keys, selectedItems, onToggleGroup }: {
   keys: string[]; selectedItems: Set<string>; onToggleGroup: (keys: string[]) => void;
 }) {
   const allSel = keys.length > 0 && keys.every(k => selectedItems.has(k));
