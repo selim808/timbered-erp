@@ -43,6 +43,9 @@ export default function PlanningPage() {
   const [loading, setLoading]       = useState(true);
   const [activePhase, setActivePhase] = useState('');
   const [toast, setToast]           = useState('');
+  const [bulkMode, setBulkMode]     = useState(false);
+  const [bulkPhase, setBulkPhase]   = useState('');
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -64,6 +67,31 @@ export default function PlanningPage() {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
+  }
+
+  function toggleItem(key: string) {
+    setSelectedItems(s => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  }
+
+  function toggleGroup(keys: string[]) {
+    setSelectedItems(s => {
+      const allSel = keys.every(k => s.has(k));
+      const n = new Set(s);
+      if (allSel) keys.forEach(k => n.delete(k));
+      else keys.forEach(k => n.add(k));
+      return n;
+    });
+  }
+
+  async function handleBulkApply() {
+    if (!bulkPhase || selectedItems.size === 0) return;
+    const updates = Array.from(selectedItems).map(key => {
+      const [orderId, liId] = key.split('-').map(Number);
+      return { orderId, liId };
+    });
+    for (const { orderId, liId } of updates) await handlePhaseChange(orderId, liId, bulkPhase);
+    setSelectedItems(new Set());
+    showToast(`Applied "${bulkPhase}" to ${updates.length} items`);
   }
 
   async function handlePhaseChange(orderId: number, liId: number, phase: string) {
@@ -165,6 +193,21 @@ export default function PlanningPage() {
         .pl-item-price { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; white-space:nowrap; }
         .pl-phase-sel { font-size:11px; border:1px solid #e8ddd4; border-radius:6px; padding:2px 4px; color:#555; flex-shrink:0; max-width:130px; }
 
+        /* ── bulk ── */
+        .pl-bulk-bar { display:flex; align-items:center; gap:7px; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; flex-wrap:wrap; }
+        .pl-bulk-label { font-size:10px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:.4px; }
+        .pl-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
+        .pl-toggle input { opacity:0; width:0; height:0; }
+        .pl-toggle-slider { position:absolute; inset:0; background:#ddd; border-radius:20px; cursor:pointer; transition:background .2s; }
+        .pl-toggle input:checked + .pl-toggle-slider { background:#7A4610; }
+        .pl-toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .2s; }
+        .pl-toggle input:checked + .pl-toggle-slider:before { transform:translateX(16px); }
+        .pl-bulk-sel { font-size:11px; border:1.5px solid #e8ddd4; border-radius:8px; padding:3px 4px; color:#555; max-width:130px; }
+        .pl-bulk-apply { font-size:11px; font-weight:700; background:#7A4610; color:#fff; border:none; border-radius:8px; padding:4px 10px; cursor:pointer; white-space:nowrap; }
+        .pl-bulk-apply:disabled { background:#ccc; cursor:default; }
+        .pl-item-check { width:16px; height:16px; accent-color:#7A4610; flex-shrink:0; cursor:pointer; }
+        .pl-item.selected { background:#fef3e2; }
+
         /* ── toast ── */
         .pl-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; font-size:12px; font-weight:600; padding:8px 18px; border-radius:20px; z-index:500; pointer-events:none; white-space:nowrap; }
       `}</style>
@@ -195,6 +238,30 @@ export default function PlanningPage() {
         </div>
       )}
 
+      {/* Bulk toolbar */}
+      <div className="pl-bulk-bar">
+        <span className="pl-bulk-label">Bulk</span>
+        <label className="pl-toggle">
+          <input type="checkbox" checked={bulkMode} onChange={e => { setBulkMode(e.target.checked); if (!e.target.checked) setSelectedItems(new Set()); }} />
+          <span className="pl-toggle-slider" />
+        </label>
+        {bulkMode && (
+          <>
+            <select className="pl-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
+              <option value="">— phase —</option>
+              {phaseGroups.map(g => (
+                <optgroup key={g.id} label={g.label}>
+                  {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            <button className="pl-bulk-apply" disabled={!bulkPhase || selectedItems.size === 0} onClick={handleBulkApply}>
+              Apply ({selectedItems.size})
+            </button>
+          </>
+        )}
+      </div>
+
       {/* Content */}
       {loading ? (
         <div className="pl-empty">Loading…</div>
@@ -204,28 +271,44 @@ export default function PlanningPage() {
         <div className="pl-content">
           {phaseOrders.map(o => {
             const items = o.lineItems.filter(li => li.phase === activePhase);
+            const groupKeys = items.map(li => `${o.id}-${li.id}`);
+            const allGroupSel = groupKeys.length > 0 && groupKeys.every(k => selectedItems.has(k));
+            const someGroupSel = groupKeys.some(k => selectedItems.has(k));
             return (
               <div key={o.id} className="pl-card">
                 <div className="pl-card-head" style={{ borderLeftColor: activeColor }}>
+                  {bulkMode && (
+                    <input type="checkbox" className="pl-item-check" checked={allGroupSel}
+                      ref={el => { if (el) el.indeterminate = someGroupSel && !allGroupSel; }}
+                      onChange={() => toggleGroup(groupKeys)} onClick={e => e.stopPropagation()} />
+                  )}
                   <span className={daysBadge(o.daysOpen)}>{o.daysOpen}d</span>
                   <span className="pl-card-num">#{o.number}</span>
                   <span className="pl-card-name">{o.customerName}</span>
                   <span className="pl-card-total">{fmtPrice(o.total)} EGP</span>
                 </div>
-                {items.map(li => (
-                  <div key={li.id} className="pl-item">
-                    {li.imageUrl
-                      ? <img src={li.imageUrl} alt="" className="pl-thumb" />
-                      : <div className="pl-thumb-ph" />
-                    }
-                    <span className="pl-item-name">{li.name}</span>
-                    <span className="pl-item-qty">×{li.quantity}</span>
-                    <span className="pl-item-stock">📦{li.stock}</span>
-                    <span className="pl-item-price">{fmtPrice(li.total)}</span>
-                    <PhaseSelect groups={phaseGroups} value={li.phase}
-                      onChange={v => handlePhaseChange(o.id, li.id, v)} />
-                  </div>
-                ))}
+                {items.map(li => {
+                  const key = `${o.id}-${li.id}`;
+                  return (
+                    <div key={li.id} className={`pl-item${selectedItems.has(key) ? ' selected' : ''}`}
+                      onClick={bulkMode ? () => toggleItem(key) : undefined}>
+                      {bulkMode && (
+                        <input type="checkbox" className="pl-item-check" checked={selectedItems.has(key)}
+                          onChange={() => toggleItem(key)} onClick={e => e.stopPropagation()} />
+                      )}
+                      {li.imageUrl
+                        ? <img src={li.imageUrl} alt="" className="pl-thumb" />
+                        : <div className="pl-thumb-ph" />
+                      }
+                      <span className="pl-item-name">{li.name}</span>
+                      <span className="pl-item-qty">×{li.quantity}</span>
+                      <span className="pl-item-stock">📦{li.stock}</span>
+                      <span className="pl-item-price">{fmtPrice(li.total)}</span>
+                      <PhaseSelect groups={phaseGroups} value={li.phase}
+                        onChange={v => handlePhaseChange(o.id, li.id, v)} />
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
