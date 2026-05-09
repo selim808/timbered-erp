@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
+import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
+import PipelineOrderList, { PhaseGroup, fmtPrice, waPhone, daysBadgeClass, PhaseSelect } from '@/components/shared/PipelineOrderCard';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -16,216 +18,11 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTooltip, ChartLegend, ChartDataLabels);
 
-const ImageClickCtx = createContext<((li: PipelineLineItem) => void) | null>(null);
-
-interface PhaseGroup {
-  id: string;
-  label: string;
-  color: string;
-  sort_order: number;
-  phases: string[];
-}
-
 type Tab = 'orders' | 'wip';
 type GroupBy = 'order' | 'phase' | 'product';
 
-function daysBadgeClass(days: number) {
-  if (days >= 15) return 'op-badge urgent';
-  if (days >= 8)  return 'op-badge warn';
-  return 'op-badge';
-}
-
-function fmtPrice(n: number) {
-  return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
-}
-
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-function waPhone(raw: string) {
-  let p = raw.replace(/[^0-9]/g, '');
-  if (p.startsWith('0')) p = '20' + p.slice(1);
-  return p;
-}
-
-// ── Phase Selector ─────────────────────────────────────────────────────────
-function PhaseSelect({ groups, value, onChange }: {
-  groups: PhaseGroup[]; value: string; onChange: (v: string) => void;
-}) {
-  return (
-    <select
-      className="op-phase-sel"
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      onClick={e => e.stopPropagation()}
-    >
-      <option value="">— phase —</option>
-      {groups.map(g => (
-        <optgroup key={g.id} label={g.label}>
-          {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
-        </optgroup>
-      ))}
-    </select>
-  );
-}
-
-// ── Group Checkbox (handles indeterminate) ─────────────────────────────────
-function GroupCheckbox({ keys, selectedItems, onToggleGroup }: {
-  keys: string[]; selectedItems: Set<string>; onToggleGroup: (keys: string[]) => void;
-}) {
-  const allSel = keys.length > 0 && keys.every(k => selectedItems.has(k));
-  const someSel = keys.some(k => selectedItems.has(k));
-  return (
-    <input type="checkbox" className="op-item-check" checked={allSel}
-      ref={el => { if (el) el.indeterminate = someSel && !allSel; }}
-      onChange={() => onToggleGroup(keys)} onClick={e => e.stopPropagation()} />
-  );
-}
-
-// ── Item Row ───────────────────────────────────────────────────────────────
-function ItemRow({ li, orderNum, liIndex, daysOpen, groups, bulkMode, selected, showOrder, onToggle, onPhaseChange }: {
-  li: PipelineLineItem; orderNum: string; liIndex: number; daysOpen: number;
-  groups: PhaseGroup[]; bulkMode: boolean; selected: boolean; showOrder: boolean;
-  onToggle: () => void; onPhaseChange: (v: string) => void;
-}) {
-  const ref = `${orderNum}.${liIndex}`;
-  const onImageClick = useContext(ImageClickCtx);
-  return (
-    <div className={`op-item-row${selected ? ' selected' : ''}`} onClick={bulkMode ? onToggle : undefined}>
-      {bulkMode && (
-        <input type="checkbox" className="op-item-check" checked={selected}
-          onChange={onToggle} onClick={e => e.stopPropagation()} />
-      )}
-      {li.imageUrl
-        ? <img src={li.imageUrl} alt="" className="op-thumb" style={{ cursor: 'pointer' }}
-            onClick={e => { e.stopPropagation(); onImageClick?.(li); }} />
-        : <div className="op-thumb-ph" onClick={e => { e.stopPropagation(); onImageClick?.(li); }} style={{ cursor: 'pointer' }} />
-      }
-      <span className={daysBadgeClass(daysOpen)}>{daysOpen}d</span>
-      <span className="op-item-ref">{ref}</span>
-      <span className="op-item-name">{li.name}</span>
-      <span className="op-item-qty">×{li.quantity}</span>
-      <span className="op-item-stock" title="In stock">📦{li.stock}</span>
-      <span className="op-item-ordered" title="Total ordered">🛒{li.orderedQty}</span>
-      <span className="op-item-price">{fmtPrice(li.total)}</span>
-      <PhaseSelect groups={groups} value={li.phase} onChange={onPhaseChange} />
-    </div>
-  );
-}
-
-// ── Order Card ─────────────────────────────────────────────────────────────
-function OrderCard({ o, groups, bulkMode, selectedItems, completeMode, cancelMode,
-  isSelected, isOpen, onToggleOpen, onToggleItem, onPhaseChange, onToggleOrder, onToggleGroup, onOpenDetail }: {
-  o: PipelineOrder; groups: PhaseGroup[]; bulkMode: boolean;
-  selectedItems: Set<string>; completeMode: boolean; cancelMode: boolean;
-  isSelected: boolean; isOpen: boolean;
-  onToggleOpen: () => void; onToggleItem: (k: string) => void;
-  onPhaseChange: (orderId: number, liId: number, phase: string) => void;
-  onToggleOrder: () => void; onToggleGroup: (keys: string[]) => void; onOpenDetail: () => void;
-}) {
-  const wp = o.customerPhone ? waPhone(o.customerPhone) : '';
-  return (
-    <div className={`op-order-card${isSelected ? ' selected' : ''}`}>
-      {/* Header row */}
-      <div className="op-order-top" onClick={onToggleOpen}>
-        {(completeMode || cancelMode) && (
-          <input type="checkbox" className="op-order-check" checked={isSelected}
-            onChange={onToggleOrder} onClick={e => e.stopPropagation()} />
-        )}
-        {bulkMode && (
-          <GroupCheckbox keys={o.lineItems.map(li => `${o.id}-${li.id}`)}
-            selectedItems={selectedItems} onToggleGroup={onToggleGroup} />
-        )}
-        <span className={daysBadgeClass(o.daysOpen)}>{o.daysOpen}d</span>
-        <span className="op-order-num" onClick={e => { e.stopPropagation(); onOpenDetail(); }}>
-          #{o.number}
-        </span>
-        <span className="op-order-name">{o.customerName}</span>
-        <span className="op-order-total">{fmtPrice(o.total)}</span>
-        {wp && (
-          <>
-            <a href={`https://wa.me/${wp}`} className="op-wa-link" onClick={e => e.stopPropagation()} target="_blank" rel="noreferrer" title="WhatsApp">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-              </svg>
-            </a>
-            <span className="op-phone-num">{o.customerPhone}</span>
-            <a href={`tel:${o.customerPhone}`} className="op-call-link" onClick={e => e.stopPropagation()} title="Call">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7A4610" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.09 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/>
-              </svg>
-            </a>
-          </>
-        )}
-        <span className={`op-chevron${isOpen ? ' open' : ''}`}>▼</span>
-      </div>
-
-      {/* Address row — always visible */}
-      {(o.customerAddress || o.customerAddress2 || o.customerCity || o.customerState) && (
-        <div className="op-addr-row">
-          <span className="op-addr-street">{o.customerAddress}</span>
-          <span className="op-addr-city">{o.customerAddress2}</span>
-          <span className="op-addr-state">{o.customerState}</span>
-        </div>
-      )}
-
-      {/* Customer note — always visible */}
-      {o.customerNote && (
-        <div className="op-order-note">📝 {o.customerNote}</div>
-      )}
-
-      {/* Collapsible items */}
-      <div className={`op-collapsible${isOpen ? ' open' : ''}`}>
-        <div className="op-collapsible-inner">
-          {o.lineItems.map((li, idx) => {
-            const key = `${o.id}-${li.id}`;
-            return (
-              <ItemRow
-                key={li.id} li={li} orderNum={o.number} liIndex={idx + 1}
-                daysOpen={o.daysOpen} groups={groups} bulkMode={bulkMode}
-                selected={selectedItems.has(key)} showOrder={false}
-                onToggle={() => onToggleItem(key)}
-                onPhaseChange={v => onPhaseChange(o.id, li.id, v)}
-              />
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Order View ─────────────────────────────────────────────────────────────
-function OrderView({ orders, groups, bulkMode, selectedItems, completeMode, cancelMode,
-  selectedOrders, onToggleItem, onPhaseChange, onToggleOrder, onToggleGroup, onOpenDetail }: {
-  orders: PipelineOrder[]; groups: PhaseGroup[]; bulkMode: boolean;
-  selectedItems: Set<string>; completeMode: boolean; cancelMode: boolean;
-  selectedOrders: Set<number>;
-  onToggleItem: (k: string) => void;
-  onPhaseChange: (orderId: number, liId: number, phase: string) => void;
-  onToggleOrder: (id: number) => void;
-  onToggleGroup: (keys: string[]) => void;
-  onOpenDetail: (o: PipelineOrder) => void;
-}) {
-  const [open, setOpen] = useState<Set<number>>(new Set());
-  const toggle = (id: number) => setOpen(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  return (
-    <div>
-      {orders.map(o => (
-        <OrderCard key={o.id} o={o} groups={groups} bulkMode={bulkMode}
-          selectedItems={selectedItems} completeMode={completeMode} cancelMode={cancelMode}
-          isSelected={selectedOrders.has(o.id)} isOpen={open.has(o.id)}
-          onToggleOpen={() => toggle(o.id)}
-          onToggleItem={onToggleItem}
-          onPhaseChange={onPhaseChange}
-          onToggleOrder={() => onToggleOrder(o.id)}
-          onToggleGroup={onToggleGroup}
-          onOpenDetail={() => onOpenDetail(o)}
-        />
-      ))}
-    </div>
-  );
 }
 
 // ── Phase View ─────────────────────────────────────────────────────────────
@@ -566,7 +363,6 @@ function ProductPopup({ li, orders, onClose }: {
 }) {
   const [details, setDetails] = useState<{ dim: string; material: string; imageUrl: string } | null>(null);
   const [showOrders, setShowOrders] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<PipelineOrder | null>(null);
 
   useEffect(() => {
     fetch(`/api/pipeline/product/${li.productId}`)
@@ -587,68 +383,12 @@ function ProductPopup({ li, orders, onClose }: {
 
   if (showOrders) {
     return (
-      <div className="op-od-overlay open" onClick={onClose}>
-        <div className="op-od-box" onClick={e => e.stopPropagation()}>
-          <div className="op-od-header">
-            <button className="op-od-close" onClick={() => { selectedOrder ? setSelectedOrder(null) : setShowOrders(false); }}>←</button>
-            <span className="op-od-id" style={{ flex: 1 }}>
-              {selectedOrder ? `#${selectedOrder.number} · ${selectedOrder.customerName}` : `Orders · ${li.name}`}
-            </span>
-            <button className="op-od-close" onClick={onClose}>✕</button>
-          </div>
-
-          {selectedOrder ? (
-            <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-              <div className="op-od-section">
-                <div className="op-od-label">Customer</div>
-                <div className="op-od-val">{selectedOrder.customerName}</div>
-                {selectedOrder.customerPhone && <div className="op-od-val">{selectedOrder.customerPhone}</div>}
-                {selectedOrder.customerAddress && (
-                  <div className="op-od-val">{[selectedOrder.customerAddress, selectedOrder.customerAddress2, selectedOrder.customerState].filter(Boolean).join(', ')}</div>
-                )}
-              </div>
-              {selectedOrder.customerNote && (
-                <div className="op-od-section">
-                  <div className="op-od-label">Note</div>
-                  <div className="op-od-val">{selectedOrder.customerNote}</div>
-                </div>
-              )}
-              <div className="op-od-section">
-                <div className="op-od-label">Items</div>
-                <table className="op-od-table">
-                  <thead><tr><th>Item</th><th>Qty</th><th>Total</th><th>Phase</th></tr></thead>
-                  <tbody>
-                    {selectedOrder.lineItems.map(item => (
-                      <tr key={item.id}>
-                        <td>{item.name}</td>
-                        <td>×{item.quantity}</td>
-                        <td>{fmtPrice(item.total)}</td>
-                        <td style={{ color: '#aaa', fontSize: 11 }}>{item.phase || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="op-od-total">
-                <span>Total</span><span>{fmtPrice(selectedOrder.total)} EGP</span>
-              </div>
-            </div>
-          ) : (
-            <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-              {ordersWithProduct.map(({ o, item }) => (
-                <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderBottom: '1px solid #f0e8e0' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#7A4610', flexShrink: 0, cursor: 'pointer', textDecoration: 'underline' }}
-                    onClick={() => setSelectedOrder(o)}>#{o.number}</span>
-                  <span style={{ fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.customerName}</span>
-                  <span style={{ fontSize: 11, color: '#888', flexShrink: 0 }}>×{item.quantity}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#7A4610', flexShrink: 0 }}>{fmtPrice(item.total)} EGP</span>
-                  <span style={{ fontSize: 10, color: '#aaa', flexShrink: 0 }}>{item.phase}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <OrderDetailSheet
+        title={`Orders · ${li.name}`}
+        rows={ordersWithProduct}
+        onClose={onClose}
+        onBack={() => setShowOrders(false)}
+      />
     );
   }
 
@@ -696,7 +436,18 @@ function OrderDetailModal({ order, onClose }: { order: PipelineOrder; onClose: (
         <div className="op-od-section">
           <div className="op-od-label">Customer</div>
           <div className="op-od-val">{order.customerName}</div>
-          {order.customerPhone && <div className="op-od-val">{order.customerPhone}</div>}
+          {order.customerPhone && (
+            <>
+              <div className="op-od-val">{order.customerPhone}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <a style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 12px', textDecoration: 'none', background: '#25D366', color: '#fff' }}
+                  href={`https://wa.me/${order.customerPhone.replace(/\D/g, '')}`}
+                  target="_blank" rel="noreferrer">WA</a>
+                <a style={{ display: 'inline-flex', alignItems: 'center', fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '4px 12px', textDecoration: 'none', background: '#f0e8e0', color: '#7A4610' }}
+                  href={`tel:${order.customerPhone.replace(/\D/g, '')}`}>Call</a>
+              </div>
+            </>
+          )}
           {order.customerAddress && (
             <div className="op-od-val">{[order.customerAddress, order.customerAddress2, order.customerState].filter(Boolean).join(', ')}</div>
           )}
@@ -752,7 +503,8 @@ export default function OrdersPipelinePage() {
   const [cancelMode, setCancelMode]     = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
   const [prodSort, setProdSort]   = useState<'qty' | 'value'>('qty');
-  const [detailOrder, setDetailOrder] = useState<PipelineOrder | null>(null);
+  const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
+  const detailOrder = detailOrderId != null ? (orders.find(o => o.id === detailOrderId) ?? null) : null;
   const [productPopup, setProductPopup] = useState<PipelineLineItem | null>(null);
   const [toast, setToast]         = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -868,7 +620,6 @@ export default function OrdersPipelinePage() {
   }
 
   return (
-    <ImageClickCtx.Provider value={setProductPopup}>
     <>
       <style>{`
         /* ── layout ── */
@@ -1144,11 +895,12 @@ export default function OrdersPipelinePage() {
           ) : (
             <div className="op-content">
               {groupBy === 'order' && (
-                <OrderView orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
+                <PipelineOrderList orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
                   selectedItems={selectedItems} completeMode={completeMode} cancelMode={cancelMode}
                   selectedOrders={selectedOrders} onToggleItem={toggleItem}
                   onPhaseChange={handlePhaseChange} onToggleOrder={toggleOrder}
-                  onToggleGroup={toggleGroup} onOpenDetail={setDetailOrder} />
+                  onToggleGroup={toggleGroup} onOpenDetail={o => setDetailOrderId(o.id)}
+                  onImageClick={li => setProductPopup(li)} />
               )}
               {groupBy === 'phase' && (
                 <PhaseView orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
@@ -1165,10 +917,9 @@ export default function OrdersPipelinePage() {
         </>
       )}
 
-      {detailOrder && <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />}
+      {detailOrder && <OrderDetailModal order={detailOrder} onClose={() => setDetailOrderId(null)} />}
       {productPopup && <ProductPopup li={productPopup} orders={orders} onClose={() => setProductPopup(null)} />}
       {toast && <div className="op-toast">{toast}</div>}
     </>
-    </ImageClickCtx.Provider>
   );
 }

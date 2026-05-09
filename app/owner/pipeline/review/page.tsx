@@ -1,41 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
-
-interface PhaseGroup {
-  id: string;
-  label: string;
-  color: string;
-  sort_order: number;
-  phases: string[];
-}
-
-function fmtPrice(n: number) {
-  return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
-}
-
-function daysBadge(days: number) {
-  if (days >= 15) return 'pl-badge urgent';
-  if (days >= 8)  return 'pl-badge warn';
-  return 'pl-badge';
-}
-
-function PhaseSelect({ groups, value, onChange }: {
-  groups: PhaseGroup[]; value: string; onChange: (v: string) => void;
-}) {
-  return (
-    <select className="pl-phase-sel" value={value} onChange={e => onChange(e.target.value)}
-      onClick={e => e.stopPropagation()}>
-      <option value="">— phase —</option>
-      {groups.map(g => (
-        <optgroup key={g.id} label={g.label}>
-          {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
-        </optgroup>
-      ))}
-    </select>
-  );
-}
+import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
+import PipelineOrderList, { PhaseGroup, fmtPrice } from '@/components/shared/PipelineOrderCard';
+import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
+import type { OrderSheetRow } from '@/components/shared/OrderDetailSheet';
 
 export default function ReviewPage() {
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
@@ -46,6 +15,7 @@ export default function ReviewPage() {
   const [bulkMode, setBulkMode]       = useState(false);
   const [bulkPhase, setBulkPhase]     = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -139,64 +109,49 @@ export default function ReviewPage() {
   );
   const phaseItemsCount = phaseCounts.get(activePhase) ?? 0;
 
+  const detailOrder = detailOrderId != null ? (orders.find(o => o.id === detailOrderId) ?? null) : null;
+  const detailRows = useMemo<OrderSheetRow[]>(() =>
+    detailOrder ? detailOrder.lineItems.map(item => ({ o: detailOrder, item })) : [],
+    [detailOrder]
+  );
+
   return (
     <>
       <style>{`
-        .pl-tabs { display:flex; background:#fff; border-bottom:2px solid #e8ddd4; position:sticky; top:64px; z-index:51; overflow-x:auto; scrollbar-width:none; }
-        .pl-tabs::-webkit-scrollbar { display:none; }
-        .pl-tab { flex-shrink:0; font-size:11px; font-weight:700; color:#aaa; background:none; border:none; border-bottom:3px solid transparent; padding:8px 12px; cursor:pointer; display:flex; align-items:center; gap:5px; margin-bottom:-2px; transition:color .15s,border-color .15s; white-space:nowrap; }
-        .pl-tab:hover { color:#7A4610; }
-        .pl-tab.active { color:var(--pl-color, #7A4610); border-bottom-color:var(--pl-color, #7A4610); }
-        .pl-tab-count { font-size:10px; font-weight:700; background:#f0e8e0; color:#888; border-radius:10px; padding:1px 6px; min-width:18px; text-align:center; }
-        .pl-tab.active .pl-tab-count { color:#fff; }
-        .pl-summary { display:flex; gap:8px; align-items:center; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; }
-        .pl-sbadge { font-size:11px; font-weight:600; padding:2px 9px; border-radius:10px; background:#fef3e2; color:#7A4610; }
-        .pl-sbadge.green { background:#e8f5ee; color:#1a7a3c; }
-        .pl-content { padding:8px; padding-bottom:80px; }
-        .pl-empty { text-align:center; color:#aaa; padding:60px 20px; font-size:14px; }
-        .pl-card { background:#fff; border:1px solid #e8ddd4; border-radius:10px; margin-bottom:8px; overflow:hidden; }
-        .pl-card-head { display:flex; align-items:center; gap:8px; padding:9px 12px; background:#fdf8f4; border-bottom:1px solid #f0e8e0; border-left:4px solid #e8ddd4; }
-        .pl-badge { font-size:10px; font-weight:700; color:#fff; background:#7A4610; border-radius:4px; padding:1px 5px; flex-shrink:0; }
-        .pl-badge.warn { background:#e67e22; }
-        .pl-badge.urgent { background:#e74c3c; }
-        .pl-card-num { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; }
-        .pl-card-name { font-size:13px; font-weight:700; color:#222; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .pl-card-total { font-size:12px; font-weight:700; color:#7A4610; flex-shrink:0; white-space:nowrap; }
-        .pl-item { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid #f8f4f0; }
-        .pl-item:last-child { border-bottom:none; }
-        .pl-thumb { width:34px; height:34px; border-radius:6px; object-fit:cover; flex-shrink:0; border:1px solid #e8ddd4; }
-        .pl-thumb-ph { width:34px; height:34px; border-radius:6px; background:#f0e8e0; flex-shrink:0; }
-        .pl-item-name { font-size:12px; font-weight:600; color:#333; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .pl-item-qty { font-size:11px; color:#888; flex-shrink:0; white-space:nowrap; }
-        .pl-item-stock { font-size:10px; color:#1a7a3c; flex-shrink:0; white-space:nowrap; }
-        .pl-item-price { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; white-space:nowrap; }
-        .pl-phase-sel { font-size:11px; border:1px solid #e8ddd4; border-radius:6px; padding:2px 4px; color:#555; flex-shrink:0; max-width:130px; }
-        .pl-bulk-bar { display:flex; align-items:center; gap:7px; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; flex-wrap:wrap; }
-        .pl-bulk-label { font-size:10px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:.4px; }
-        .pl-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
-        .pl-toggle input { opacity:0; width:0; height:0; }
-        .pl-toggle-slider { position:absolute; inset:0; background:#ddd; border-radius:20px; cursor:pointer; transition:background .2s; }
-        .pl-toggle input:checked + .pl-toggle-slider { background:#7A4610; }
-        .pl-toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .2s; }
-        .pl-toggle input:checked + .pl-toggle-slider:before { transform:translateX(16px); }
-        .pl-bulk-sel { font-size:11px; border:1.5px solid #e8ddd4; border-radius:8px; padding:3px 4px; color:#555; max-width:130px; }
-        .pl-bulk-apply { font-size:11px; font-weight:700; background:#7A4610; color:#fff; border:none; border-radius:8px; padding:4px 10px; cursor:pointer; white-space:nowrap; }
-        .pl-bulk-apply:disabled { background:#ccc; cursor:default; }
-        .pl-item-check { width:16px; height:16px; accent-color:#7A4610; flex-shrink:0; cursor:pointer; }
-        .pl-item.selected { background:#fef3e2; }
-        .pl-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; font-size:12px; font-weight:600; padding:8px 18px; border-radius:20px; z-index:500; pointer-events:none; white-space:nowrap; }
+        .rv-tabs { display:flex; background:#fff; border-bottom:2px solid #e8ddd4; position:sticky; top:64px; z-index:51; overflow-x:auto; scrollbar-width:none; }
+        .rv-tabs::-webkit-scrollbar { display:none; }
+        .rv-tab { flex-shrink:0; font-size:11px; font-weight:700; color:#aaa; background:none; border:none; border-bottom:3px solid transparent; padding:8px 12px; cursor:pointer; display:flex; align-items:center; gap:5px; margin-bottom:-2px; transition:color .15s,border-color .15s; white-space:nowrap; }
+        .rv-tab:hover { color:#7A4610; }
+        .rv-tab.active { color:var(--rv-color, #7A4610); border-bottom-color:var(--rv-color, #7A4610); }
+        .rv-tab-count { font-size:10px; font-weight:700; background:#f0e8e0; color:#888; border-radius:10px; padding:1px 6px; min-width:18px; text-align:center; }
+        .rv-tab.active .rv-tab-count { color:#fff; }
+        .rv-summary { display:flex; gap:8px; align-items:center; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; }
+        .rv-sbadge { font-size:11px; font-weight:600; padding:2px 9px; border-radius:10px; background:#fef3e2; color:#7A4610; }
+        .rv-sbadge.green { background:#e8f5ee; color:#1a7a3c; }
+        .rv-content { padding:8px; padding-bottom:80px; }
+        .rv-empty { text-align:center; color:#aaa; padding:60px 20px; font-size:14px; }
+        .rv-bulk-bar { display:flex; align-items:center; gap:7px; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; flex-wrap:wrap; }
+        .rv-bulk-label { font-size:10px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:.4px; }
+        .rv-toggle { position:relative; width:36px; height:20px; flex-shrink:0; }
+        .rv-toggle input { opacity:0; width:0; height:0; }
+        .rv-toggle-slider { position:absolute; inset:0; background:#ddd; border-radius:20px; cursor:pointer; transition:background .2s; }
+        .rv-toggle input:checked + .rv-toggle-slider { background:#7A4610; }
+        .rv-toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .2s; }
+        .rv-toggle input:checked + .rv-toggle-slider:before { transform:translateX(16px); }
+        .rv-bulk-sel { font-size:11px; border:1.5px solid #e8ddd4; border-radius:8px; padding:3px 4px; color:#555; max-width:130px; }
+        .rv-bulk-apply { font-size:11px; font-weight:700; background:#7A4610; color:#fff; border:none; border-radius:8px; padding:4px 10px; cursor:pointer; white-space:nowrap; }
+        .rv-bulk-apply:disabled { background:#ccc; cursor:default; }
+        .rv-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; font-size:12px; font-weight:600; padding:8px 18px; border-radius:20px; z-index:500; pointer-events:none; white-space:nowrap; }
       `}</style>
 
-      <div className="pl-tabs">
+      <div className="rv-tabs">
         {(reviewGroup?.phases ?? []).map(p => (
           <button key={p}
-            className={`pl-tab${activePhase === p ? ' active' : ''}`}
-            style={{ '--pl-color': activeColor } as React.CSSProperties}
-            onClick={() => setActivePhase(p)}
-          >
+            className={`rv-tab${activePhase === p ? ' active' : ''}`}
+            style={{ '--rv-color': activeColor } as React.CSSProperties}
+            onClick={() => setActivePhase(p)}>
             {p}
-            <span className="pl-tab-count"
-              style={activePhase === p ? { background: activeColor } : {}}>
+            <span className="rv-tab-count" style={activePhase === p ? { background: activeColor } : {}}>
               {phaseCounts.get(p) ?? 0}
             </span>
           </button>
@@ -204,22 +159,21 @@ export default function ReviewPage() {
       </div>
 
       {!loading && (
-        <div className="pl-summary">
-          <span className="pl-sbadge">{phaseItemsCount} items · {phaseOrders.length} orders</span>
-          <span className="pl-sbadge green">{fmtPrice(phaseItemsTotal)} EGP</span>
+        <div className="rv-summary">
+          <span className="rv-sbadge">{phaseItemsCount} items · {phaseOrders.length} orders</span>
+          <span className="rv-sbadge green">{fmtPrice(phaseItemsTotal)} EGP</span>
         </div>
       )}
 
-      {/* Bulk toolbar */}
-      <div className="pl-bulk-bar">
-        <span className="pl-bulk-label">Bulk</span>
-        <label className="pl-toggle">
+      <div className="rv-bulk-bar">
+        <span className="rv-bulk-label">Bulk</span>
+        <label className="rv-toggle">
           <input type="checkbox" checked={bulkMode} onChange={e => { setBulkMode(e.target.checked); if (!e.target.checked) setSelectedItems(new Set()); }} />
-          <span className="pl-toggle-slider" />
+          <span className="rv-toggle-slider" />
         </label>
         {bulkMode && (
           <>
-            <select className="pl-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
+            <select className="rv-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
                 <optgroup key={g.id} label={g.label}>
@@ -227,7 +181,7 @@ export default function ReviewPage() {
                 </optgroup>
               ))}
             </select>
-            <button className="pl-bulk-apply" disabled={!bulkPhase || selectedItems.size === 0} onClick={handleBulkApply}>
+            <button className="rv-bulk-apply" disabled={!bulkPhase || selectedItems.size === 0} onClick={handleBulkApply}>
               Apply ({selectedItems.size})
             </button>
           </>
@@ -235,58 +189,36 @@ export default function ReviewPage() {
       </div>
 
       {loading ? (
-        <div className="pl-empty">Loading…</div>
+        <div className="rv-empty">Loading…</div>
       ) : phaseOrders.length === 0 ? (
-        <div className="pl-empty">No orders in this phase</div>
+        <div className="rv-empty">No orders in this phase</div>
       ) : (
-        <div className="pl-content">
-          {phaseOrders.map(o => {
-            const items = o.lineItems.filter(li => li.phase === activePhase);
-            const groupKeys = items.map(li => `${o.id}-${li.id}`);
-            const allGroupSel = groupKeys.length > 0 && groupKeys.every(k => selectedItems.has(k));
-            const someGroupSel = groupKeys.some(k => selectedItems.has(k));
-            return (
-              <div key={o.id} className="pl-card">
-                <div className="pl-card-head" style={{ borderLeftColor: activeColor }}>
-                  {bulkMode && (
-                    <input type="checkbox" className="pl-item-check" checked={allGroupSel}
-                      ref={el => { if (el) el.indeterminate = someGroupSel && !allGroupSel; }}
-                      onChange={() => toggleGroup(groupKeys)} onClick={e => e.stopPropagation()} />
-                  )}
-                  <span className={daysBadge(o.daysOpen)}>{o.daysOpen}d</span>
-                  <span className="pl-card-num">#{o.number}</span>
-                  <span className="pl-card-name">{o.customerName}</span>
-                  <span className="pl-card-total">{fmtPrice(o.total)} EGP</span>
-                </div>
-                {items.map(li => {
-                  const key = `${o.id}-${li.id}`;
-                  return (
-                    <div key={li.id} className={`pl-item${selectedItems.has(key) ? ' selected' : ''}`}
-                      onClick={bulkMode ? () => toggleItem(key) : undefined}>
-                      {bulkMode && (
-                        <input type="checkbox" className="pl-item-check" checked={selectedItems.has(key)}
-                          onChange={() => toggleItem(key)} onClick={e => e.stopPropagation()} />
-                      )}
-                      {li.imageUrl
-                        ? <img src={li.imageUrl} alt="" className="pl-thumb" />
-                        : <div className="pl-thumb-ph" />
-                      }
-                      <span className="pl-item-name">{li.name}</span>
-                      <span className="pl-item-qty">×{li.quantity}</span>
-                      <span className="pl-item-stock">📦{li.stock}</span>
-                      <span className="pl-item-price">{fmtPrice(li.total)}</span>
-                      <PhaseSelect groups={phaseGroups} value={li.phase}
-                        onChange={v => handlePhaseChange(o.id, li.id, v)} />
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+        <div className="rv-content">
+          <PipelineOrderList
+            orders={phaseOrders}
+            groups={phaseGroups}
+            filterLineItems={(_, li) => li.phase === activePhase}
+            defaultOpen
+            accentColor={activeColor}
+            bulkMode={bulkMode}
+            selectedItems={selectedItems}
+            onToggleItem={toggleItem}
+            onToggleGroup={toggleGroup}
+            onPhaseChange={handlePhaseChange}
+            onOpenDetail={o => setDetailOrderId(o.id)}
+          />
         </div>
       )}
 
-      {toast && <div className="pl-toast">{toast}</div>}
+      {detailOrder && (
+        <OrderDetailSheet
+          title={`#${detailOrder.number} · ${detailOrder.customerName}`}
+          rows={detailRows}
+          onClose={() => setDetailOrderId(null)}
+        />
+      )}
+
+      {toast && <div className="rv-toast">{toast}</div>}
     </>
   );
 }
