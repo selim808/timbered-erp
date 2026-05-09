@@ -102,11 +102,7 @@ export default function JobOrdersPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    fetch('/api/pipeline/orders')
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setOrders(data); })
-      .catch(() => {})
-      .finally(() => setLoadingOrders(false));
+    loadOrders();
 
     fetch('/api/products/search')
       .then(r => r.json())
@@ -116,6 +112,15 @@ export default function JobOrdersPage() {
 
     loadHistory();
   }, []);
+
+  function loadOrders() {
+    setLoadingOrders(true);
+    fetch('/api/pipeline/orders')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setOrders(data); })
+      .catch(() => {})
+      .finally(() => setLoadingOrders(false));
+  }
 
   function loadHistory() {
     setLoadingHistory(true);
@@ -136,7 +141,7 @@ export default function JobOrdersPage() {
     const map = new Map<number, JoProduct>();
     orders.forEach(order => {
       order.lineItems
-        .filter(li => /jo/i.test(li.phase))
+        .filter(li => li.phase === 'JO Preparation')
         .forEach(li => {
           if (excludedPids.has(li.productId)) return;
           if (excludedOrdersByPid[li.productId]?.has(order.id)) return;
@@ -251,7 +256,10 @@ export default function JobOrdersPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ref, items }),
       });
-      if (!res.ok) throw new Error('Failed to create JO');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${res.status}`);
+      }
       // Advance MTO line items to "JO Released"
       const phaseUpdates: Promise<unknown>[] = [];
       joProducts.forEach(prod => prod.orders.forEach(ord => ord.lineItemIds.forEach(liId => {
@@ -264,6 +272,7 @@ export default function JobOrdersPage() {
       showToast(`${ref} created`);
       setActiveTab('history');
       loadHistory();
+      loadOrders();
       setExcludedPids(new Set());
       setExcludedOrdersByPid({});
       setMtsQtyMap({});
@@ -329,7 +338,7 @@ export default function JobOrdersPage() {
         .jo-chip.mts-val strong { color:#1a7a3c; }
         .jo-toolbar-sep { width:1px; height:16px; background:#e8ddd4; flex-shrink:0; }
 
-        .jo-wrap { padding:8px; padding-bottom:90px; }
+        .jo-wrap { padding:8px; padding-bottom:130px; }
         .jo-empty { text-align:center; color:#aaa; padding:60px 20px; font-size:14px; }
 
         .jo-prod-card { background:#fff; border:1px solid #e8ddd4; border-radius:8px; margin-bottom:8px; overflow:hidden; }
@@ -388,13 +397,13 @@ export default function JobOrdersPage() {
         .jo-sr-add:hover:not(:disabled) { background:#7A4610; color:#fff; }
         .jo-sr-add:disabled { border-color:#ccc; color:#ccc; cursor:default; }
 
-        .jo-submit-bar { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #e8ddd4; padding:10px 16px; z-index:90; display:flex; gap:12px; align-items:center; }
+        .jo-submit-bar { position:fixed; bottom:44px; left:0; right:0; background:#fff; border-top:1px solid #e8ddd4; padding:10px 16px; z-index:90; display:flex; gap:12px; align-items:center; }
         .jo-submit-left { flex:1; min-width:0; }
         .jo-submit-summary { font-size:11px; color:#aaa; }
         .jo-submit-vals { font-size:11px; color:#555; margin-top:3px; }
         .jo-submit-vals strong { color:#7A4610; font-weight:700; }
         .jo-submit-vals .mts-pct { color:#1a7a3c; }
-        .jo-submit-btn { flex-shrink:0; background:#7A4610; color:#fff; border:none; border-radius:20px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
+        .jo-submit-btn { flex:1; background:#7A4610; color:#fff; border:none; border-radius:20px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
         .jo-submit-btn:disabled { background:#ccc; cursor:not-allowed; }
         .jo-submit-btn:hover:not(:disabled) { background:#5a3209; }
 
@@ -418,6 +427,9 @@ export default function JobOrdersPage() {
         .jo-act-btn.status:hover { background:#27ae60; color:#fff; }
         .jo-act-btn.del { color:#e74c3c; border:1.5px solid #e74c3c; }
         .jo-act-btn.del:hover { background:#e74c3c; color:#fff; }
+        a.jo-act-btn { display:inline-block; text-decoration:none; }
+        .jo-act-btn.cutlist { color:#2563eb; border:1.5px solid #2563eb; }
+        .jo-act-btn.cutlist:hover { background:#2563eb; color:#fff; }
         .jo-hist-item { padding:10px 12px; border-bottom:1px solid #f5f0eb; }
         .jo-hist-item:last-child { border-bottom:none; }
         .jo-hist-item-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
@@ -637,7 +649,7 @@ export default function JobOrdersPage() {
           <div className="jo-submit-bar">
             <span className="jo-submit-summary">{summary.products} products · {summary.units} units</span>
             <button className="jo-submit-btn" disabled={summary.products === 0 || submitting} onClick={submitJO}>
-              {submitting ? 'Submitting…' : 'Submit JO'}
+              {submitting ? 'Submitting…' : 'Submit Job Order'}
             </button>
           </div>
         </>
@@ -669,6 +681,7 @@ export default function JobOrdersPage() {
                   {isOpen && (
                     <div className="jo-hist-body">
                       <div className="jo-hist-actions">
+                        <a className="jo-act-btn cutlist" href={`/owner/pipeline/job-orders/cutlist?jo=${jo.id}`}>Cutlist</a>
                         <button className="jo-act-btn edit" onClick={() => openEdit(jo)}>Edit</button>
                         <button className="jo-act-btn status" onClick={() => toggleStatus(jo)}>
                           Mark {jo.status === 'open' ? 'Done' : 'Open'}

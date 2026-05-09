@@ -20,7 +20,8 @@
       "Read(//tmp/**)",
       "Bash(vercel env *)",
       "Bash(curl -s \"https://raw.githubusercontent.com/selim808/timbered/main/owner/index.html\")",
-      "Bash(vercel deploy *)"
+      "Bash(vercel deploy *)",
+      "Bash(git revert *)"
     ]
   }
 }

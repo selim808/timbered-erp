@@ -9,7 +9,7 @@ export async function PATCH(
   const body = await req.json();
   const db = createAdminClient();
   const { data, error } = await db
-    .from('job_orders')
+    .from('jo_plans')
     .update({ ...body, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
@@ -24,7 +24,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const db = createAdminClient();
-  const { error } = await db.from('job_orders').delete().eq('id', id);
+  const { error } = await db.from('jo_plans').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

@@ -11,7 +11,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen bg-surface-2">
       <DashHeader />
-      <main>{children}</main>
+      <main className="pb-16">{children}</main>
       <BottomNav />
     </div>
   );

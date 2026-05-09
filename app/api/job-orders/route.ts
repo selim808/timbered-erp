@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export async function GET() {
   const db = createAdminClient();
   const { data, error } = await db
-    .from('job_orders')
+    .from('jo_plans')
     .select('*')
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   }
   const db = createAdminClient();
   const { data, error } = await db
-    .from('job_orders')
+    .from('jo_plans')
     .insert({ ref: body.ref, items: body.items, status: 'open' })
     .select()
     .single();

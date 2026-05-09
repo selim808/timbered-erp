@@ -18,3 +18,6 @@ CREATE TABLE IF NOT EXISTS order_phases (
 
 CREATE INDEX IF NOT EXISTS idx_order_phases_phase    ON order_phases(phase);
 CREATE INDEX IF NOT EXISTS idx_order_phases_order_id ON order_phases(order_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.phase_groups TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_phases TO service_role;
