@@ -17,6 +17,7 @@ interface JoProduct {
   stock: number;
   orderedQty: number;
   mtoQty: number;
+  price: number;
   orders: JoMtoOrder[];
 }
 
@@ -54,6 +55,12 @@ interface StoredJO {
 
 function fmtPrice(n: number) {
   return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
+}
+
+function fmtVal(v: number) {
+  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (v >= 1_000) return Math.round(v / 1_000) + 'K';
+  return String(Math.round(v));
 }
 
 function fmtDate(iso: string) {
@@ -129,7 +136,7 @@ export default function JobOrdersPage() {
           if (!map.has(li.productId)) {
             map.set(li.productId, {
               productId: li.productId, name: li.name, image: li.imageUrl,
-              stock: li.stock, orderedQty: li.orderedQty, mtoQty: 0, orders: [],
+              stock: li.stock, orderedQty: li.orderedQty, mtoQty: 0, price: li.price, orders: [],
             });
           }
           const prod = map.get(li.productId)!;
@@ -147,10 +154,16 @@ export default function JobOrdersPage() {
   }, [orders, excludedPids, excludedOrdersByPid]);
 
   const summary = useMemo(() => {
-    let units = 0;
-    joProducts.forEach(p => { units += p.mtoQty + (mtsQtyMap[p.productId] ?? 0); });
+    let units = 0, joValue = 0, mtsValue = 0;
+    joProducts.forEach(p => {
+      const mtsQty = mtsQtyMap[p.productId] ?? 0;
+      units   += p.mtoQty + mtsQty;
+      joValue += (p.mtoQty + mtsQty) * p.price;
+      mtsValue += mtsQty * p.price;
+    });
     mtsOnly.forEach(p => { units += p.qty; });
-    return { products: joProducts.length + mtsOnly.length, units };
+    const mtsPct = joValue > 0 ? Math.round((mtsValue / joValue) * 100) : 0;
+    return { products: joProducts.length + mtsOnly.length, units, joValue, mtsValue, mtsPct };
   }, [joProducts, mtsOnly, mtsQtyMap]);
 
   const ordersWithProduct = useMemo(() => {
@@ -370,9 +383,13 @@ export default function JobOrdersPage() {
         .jo-sr-add:hover:not(:disabled) { background:#7A4610; color:#fff; }
         .jo-sr-add:disabled { border-color:#ccc; color:#ccc; cursor:default; }
 
-        .jo-submit-bar { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #e8ddd4; padding:12px 16px; z-index:90; display:flex; gap:10px; align-items:center; }
-        .jo-submit-summary { font-size:11px; color:#aaa; flex-shrink:0; }
-        .jo-submit-btn { flex:1; background:#7A4610; color:#fff; border:none; border-radius:20px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; }
+        .jo-submit-bar { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #e8ddd4; padding:10px 16px; z-index:90; display:flex; gap:12px; align-items:center; }
+        .jo-submit-left { flex:1; min-width:0; }
+        .jo-submit-summary { font-size:11px; color:#aaa; }
+        .jo-submit-vals { font-size:11px; color:#555; margin-top:3px; }
+        .jo-submit-vals strong { color:#7A4610; font-weight:700; }
+        .jo-submit-vals .mts-pct { color:#1a7a3c; }
+        .jo-submit-btn { flex-shrink:0; background:#7A4610; color:#fff; border:none; border-radius:20px; padding:10px 18px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; }
         .jo-submit-btn:disabled { background:#ccc; cursor:not-allowed; }
         .jo-submit-btn:hover:not(:disabled) { background:#5a3209; }
 
@@ -599,9 +616,19 @@ export default function JobOrdersPage() {
 
           {/* Fixed submit bar */}
           <div className="jo-submit-bar">
-            <span className="jo-submit-summary">{summary.products} products · {summary.units} units</span>
+            <div className="jo-submit-left">
+              <div className="jo-submit-summary">{summary.products} products · {summary.units} units</div>
+              {summary.joValue > 0 && (
+                <div className="jo-submit-vals">
+                  JO <strong>{fmtVal(summary.joValue)} EGP</strong>
+                  {' · '}MTS <strong>{fmtVal(summary.mtsValue)} EGP</strong>
+                  {' '}
+                  <span className="mts-pct">({summary.mtsPct}%)</span>
+                </div>
+              )}
+            </div>
             <button className="jo-submit-btn" disabled={summary.products === 0 || submitting} onClick={submitJO}>
-              {submitting ? 'Submitting…' : 'Submit Job Order'}
+              {submitting ? 'Submitting…' : 'Submit JO'}
             </button>
           </div>
         </>
