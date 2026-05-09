@@ -59,11 +59,12 @@ export function GroupCheckbox({ keys, selectedItems, onToggleGroup }: {
   );
 }
 
-export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, bulkMode, selected, onToggle, onPhaseChange, onImageClick }: {
+export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, bulkMode, selected, onToggle, onPhaseChange, onImageClick, showOrder }: {
   li: PipelineLineItem; orderNum: string; liIndex: number; daysOpen: number;
   groups: PhaseGroup[]; bulkMode: boolean; selected: boolean;
   onToggle: () => void; onPhaseChange: (v: string) => void;
   onImageClick?: (li: PipelineLineItem) => void;
+  showOrder?: boolean;
 }) {
   const ref = `${orderNum}.${liIndex}`;
   return (
