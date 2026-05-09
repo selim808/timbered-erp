@@ -52,6 +52,14 @@ interface StoredJO {
   created_at: string;
 }
 
+function fmtPrice(n: number) {
+  return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default function JobOrdersPage() {
   const [orders, setOrders]         = useState<PipelineOrder[]>([]);
   const [history, setHistory]       = useState<StoredJO[]>([]);
@@ -79,6 +87,10 @@ export default function JobOrdersPage() {
   const [editingJo, setEditingJo]     = useState<StoredJO | null>(null);
   const [editItems, setEditItems]     = useState<StoredJOItem[]>([]);
   const [saving, setSaving]           = useState(false);
+
+  // Ordered-orders modal
+  const [orderedModal, setOrderedModal] = useState<{ productId: number; name: string } | null>(null);
+  const [detailOrder, setDetailOrder]   = useState<PipelineOrder | null>(null);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -140,6 +152,14 @@ export default function JobOrdersPage() {
     mtsOnly.forEach(p => { units += p.qty; });
     return { products: joProducts.length + mtsOnly.length, units };
   }, [joProducts, mtsOnly, mtsQtyMap]);
+
+  const ordersWithProduct = useMemo(() => {
+    if (!orderedModal) return [];
+    return orders.flatMap(o => {
+      const item = o.lineItems.find(li => li.productId === orderedModal.productId);
+      return item ? [{ o, item }] : [];
+    });
+  }, [orders, orderedModal]);
 
   function handleSearchInput(q: string) {
     setProductQuery(q);
@@ -404,6 +424,34 @@ export default function JobOrdersPage() {
 
         .jo-toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#333; color:#fff; font-size:12px; font-weight:600; padding:8px 18px; border-radius:20px; z-index:500; pointer-events:none; white-space:nowrap; }
         .jo-loading-hint { font-size:11px; color:#aaa; text-align:center; padding:12px; }
+
+        .jo-ordered-link { appearance:none; border:none; background:none; padding:0; color:#7A4610; font:inherit; font-size:10px; text-decoration:underline; cursor:pointer; }
+        .jo-ordered-link:hover { color:#5a3209; }
+        .jo-ordered-link strong { font-weight:800; }
+
+        .jo-od-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:400; display:flex; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
+        .jo-od-box { background:#fff; border-radius:14px; width:100%; max-width:480px; overflow:hidden; margin:auto; }
+        .jo-od-header { background:#7A4610; color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px; }
+        .jo-od-title { font-size:13px; font-weight:700; }
+        .jo-od-back { background:none; border:none; color:#fff; font-size:16px; font-weight:700; cursor:pointer; padding:0 4px; line-height:1; }
+        .jo-od-close { background:none; border:none; color:#fff; font-size:18px; cursor:pointer; padding:0 2px; }
+        .jo-od-body { max-height:70vh; overflow-y:auto; }
+        .jo-od-order-row { display:flex; align-items:center; gap:8px; padding:9px 16px; border-bottom:1px solid #f0e8e0; cursor:pointer; }
+        .jo-od-order-row:hover { background:#fdf8f4; }
+        .jo-od-order-row:last-child { border-bottom:none; }
+        .jo-od-order-num { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; }
+        .jo-od-order-name { font-size:12px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .jo-od-order-qty { font-size:11px; color:#888; flex-shrink:0; }
+        .jo-od-order-val { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; }
+        .jo-od-order-phase { font-size:10px; color:#aaa; flex-shrink:0; max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .jo-od-section { padding:10px 16px; border-bottom:1px solid #f0e8e0; }
+        .jo-od-label { font-size:10px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
+        .jo-od-val { font-size:12px; color:#333; margin-bottom:2px; }
+        .jo-od-table { width:100%; border-collapse:collapse; font-size:11px; }
+        .jo-od-table th { text-align:left; color:#aaa; font-weight:700; font-size:10px; text-transform:uppercase; padding:4px 6px; border-bottom:1px solid #f0e8e0; }
+        .jo-od-table td { padding:5px 6px; border-bottom:1px solid #f8f4f0; vertical-align:top; }
+        .jo-od-table tr:last-child td { border-bottom:none; }
+        .jo-od-total { display:flex; justify-content:space-between; padding:10px 16px; background:#fef3e2; font-size:13px; font-weight:700; color:#7A4610; }
       `}</style>
 
       {/* Sub-nav */}
@@ -450,7 +498,9 @@ export default function JobOrdersPage() {
                         <div className="jo-prod-id">#{prod.productId}</div>
                         <div className="jo-prod-meta">
                           <span>Stock <strong>{prod.stock}</strong></span>
-                          <span>Ordered <strong>{prod.orderedQty}</strong></span>
+                          <button className="jo-ordered-link" onClick={e => { e.stopPropagation(); setOrderedModal({ productId: prod.productId, name: prod.name }); }}>
+                            Ordered <strong>{prod.orderedQty}</strong>
+                          </button>
                         </div>
                       </div>
                       <div className="jo-qty-col">
@@ -657,6 +707,81 @@ export default function JobOrdersPage() {
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ordered-orders modal */}
+      {orderedModal && (
+        <div className="jo-od-overlay" onClick={() => { setOrderedModal(null); setDetailOrder(null); }}>
+          <div className="jo-od-box" onClick={e => e.stopPropagation()}>
+            <div className="jo-od-header">
+              {detailOrder && (
+                <button className="jo-od-back" onClick={() => setDetailOrder(null)}>←</button>
+              )}
+              <span className="jo-od-title" style={{ flex: 1 }}>
+                {detailOrder
+                  ? `#${detailOrder.number} · ${detailOrder.customerName}`
+                  : `Orders · ${orderedModal.name}`}
+              </span>
+              <button className="jo-od-close" onClick={() => { setOrderedModal(null); setDetailOrder(null); }}>✕</button>
+            </div>
+
+            {detailOrder ? (
+              <div className="jo-od-body">
+                <div className="jo-od-section">
+                  <div className="jo-od-label">Customer</div>
+                  <div className="jo-od-val">{detailOrder.customerName}</div>
+                  {detailOrder.customerPhone && <div className="jo-od-val">{detailOrder.customerPhone}</div>}
+                  {detailOrder.customerAddress && (
+                    <div className="jo-od-val">
+                      {[detailOrder.customerAddress, detailOrder.customerAddress2, detailOrder.customerState].filter(Boolean).join(', ')}
+                    </div>
+                  )}
+                </div>
+                {detailOrder.customerNote && (
+                  <div className="jo-od-section">
+                    <div className="jo-od-label">Note</div>
+                    <div className="jo-od-val">{detailOrder.customerNote}</div>
+                  </div>
+                )}
+                <div className="jo-od-section">
+                  <div className="jo-od-label">Items</div>
+                  <table className="jo-od-table">
+                    <thead><tr><th>Item</th><th>Qty</th><th>Total</th><th>Phase</th></tr></thead>
+                    <tbody>
+                      {detailOrder.lineItems.map(li => (
+                        <tr key={li.id}>
+                          <td>{li.name}</td>
+                          <td>×{li.quantity}</td>
+                          <td>{fmtPrice(li.total)}</td>
+                          <td style={{ color: '#aaa', fontSize: 11 }}>{li.phase || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="jo-od-total">
+                  <span>Total</span><span>{fmtPrice(detailOrder.total)} EGP</span>
+                </div>
+              </div>
+            ) : (
+              <div className="jo-od-body">
+                {ordersWithProduct.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#aaa', fontSize: 13 }}>No orders found</div>
+                ) : (
+                  ordersWithProduct.map(({ o, item }) => (
+                    <div key={o.id} className="jo-od-order-row" onClick={() => setDetailOrder(o)}>
+                      <span className="jo-od-order-num">#{o.number}</span>
+                      <span className="jo-od-order-name">{o.customerName}</span>
+                      <span className="jo-od-order-qty">×{item.quantity}</span>
+                      <span className="jo-od-order-val">{fmtPrice(item.total)} EGP</span>
+                      <span className="jo-od-order-phase">{item.phase}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
