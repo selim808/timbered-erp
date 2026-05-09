@@ -32,6 +32,7 @@ interface SearchProduct {
   id: number;
   name: string;
   image: string;
+  material: string;
 }
 
 interface StoredJOItem {
@@ -83,11 +84,10 @@ export default function JobOrdersPage() {
   const [mtsOnly, setMtsOnly]                         = useState<MtsOnlyItem[]>([]);
   const [expandedPids, setExpandedPids]               = useState<Set<number>>(new Set());
 
-  // Product search
-  const [productQuery, setProductQuery]   = useState('');
-  const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Product search (all products loaded once on mount, filtered client-side)
+  const [productQuery, setProductQuery] = useState('');
+  const [allProducts, setAllProducts]   = useState<SearchProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
 
   // History
   const [expandedJos, setExpandedJos] = useState<Set<string>>(new Set());
@@ -107,6 +107,13 @@ export default function JobOrdersPage() {
       .then(data => { if (Array.isArray(data)) setOrders(data); })
       .catch(() => {})
       .finally(() => setLoadingOrders(false));
+
+    fetch('/api/products/search')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setAllProducts(data); })
+      .catch(() => {})
+      .finally(() => setProductsLoading(false));
+
     loadHistory();
   }, []);
 
@@ -174,20 +181,13 @@ export default function JobOrdersPage() {
     });
   }, [orders, orderedModal]);
 
-  function handleSearchInput(q: string) {
-    setProductQuery(q);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!q.trim()) { setSearchResults([]); return; }
-    searchTimer.current = setTimeout(async () => {
-      setSearchLoading(true);
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        if (Array.isArray(data)) setSearchResults(data);
-      } catch (_) {}
-      setSearchLoading(false);
-    }, 350);
-  }
+  const visibleProducts = useMemo(() => {
+    const q = productQuery.trim().toLowerCase();
+    if (!q) return allProducts;
+    return allProducts.filter(p =>
+      p.name.toLowerCase().includes(q) || p.material.toLowerCase().includes(q)
+    );
+  }, [allProducts, productQuery]);
 
   function removeProduct(pid: number) {
     setExcludedPids(s => new Set([...s, pid]));
@@ -215,7 +215,6 @@ export default function JobOrdersPage() {
     if (mtsOnly.find(p => p.productId === prod.id)) return;
     if (joProducts.find(p => p.productId === prod.id)) return;
     setMtsOnly(prev => [...prev, { productId: prod.id, name: prod.name, image: prod.image, qty: 1 }]);
-    setSearchResults([]);
     setProductQuery('');
   }
 
@@ -372,13 +371,14 @@ export default function JobOrdersPage() {
         .jo-search-row { margin-bottom:8px; }
         .jo-search-input { width:100%; font-size:12px; padding:8px 12px; border:1.5px solid #e8ddd4; border-radius:8px; outline:none; color:#333; background:#fff; box-sizing:border-box; }
         .jo-search-input:focus { border-color:#7A4610; }
-        .jo-search-results { background:#fff; border:1px solid #e8ddd4; border-radius:8px; margin-bottom:8px; overflow-y:auto; max-height:280px; }
+        .jo-search-results { background:#fff; border:1px solid #e8ddd4; border-radius:8px; margin-bottom:8px; overflow-y:auto; max-height:360px; }
         .jo-sr-row { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid #f5f0eb; }
         .jo-sr-row:last-child { border-bottom:none; }
         .jo-sr-thumb { width:32px; height:32px; border-radius:4px; object-fit:cover; border:1px solid #e8ddd4; flex-shrink:0; }
         .jo-sr-thumb-ph { width:32px; height:32px; border-radius:4px; background:#f0e8e0; flex-shrink:0; }
         .jo-sr-info { flex:1; min-width:0; }
         .jo-sr-name { font-size:12px; font-weight:600; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .jo-sr-mat { font-size:10px; color:#999; margin-top:1px; }
         .jo-sr-add { font-size:11px; font-weight:700; color:#7A4610; border:1.5px solid #7A4610; border-radius:20px; padding:2px 10px; background:none; cursor:pointer; flex-shrink:0; }
         .jo-sr-add:hover:not(:disabled) { background:#7A4610; color:#fff; }
         .jo-sr-add:disabled { border-color:#ccc; color:#ccc; cursor:default; }
@@ -585,15 +585,18 @@ export default function JobOrdersPage() {
                 </div>
               ))}
 
-              {/* Product search */}
+              {/* Product search + list */}
               <div className="jo-search-row">
-                <input className="jo-search-input" type="text" placeholder="Search products to add MTS only…"
-                  value={productQuery} onChange={e => handleSearchInput(e.target.value)} />
+                <input className="jo-search-input" type="text" placeholder="Search by name or material…"
+                  value={productQuery} onChange={e => setProductQuery(e.target.value)} />
               </div>
-              {searchLoading && <p className="jo-loading-hint">Searching…</p>}
-              {searchResults.length > 0 && (
-                <div className="jo-search-results">
-                  {searchResults.map(p => {
+              <div className="jo-search-results">
+                {productsLoading ? (
+                  <p className="jo-loading-hint">Loading products…</p>
+                ) : visibleProducts.length === 0 ? (
+                  <p className="jo-loading-hint">No products found</p>
+                ) : (
+                  visibleProducts.map(p => {
                     const added = joProducts.some(x => x.productId === p.id) || mtsOnly.some(x => x.productId === p.id);
                     return (
                       <div key={p.id} className="jo-sr-row">
@@ -602,15 +605,16 @@ export default function JobOrdersPage() {
                           : <div className="jo-sr-thumb-ph" />}
                         <div className="jo-sr-info">
                           <div className="jo-sr-name">{p.name}</div>
+                          {p.material && <div className="jo-sr-mat">{p.material}</div>}
                         </div>
                         <button className="jo-sr-add" disabled={added} onClick={() => addMtsProduct(p)}>
                           {added ? 'Added' : '+ Add'}
                         </button>
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                )}
+              </div>
             </div>
           )}
 
