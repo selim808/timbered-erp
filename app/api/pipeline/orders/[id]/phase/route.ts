@@ -15,18 +15,18 @@ export async function PATCH(
   const db = createAdminClient();
 
   const { data: existing } = await db
-    .from('order_phases')
+    .from('item-phase')
     .select('id')
     .eq('order_id', id)
     .eq('line_item_id', lineItemId)
     .maybeSingle();
 
   const { error } = existing
-    ? await db.from('order_phases')
+    ? await db.from('item_phase')
         .update({ phase, updated_at: new Date().toISOString() })
         .eq('order_id', id)
         .eq('line_item_id', lineItemId)
-    : await db.from('order_phases')
+    : await db.from('item_phase')
         .insert({ order_id: id, line_item_id: lineItemId, phase });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -71,7 +71,7 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
           <div className="od-header">
             {showBack && <button className="od-back" onClick={handleBack}>←</button>}
             <span className="od-title">
-              {detailOrder ? `#${detailOrder.number} · ${detailOrder.customerName}` : (title ?? '')}
+              {detailOrder ? `${detailOrder.number} · ${detailOrder.customerName}` : (title ?? '')}
             </span>
             <button className="od-close" onClick={onClose}>✕</button>
           </div>
@@ -132,7 +132,7 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
                 ? <div className="od-empty">No orders found</div>
                 : (rows ?? []).map(({ o, item }) => (
                     <div key={o.id} className="od-order-row" onClick={() => setDetailOrderId(o.id)}>
-                      <span className="od-order-num">#{o.number}</span>
+                      <span className="od-order-num">{o.number}</span>
                       <span className="od-order-name">{o.customerName}</span>
                       <span className="od-order-qty">×{item.quantity}</span>
                       <span className="od-order-val">{fmtPrice(item.total)} EGP</span>

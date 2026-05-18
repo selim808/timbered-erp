@@ -7,7 +7,7 @@ export async function GET(req: Request) {
 
   const db = createAdminClient();
   const { data, error } = await db
-    .from('order_phases')
+    .from('item_phase')
     .select('id, order_id, line_item_id')
     .eq('phase', phase);
 

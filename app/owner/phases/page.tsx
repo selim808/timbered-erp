@@ -611,7 +611,7 @@ export default function PhasesPage() {
               {warnModal.affected.map(a => (
                 <div key={a.id} className="pg-warn-item">
                   <span className="pg-warn-dot" />
-                  <span className="pg-warn-oid">Order #{a.order_id}</span>
+                  <span className="pg-warn-oid">Order {a.order_id}</span>
                   <span className="pg-warn-lid">item {a.line_item_id}</span>
                 </div>
               ))}

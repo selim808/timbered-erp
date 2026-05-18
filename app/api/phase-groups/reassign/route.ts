@@ -7,7 +7,7 @@ export async function POST(req: Request) {
 
   const db = createAdminClient();
   const { error } = await db
-    .from('order_phases')
+    .from('item_phase')
     .update({ phase: to, updated_at: new Date().toISOString() })
     .eq('phase', from);
 

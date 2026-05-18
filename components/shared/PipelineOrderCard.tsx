@@ -117,7 +117,7 @@ function OrderCard({ o, groups, items, isOpen, onToggleOpen, bulkMode, selectedI
         )}
         <span className={daysBadgeClass(o.daysOpen)}>{o.daysOpen}d</span>
         <span className="poc-num" onClick={e => { e.stopPropagation(); onOpenDetail(); }}>
-          #{o.number}
+          {o.number}
         </span>
         <span className="poc-name">{o.customerName}</span>
         <span className="poc-total">{fmtPrice(o.total)}</span>

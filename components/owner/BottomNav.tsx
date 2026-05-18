@@ -72,16 +72,16 @@ export default function BottomNav() {
 
         <div className="w-px h-4 bg-border flex-shrink-0 mx-1" />
 
-        {/* Phases settings */}
+        {/* Operations hub */}
         <Link
-          href="/owner/phases"
+          href="/owner/operations"
           className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-            pathname === '/owner/phases'
+            pathname.startsWith('/owner/operations')
               ? 'bg-brown text-white border-brown'
               : 'border-border text-text-muted hover:border-brown hover:text-brown'
           }`}
         >
-          Phases
+          Operations
         </Link>
 
       </div>

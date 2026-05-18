@@ -62,7 +62,7 @@ export async function GET() {
     const orderIds = wcOrders.map((o: any) => String(o.id));
 
     const { data: phaseRows } = await db
-      .from('order_phases')
+      .from('item_phase')
       .select('order_id, line_item_id, phase')
       .in('order_id', orderIds);
 
@@ -83,7 +83,7 @@ export async function GET() {
       });
     });
     if (toPlace.length > 0) {
-      await db.from('order_phases').insert(toPlace);
+      await db.from('item_phase').insert(toPlace);
     }
 
     // Stock per product

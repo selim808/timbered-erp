@@ -430,7 +430,7 @@ export default function WeeklySection() {
                   <tbody>
                     {modalOrders.map(o => (
                       <tr key={o.id}>
-                        <td><button className="wk-ord-num-btn" onClick={() => openOrderDetail(o.id)}>#{o.number}</button></td>
+                        <td><button className="wk-ord-num-btn" onClick={() => openOrderDetail(o.id)}>{o.number}</button></td>
                         <td style={{ color: '#555' }}>{o.customer || '—'}</td>
                         <td className="right" style={{ color: '#888' }}>{o.items}</td>
                         <td className="right" style={{ fontWeight: 600 }}>{Math.round(o.total).toLocaleString('en-GB')}</td>
@@ -455,7 +455,7 @@ export default function WeeklySection() {
                 {selOrderLoad === 'done' && selOrder && (
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#2c3e50', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                      Order #{selOrder.number}
+                      Order {selOrder.number}
                       <span className="wk-status" style={statusStyle(selOrder.status)}>{selOrder.status}</span>
                     </div>
                     <div style={{ fontSize: 11, color: '#9e9087', marginTop: 3 }}>{selOrder.dateCreated}{selOrder.dateCompleted && selOrder.dateCompleted !== selOrder.dateCreated ? ` · completed ${selOrder.dateCompleted}` : ''}</div>

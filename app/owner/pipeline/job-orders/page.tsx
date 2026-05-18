@@ -521,7 +521,7 @@ export default function JobOrdersPage() {
                         : <div className="jo-thumb-ph" />}
                       <div className="jo-prod-info">
                         <div className="jo-prod-name">{prod.name}</div>
-                        <div className="jo-prod-id">#{prod.productId}</div>
+                        <div className="jo-prod-id">{prod.productId}</div>
                         <div className="jo-prod-meta">
                           <span>Stock <strong>{prod.stock}</strong></span>
                           <button className="jo-ordered-link" onClick={e => { e.stopPropagation(); setOrderedModal({ productId: prod.productId, name: prod.name }); }}>
@@ -551,7 +551,7 @@ export default function JobOrdersPage() {
                         {prod.orders.map(ord => (
                           <div key={ord.orderId} className="jo-order-row">
                             <button className="jo-order-rm" onClick={() => removeOrder(prod.productId, ord.orderId)}>×</button>
-                            <span className="jo-order-id">#{ord.orderId}</span>
+                            <span className="jo-order-id">{ord.orderId}</span>
                             <span className="jo-order-customer">{ord.customer}</span>
                             <span className="jo-order-qty">×{ord.qty}</span>
                           </div>
@@ -686,7 +686,7 @@ export default function JobOrdersPage() {
                           {item.mto.orders.length > 0 && (
                             <div className="jo-order-pills">
                               {item.mto.orders.map(o => (
-                                <span key={o.order_id} className="jo-pill">#{o.order_id} ×{o.qty}</span>
+                                <span key={o.order_id} className="jo-pill">{o.order_id} ×{o.qty}</span>
                               ))}
                             </div>
                           )}
