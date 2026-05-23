@@ -263,7 +263,8 @@ export default function PipelineOrderList({
     <>
       <style>{STYLES}</style>
       {orders.map(o => {
-        const items = filterLineItems ? o.lineItems.filter(li => filterLineItems(o, li)) : o.lineItems;
+        const orderLineItems = Array.isArray(o.lineItems) ? o.lineItems : [];
+        const items = filterLineItems ? orderLineItems.filter(li => filterLineItems(o, li)) : orderLineItems;
         if (items.length === 0) return null;
         return (
           <OrderCard key={o.id}

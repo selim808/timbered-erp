@@ -24,6 +24,29 @@ const BROWN = '#7A4610';
 type Tab = 'orders' | 'wip';
 type GroupBy = 'order' | 'phase' | 'product';
 
+function normalizeOrders(data: unknown): PipelineOrder[] {
+  if (!Array.isArray(data)) return [];
+
+  return data
+    .filter((o): o is PipelineOrder => !!o && typeof o === 'object')
+    .map(o => ({
+      ...o,
+      id: Number(o.id),
+      number: String(o.number ?? ''),
+      dateCreated: String(o.dateCreated ?? new Date().toISOString()),
+      customerName: String(o.customerName ?? ''),
+      customerPhone: String(o.customerPhone ?? ''),
+      customerAddress: String(o.customerAddress ?? ''),
+      customerAddress2: String(o.customerAddress2 ?? ''),
+      customerCity: String(o.customerCity ?? ''),
+      customerState: String(o.customerState ?? ''),
+      customerNote: String(o.customerNote ?? ''),
+      total: Number(o.total ?? 0),
+      daysOpen: Number(o.daysOpen ?? 0),
+      lineItems: Array.isArray(o.lineItems) ? o.lineItems : [],
+    }));
+}
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
@@ -400,7 +423,7 @@ export default function OrdersPipelinePage() {
       fetch('/api/phase-groups').then(r => r.json()),
       fetch('/api/phases').then(r => r.json()),
     ]).then(([ords, grps, phs]) => {
-      if (Array.isArray(ords)) setOrders(ords);
+      if (Array.isArray(ords)) setOrders(normalizeOrders(ords));
       else setError(ords.error ?? 'Failed to load orders');
       if (Array.isArray(grps)) setPhaseGroups(grps);
       if (Array.isArray(phs)) setPhases(phs);
