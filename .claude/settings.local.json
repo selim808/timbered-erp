@@ -40,7 +40,10 @@
       "Bash(curl -s 'https://wpmeajpzlzdxrahgubxl.supabase.co/rest/v1/item_phase?limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwbWVhanB6bHpkeHJhaGd1YnhsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODE1NzU5NCwiZXhwIjoyMDkzNzMzNTk0fQ.IZR6Giv4tV0fMiYHqxSiZTjw4mTEgtYSxOjGivdlSHE' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwbWVhanB6bHpkeHJhaGd1YnhsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODE1NzU5NCwiZXhwIjoyMDkzNzMzNTk0fQ.IZR6Giv4tV0fMiYHqxSiZTjw4mTEgtYSxOjGivdlSHE')",
       "Bash(rm scripts/seed-phases.mjs && echo \"Deleted\")",
       "Bash(node --env-file=.env.local -e ' *)",
-      "Bash(node --env-file=.env.local --input-type=module -e ' *)"
+      "Bash(node --env-file=.env.local --input-type=module -e ' *)",
+      "Bash(npx next *)",
+      "Bash(curl -s http://localhost:3000/api/phase-groups)",
+      "Bash(curl -s http://localhost:3000/api/phases)"
     ],
     "additionalDirectories": [
       "D:\\IQ BWRS GPDF\\02 BWRS\\01 Bussiness\\01 TG\\TimberedERP\\scripts"
