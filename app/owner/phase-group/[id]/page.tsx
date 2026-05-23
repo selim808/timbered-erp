@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
-import PipelineOrderList, { PhaseGroup, fmtPrice } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 
@@ -13,6 +13,7 @@ export default function PhaseGroupPage() {
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
   const [activePhase, setActivePhase] = useState<string | null>(null);
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
+  const [phases, setPhases]           = useState<Phase[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [detailOrder, setDetailOrder]   = useState<PipelineOrder | null>(null);
@@ -33,16 +34,20 @@ export default function PhaseGroupPage() {
   useEffect(() => {
     Promise.all([
       fetch('/api/phase-groups').then(r => r.json()),
+      fetch('/api/phases').then(r => r.json()),
       fetch('/api/pipeline/orders').then(r => r.json()),
     ])
-      .then(([groups, ords]) => {
+      .then(([groups, phs, ords]) => {
         if (!Array.isArray(groups)) { setError('Failed to load phase groups'); return; }
+        if (!Array.isArray(phs))    { setError('Failed to load phases'); return; }
         if (!Array.isArray(ords))   { setError(ords?.error ?? 'Failed to load orders'); return; }
         setPhaseGroups(groups);
-        const g = groups.find((g: PhaseGroup) => g.id === id);
+        setPhases(phs);
+        const g = (groups as PhaseGroup[]).find(g => g.id === id);
         if (!g) { setError('Phase group not found'); return; }
         setGroup(g);
-        if (g.phases.length > 0) setActivePhase(g.phases[0]);
+        const first = (phs as Phase[]).filter(p => p.phase_group_id === g.id)[0];
+        if (first) setActivePhase(first.name);
         setOrders(ords);
       })
       .catch((e: Error) => setError(e.message))
@@ -67,16 +72,23 @@ export default function PhaseGroupPage() {
     }
   }
 
+  const groupPhases = useMemo(() =>
+    group ? phases.filter(p => p.phase_group_id === group.id) : [],
+    [group, phases]
+  );
+
+  const groupPhaseNames = useMemo(() => new Set(groupPhases.map(p => p.name)), [groupPhases]);
+
   // Count of line items per phase (for tab badges)
   const phaseItemCounts = useMemo(() => {
     const map = new Map<string, number>();
     if (!group) return map;
     for (const o of orders)
       for (const li of o.lineItems)
-        if (group.phases.includes(li.phase))
+        if (groupPhaseNames.has(li.phase))
           map.set(li.phase, (map.get(li.phase) ?? 0) + 1);
     return map;
-  }, [orders, group]);
+  }, [orders, group, groupPhaseNames]);
 
   async function handleBulkApply() {
     if (!bulkPhase || selectedItems.size === 0) return;
@@ -164,16 +176,16 @@ export default function PhaseGroupPage() {
 
       {/* Phase tabs */}
       <div className="pg-sub-nav">
-        {group.phases.map(phase => {
-          const count = phaseItemCounts.get(phase) ?? 0;
-          const active = activePhase === phase;
+        {groupPhases.map(p => {
+          const count = phaseItemCounts.get(p.name) ?? 0;
+          const active = activePhase === p.name;
           return (
             <button
-              key={phase}
+              key={p.id}
               className={`pg-sub-btn${active ? ' active' : ''}`}
-              onClick={() => setActivePhase(phase)}
+              onClick={() => setActivePhase(p.name)}
             >
-              {phase}
+              {p.name}
               {count > 0 && (
                 <span
                   className="pg-tab-cnt"
@@ -206,7 +218,9 @@ export default function PhaseGroupPage() {
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
                 <optgroup key={g.id} label={g.name}>
-                  {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
+                  {phases.filter(p => p.phase_group_id === g.id).map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
                 </optgroup>
               ))}
             </select>
@@ -228,6 +242,7 @@ export default function PhaseGroupPage() {
           <PipelineOrderList
             orders={visibleOrders}
             groups={phaseGroups}
+            phases={phases}
             filterLineItems={filterLineItems}
             bulkMode={bulkMode}
             selectedItems={selectedItems}

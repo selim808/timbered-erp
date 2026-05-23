@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
-import PipelineOrderList, { PhaseGroup, fmtPrice } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 
 export default function ReviewPage() {
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
+  const [phases, setPhases]           = useState<Phase[]>([]);
   const [loading, setLoading]         = useState(true);
   const [activePhase, setActivePhase] = useState('');
   const [toast, setToast]             = useState('');
@@ -23,12 +24,15 @@ export default function ReviewPage() {
     Promise.all([
       fetch('/api/pipeline/orders').then(r => r.json()),
       fetch('/api/phase-groups').then(r => r.json()),
-    ]).then(([ords, grps]) => {
+      fetch('/api/phases').then(r => r.json()),
+    ]).then(([ords, grps, phs]) => {
       if (Array.isArray(ords)) setOrders(ords);
-      if (Array.isArray(grps)) {
-        setPhaseGroups(grps);
-        const rg = grps.find((g: PhaseGroup) => g.name.toLowerCase() === 'review');
-        if (rg?.phases[0]) setActivePhase(rg.phases[0]);
+      if (Array.isArray(grps)) setPhaseGroups(grps);
+      if (Array.isArray(phs)) {
+        setPhases(phs);
+        const rg = (grps as PhaseGroup[]).find(g => g.name.toLowerCase() === 'review');
+        const first = rg ? (phs as Phase[]).filter(p => p.phase_group_id === rg.id)[0] : undefined;
+        if (first) setActivePhase(first.name);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -142,14 +146,14 @@ export default function ReviewPage() {
       `}</style>
 
       <div className="rv-tabs">
-        {(reviewGroup?.phases ?? []).map(p => (
-          <button key={p}
-            className={`rv-tab${activePhase === p ? ' active' : ''}`}
+        {(reviewGroup ? phases.filter(p => p.phase_group_id === reviewGroup.id) : []).map(p => (
+          <button key={p.id}
+            className={`rv-tab${activePhase === p.name ? ' active' : ''}`}
             style={{ '--rv-color': activeColor } as React.CSSProperties}
-            onClick={() => setActivePhase(p)}>
-            {p}
-            <span className="rv-tab-count" style={activePhase === p ? { background: activeColor } : {}}>
-              {phaseCounts.get(p) ?? 0}
+            onClick={() => setActivePhase(p.name)}>
+            {p.name}
+            <span className="rv-tab-count" style={activePhase === p.name ? { background: activeColor } : {}}>
+              {phaseCounts.get(p.name) ?? 0}
             </span>
           </button>
         ))}
@@ -174,7 +178,9 @@ export default function ReviewPage() {
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
                 <optgroup key={g.id} label={g.name}>
-                  {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
+                  {phases.filter(p => p.phase_group_id === g.id).map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
                 </optgroup>
               ))}
             </select>
@@ -194,6 +200,7 @@ export default function ReviewPage() {
           <PipelineOrderList
             orders={phaseOrders}
             groups={phaseGroups}
+            phases={phases}
             filterLineItems={(_, li) => li.phase === activePhase}
             defaultOpen
             accentColor={activeColor}

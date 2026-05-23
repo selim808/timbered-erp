@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
-import PipelineOrderList, { PhaseGroup, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -29,8 +29,8 @@ function fmtDate(iso: string) {
 }
 
 // ── Phase View ─────────────────────────────────────────────────────────────
-function PhaseView({ orders, groups, bulkMode, selectedItems, onToggleItem, onToggleGroup, onPhaseChange }: {
-  orders: PipelineOrder[]; groups: PhaseGroup[]; bulkMode: boolean;
+function PhaseView({ orders, groups, phases, bulkMode, selectedItems, onToggleItem, onToggleGroup, onPhaseChange }: {
+  orders: PipelineOrder[]; groups: PhaseGroup[]; phases: Phase[]; bulkMode: boolean;
   selectedItems: Set<string>;
   onToggleItem: (k: string) => void;
   onToggleGroup: (keys: string[]) => void;
@@ -48,12 +48,14 @@ function PhaseView({ orders, groups, bulkMode, selectedItems, onToggleItem, onTo
   const allPhases = useMemo(() => {
     const seen = new Set<string>();
     const list: { phase: string; groupLabel: string; color: string }[] = [];
-    groups.forEach(g => g.phases.forEach(p => {
-      if (!seen.has(p)) { seen.add(p); list.push({ phase: p, groupLabel: g.name, color: BROWN }); }
-    }));
+    groups.forEach(g => {
+      phases.filter(p => p.phase_group_id === g.id).forEach(p => {
+        if (!seen.has(p.name)) { seen.add(p.name); list.push({ phase: p.name, groupLabel: g.name, color: BROWN }); }
+      });
+    });
     list.push({ phase: '', groupLabel: '', color: '#ccc' });
     return list;
-  }, [groups]);
+  }, [groups, phases]);
 
   return (
     <div>
@@ -79,7 +81,7 @@ function PhaseView({ orders, groups, bulkMode, selectedItems, onToggleItem, onTo
                   const key = `${o.id}-${li.id}`;
                   return (
                     <ItemRow key={key} li={li} orderNum={o.number} liIndex={liIndex}
-                      daysOpen={o.daysOpen} groups={groups} bulkMode={bulkMode}
+                      daysOpen={o.daysOpen} groups={groups} phases={phases} bulkMode={bulkMode}
                       selected={selectedItems.has(key)} showOrder={true}
                       onToggle={() => onToggleItem(key)}
                       onPhaseChange={v => onPhaseChange(o.id, li.id, v)}
@@ -96,8 +98,8 @@ function PhaseView({ orders, groups, bulkMode, selectedItems, onToggleItem, onTo
 }
 
 // ── Product View ───────────────────────────────────────────────────────────
-function ProductView({ orders, groups, bulkMode, selectedItems, prodSort, onToggleItem, onToggleGroup, onPhaseChange }: {
-  orders: PipelineOrder[]; groups: PhaseGroup[]; bulkMode: boolean;
+function ProductView({ orders, groups, phases, bulkMode, selectedItems, prodSort, onToggleItem, onToggleGroup, onPhaseChange }: {
+  orders: PipelineOrder[]; groups: PhaseGroup[]; phases: Phase[]; bulkMode: boolean;
   selectedItems: Set<string>; prodSort: 'qty' | 'value';
   onToggleItem: (k: string) => void;
   onToggleGroup: (keys: string[]) => void;
@@ -143,7 +145,7 @@ function ProductView({ orders, groups, bulkMode, selectedItems, prodSort, onTogg
                   const key = `${o.id}-${li.id}`;
                   return (
                     <ItemRow key={key} li={li} orderNum={o.number} liIndex={liIndex}
-                      daysOpen={o.daysOpen} groups={groups} bulkMode={bulkMode}
+                      daysOpen={o.daysOpen} groups={groups} phases={phases} bulkMode={bulkMode}
                       selected={selectedItems.has(key)} showOrder={true}
                       onToggle={() => onToggleItem(key)}
                       onPhaseChange={v => onPhaseChange(o.id, li.id, v)}
@@ -160,9 +162,10 @@ function ProductView({ orders, groups, bulkMode, selectedItems, prodSort, onTogg
 }
 
 // ── WIP Chart ─────────────────────────────────────────────────────────────
-function WipChart({ orders, phaseGroups, onPhaseChange }: {
+function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
   orders: PipelineOrder[];
   phaseGroups: PhaseGroup[];
+  phases: Phase[];
   onPhaseChange: (orderId: number, liId: number, phase: string) => void;
 }) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -181,7 +184,8 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
 
   const groupStats = useMemo(() => {
     const stats = phaseGroups.map(g => {
-      const items = allItems.filter(li => g.phases.includes(li.phase));
+      const groupPhaseNames = new Set(phases.filter(p => p.phase_group_id === g.id).map(p => p.name));
+      const items = allItems.filter(li => groupPhaseNames.has(li.phase));
       return { id: g.id, label: g.name, color: BROWN, qty: items.reduce((s, li) => s + li.quantity, 0), value: items.reduce((s, li) => s + li.total, 0), orders: new Set(items.map(li => li.orderId)).size, items };
     }).filter(g => g.items.length > 0);
 
@@ -190,17 +194,17 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
       stats.push({ id: 'unassigned', label: 'Unassigned', color: '#bbb', qty: unassignedItems.reduce((s, li) => s + li.quantity, 0), value: unassignedItems.reduce((s, li) => s + li.total, 0), orders: new Set(unassignedItems.map(li => li.orderId)).size, items: unassignedItems });
     }
     return stats;
-  }, [allItems, phaseGroups]);
+  }, [allItems, phaseGroups, phases]);
 
   const fmtK = (v: number) => v >= 1000 ? `${Math.round(v / 1000)}K` : String(Math.round(v));
 
   const allPhaseStats = useMemo(() => {
     const result: { phase: string; color: string; value: number; qty: number; orders: number }[] = [];
     phaseGroups.forEach(g => {
-      g.phases.forEach(phase => {
-        const items = allItems.filter(li => li.phase === phase);
+      phases.filter(p => p.phase_group_id === g.id).forEach(p => {
+        const items = allItems.filter(li => li.phase === p.name);
         if (items.length > 0) result.push({
-          phase, color: BROWN,
+          phase: p.name, color: BROWN,
           value: items.reduce((s, li) => s + li.total, 0),
           qty: items.reduce((s, li) => s + li.quantity, 0),
           orders: new Set(items.map(li => li.orderId)).size,
@@ -208,22 +212,22 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
       });
     });
     return result;
-  }, [allItems, phaseGroups]);
+  }, [allItems, phaseGroups, phases]);
 
   const drilledGroup = !showAllPhases && chartDrill ? phaseGroups.find(g => g.id === chartDrill) : null;
 
   const drillStats = useMemo(() => {
     if (!drilledGroup) return [];
-    return drilledGroup.phases.map(phase => {
-      const items = allItems.filter(li => li.phase === phase);
+    return phases.filter(p => p.phase_group_id === drilledGroup.id).map(p => {
+      const items = allItems.filter(li => li.phase === p.name);
       return {
-        phase,
+        phase: p.name,
         value: items.reduce((s, li) => s + li.total, 0),
         qty: items.reduce((s, li) => s + li.quantity, 0),
         orders: new Set(items.map(li => li.orderId)).size,
       };
     }).filter(d => d.qty > 0);
-  }, [drilledGroup, allItems]);
+  }, [drilledGroup, allItems, phases]);
 
   const activeStats = showAllPhases ? allPhaseStats : drilledGroup ? drillStats : groupStats;
   const activeColor = drilledGroup ? BROWN : null;
@@ -345,6 +349,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
                   liIndex={li.liIndex}
                   daysOpen={li.daysOpen}
                   groups={phaseGroups}
+                  phases={phases}
                   bulkMode={false}
                   selected={false}
                   showOrder={true}
@@ -367,6 +372,7 @@ export default function OrdersPipelinePage() {
   const [groupBy, setGroupBy]     = useState<GroupBy>('order');
   const [orders, setOrders]       = useState<PipelineOrder[]>([]);
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
+  const [phases, setPhases] = useState<Phase[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
@@ -392,10 +398,12 @@ export default function OrdersPipelinePage() {
     Promise.all([
       fetch('/api/pipeline/orders').then(r => r.json()),
       fetch('/api/phase-groups').then(r => r.json()),
-    ]).then(([ords, grps]) => {
+      fetch('/api/phases').then(r => r.json()),
+    ]).then(([ords, grps, phs]) => {
       if (Array.isArray(ords)) setOrders(ords);
       else setError(ords.error ?? 'Failed to load orders');
       if (Array.isArray(grps)) setPhaseGroups(grps);
+      if (Array.isArray(phs)) setPhases(phs);
       setLoading(false);
     }).catch(e => { setError(e.message); setLoading(false); });
   }, []);
@@ -664,7 +672,7 @@ export default function OrdersPipelinePage() {
       </div>
 
       {tab === 'wip' ? (
-        <WipChart orders={orders} phaseGroups={phaseGroups} onPhaseChange={handlePhaseChange} />
+        <WipChart orders={orders} phaseGroups={phaseGroups} phases={phases} onPhaseChange={handlePhaseChange} />
       ) : (
         <>
           {/* Badges */}
@@ -687,7 +695,9 @@ export default function OrdersPipelinePage() {
                     <option value="">— phase —</option>
                     {phaseGroups.map(g => (
                       <optgroup key={g.id} label={g.name}>
-                        {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
+                        {phases.filter(p => p.phase_group_id === g.id).map(p => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
+                        ))}
                       </optgroup>
                     ))}
                   </select>
@@ -774,7 +784,7 @@ export default function OrdersPipelinePage() {
           ) : (
             <div className="op-content">
               {groupBy === 'order' && (
-                <PipelineOrderList orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
+                <PipelineOrderList orders={visibleOrders} groups={phaseGroups} phases={phases} bulkMode={bulkMode}
                   selectedItems={selectedItems} completeMode={completeMode} cancelMode={cancelMode}
                   selectedOrders={selectedOrders} onToggleItem={toggleItem}
                   onPhaseChange={handlePhaseChange} onToggleOrder={toggleOrder}
@@ -782,12 +792,12 @@ export default function OrdersPipelinePage() {
                   onImageClick={li => setProductPopup(li)} />
               )}
               {groupBy === 'phase' && (
-                <PhaseView orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
+                <PhaseView orders={visibleOrders} groups={phaseGroups} phases={phases} bulkMode={bulkMode}
                   selectedItems={selectedItems} onToggleItem={toggleItem}
                   onToggleGroup={toggleGroup} onPhaseChange={handlePhaseChange} />
               )}
               {groupBy === 'product' && (
-                <ProductView orders={visibleOrders} groups={phaseGroups} bulkMode={bulkMode}
+                <ProductView orders={visibleOrders} groups={phaseGroups} phases={phases} bulkMode={bulkMode}
                   selectedItems={selectedItems} prodSort={prodSort} onToggleItem={toggleItem}
                   onToggleGroup={toggleGroup} onPhaseChange={handlePhaseChange} />
               )}

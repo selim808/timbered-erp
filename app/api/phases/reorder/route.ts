@@ -2,21 +2,15 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 // PUT: set sort_order on every phase in a group by position.
-// Body: { group_id, ordered_names: string[] }
+// Body: { ordered_ids: string[] }
 export async function PUT(req: Request) {
-  const { group_id, ordered_names } = await req.json() as {
-    group_id: string; ordered_names: string[];
-  };
-  if (!group_id || !Array.isArray(ordered_names))
-    return NextResponse.json({ error: 'group_id and ordered_names required' }, { status: 400 });
+  const { ordered_ids } = await req.json() as { ordered_ids: string[] };
+  if (!Array.isArray(ordered_ids))
+    return NextResponse.json({ error: 'ordered_ids required' }, { status: 400 });
 
   const db = createAdminClient();
-
-  const updates = ordered_names.map((name, i) =>
-    db.from('phases')
-      .update({ sort_order: (i + 1) * 10 })
-      .eq('phase_group_id', group_id)
-      .eq('name', name)
+  const updates = ordered_ids.map((id, i) =>
+    db.from('phases').update({ sort_order: (i + 1) * 10 }).eq('id', id)
   );
   const results = await Promise.all(updates);
   const firstErr = results.find(r => r.error)?.error;

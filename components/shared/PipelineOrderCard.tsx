@@ -9,7 +9,13 @@ export interface PhaseGroup {
   id: string;
   name: string;
   sort_order: number;
-  phases: string[];
+}
+
+export interface Phase {
+  id: string;
+  phase_group_id: string;
+  name: string;
+  sort_order: number;
 }
 
 export function fmtPrice(n: number) {
@@ -28,8 +34,8 @@ export function waPhone(raw: string) {
   return p;
 }
 
-export function PhaseSelect({ groups, value, onChange }: {
-  groups: PhaseGroup[]; value: string; onChange: (v: string) => void;
+export function PhaseSelect({ groups, phases, value, onChange }: {
+  groups: PhaseGroup[]; phases: Phase[]; value: string; onChange: (v: string) => void;
 }) {
   return (
     <select className="poc-phase-sel" value={value} onChange={e => onChange(e.target.value)}
@@ -37,7 +43,9 @@ export function PhaseSelect({ groups, value, onChange }: {
       <option value="">— phase —</option>
       {groups.map(g => (
         <optgroup key={g.id} label={g.name}>
-          {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
+          {phases.filter(p => p.phase_group_id === g.id).map(p => (
+            <option key={p.id} value={p.name}>{p.name}</option>
+          ))}
         </optgroup>
       ))}
     </select>
@@ -58,9 +66,9 @@ export function GroupCheckbox({ keys, selectedItems, onToggleGroup }: {
   );
 }
 
-export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, bulkMode, selected, onToggle, onPhaseChange, onImageClick, showOrder }: {
+export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, phases, bulkMode, selected, onToggle, onPhaseChange, onImageClick, showOrder }: {
   li: PipelineLineItem; orderNum: string; liIndex: number; daysOpen: number;
-  groups: PhaseGroup[]; bulkMode: boolean; selected: boolean;
+  groups: PhaseGroup[]; phases: Phase[]; bulkMode: boolean; selected: boolean;
   onToggle: () => void; onPhaseChange: (v: string) => void;
   onImageClick?: (li: PipelineLineItem) => void;
   showOrder?: boolean;
@@ -85,15 +93,15 @@ export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, bulkMode, sel
       <span className="poc-stock" title="In stock">📦{li.stock}</span>
       <span className="poc-ordered" title="Total ordered">🛒{li.orderedQty}</span>
       <span className="poc-price">{fmtPrice(li.total)}</span>
-      <PhaseSelect groups={groups} value={li.phase} onChange={onPhaseChange} />
+      <PhaseSelect groups={groups} phases={phases} value={li.phase} onChange={onPhaseChange} />
     </div>
   );
 }
 
-function OrderCard({ o, groups, items, isOpen, onToggleOpen, bulkMode, selectedItems,
+function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, selectedItems,
   onToggleItem, onToggleGroup, onPhaseChange, completeMode, cancelMode,
   isSelected, onToggleOrder, onOpenDetail, accentColor, onImageClick }: {
-  o: PipelineOrder; groups: PhaseGroup[]; items: PipelineLineItem[];
+  o: PipelineOrder; groups: PhaseGroup[]; phases: Phase[]; items: PipelineLineItem[];
   isOpen: boolean; onToggleOpen: () => void;
   bulkMode: boolean; selectedItems: Set<string>;
   onToggleItem: (k: string) => void; onToggleGroup: (keys: string[]) => void;
@@ -156,7 +164,7 @@ function OrderCard({ o, groups, items, isOpen, onToggleOpen, bulkMode, selectedI
             const key = `${o.id}-${li.id}`;
             return (
               <ItemRow key={li.id} li={li} orderNum={o.number} liIndex={idx + 1}
-                daysOpen={o.daysOpen} groups={groups} bulkMode={bulkMode}
+                daysOpen={o.daysOpen} groups={groups} phases={phases} bulkMode={bulkMode}
                 selected={selectedItems.has(key)}
                 onToggle={() => onToggleItem(key)}
                 onPhaseChange={v => onPhaseChange(o.id, li.id, v)}
@@ -218,6 +226,7 @@ const STYLES = `
 export interface PipelineOrderListProps {
   orders: PipelineOrder[];
   groups: PhaseGroup[];
+  phases: Phase[];
   filterLineItems?: (o: PipelineOrder, li: PipelineLineItem) => boolean;
   defaultOpen?: boolean;
   accentColor?: string;
@@ -235,7 +244,7 @@ export interface PipelineOrderListProps {
 }
 
 export default function PipelineOrderList({
-  orders, groups, filterLineItems, defaultOpen = false,
+  orders, groups, phases, filterLineItems, defaultOpen = false,
   bulkMode = false, selectedItems = new Set(), onToggleItem = () => {},
   onToggleGroup = () => {}, onPhaseChange,
   completeMode = false, cancelMode = false,
@@ -258,7 +267,7 @@ export default function PipelineOrderList({
         if (items.length === 0) return null;
         return (
           <OrderCard key={o.id}
-            o={o} groups={groups} items={items}
+            o={o} groups={groups} phases={phases} items={items}
             isOpen={open.has(o.id)}
             onToggleOpen={() => toggleOpen(o.id)}
             bulkMode={bulkMode} selectedItems={selectedItems}

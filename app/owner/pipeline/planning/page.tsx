@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
-import PipelineOrderList, { PhaseGroup, fmtPrice } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 
@@ -11,6 +11,7 @@ export default function PlanningPage() {
   const router = useRouter();
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
+  const [phases, setPhases]           = useState<Phase[]>([]);
   const [loading, setLoading]         = useState(true);
   const [activePhase, setActivePhase] = useState('');
   const [toast, setToast]             = useState('');
@@ -25,12 +26,15 @@ export default function PlanningPage() {
     Promise.all([
       fetch('/api/pipeline/orders').then(r => r.json()),
       fetch('/api/phase-groups').then(r => r.json()),
-    ]).then(([ords, grps]) => {
+      fetch('/api/phases').then(r => r.json()),
+    ]).then(([ords, grps, phs]) => {
       if (Array.isArray(ords)) setOrders(ords);
-      if (Array.isArray(grps)) {
-        setPhaseGroups(grps);
-        const pg = grps.find((g: PhaseGroup) => g.name.toLowerCase() === 'planning');
-        if (pg?.phases[0]) setActivePhase(pg.phases[0]);
+      if (Array.isArray(grps)) setPhaseGroups(grps);
+      if (Array.isArray(phs)) {
+        setPhases(phs);
+        const pg = (grps as PhaseGroup[]).find(g => g.name.toLowerCase() === 'planning');
+        const first = pg ? (phs as Phase[]).filter(p => p.phase_group_id === pg.id)[0] : undefined;
+        if (first) setActivePhase(first.name);
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -147,14 +151,14 @@ export default function PlanningPage() {
       `}</style>
 
       <div className="pl-tabs">
-        {(planningGroup?.phases ?? []).map(p => (
-          <button key={p}
-            className={`pl-tab${activePhase === p ? ' active' : ''}`}
+        {(planningGroup ? phases.filter(p => p.phase_group_id === planningGroup.id) : []).map(p => (
+          <button key={p.id}
+            className={`pl-tab${activePhase === p.name ? ' active' : ''}`}
             style={{ '--pl-color': activeColor } as React.CSSProperties}
-            onClick={() => setActivePhase(p)}>
-            {p}
-            <span className="pl-tab-count" style={activePhase === p ? { background: activeColor } : {}}>
-              {phaseCounts.get(p) ?? 0}
+            onClick={() => setActivePhase(p.name)}>
+            {p.name}
+            <span className="pl-tab-count" style={activePhase === p.name ? { background: activeColor } : {}}>
+              {phaseCounts.get(p.name) ?? 0}
             </span>
           </button>
         ))}
@@ -179,7 +183,9 @@ export default function PlanningPage() {
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
                 <optgroup key={g.id} label={g.name}>
-                  {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
+                  {phases.filter(p => p.phase_group_id === g.id).map(p => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
                 </optgroup>
               ))}
             </select>
@@ -202,6 +208,7 @@ export default function PlanningPage() {
           <PipelineOrderList
             orders={phaseOrders}
             groups={phaseGroups}
+            phases={phases}
             filterLineItems={(_, li) => li.phase === activePhase}
             accentColor={activeColor}
             bulkMode={bulkMode}

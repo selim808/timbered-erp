@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface PhaseGroup {
-  id: string; name: string; sort_order: number; phases: string[];
+  id: string; name: string; sort_order: number;
 }
 
 export default function BottomNav() {

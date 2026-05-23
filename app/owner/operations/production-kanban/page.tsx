@@ -57,7 +57,13 @@ interface AssembledCard {
 interface PhaseGroup {
   id: string;
   name: string;
-  phases: string[];
+}
+
+interface Phase {
+  id: string;
+  phase_group_id: string;
+  name: string;
+  sort_order: number;
 }
 
 type Tab = 'production' | 'dispatch' | 'status' | 'shipments';
@@ -74,6 +80,7 @@ export default function ProductionKanbanPage() {
   const [jobOrders, setJobOrders] = useState<JobOrder[]>([]);
   const [cards, setCards] = useState<AssembledCard[]>([]);
   const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
+  const [allPhases, setAllPhases] = useState<Phase[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,9 +90,12 @@ export default function ProductionKanbanPage() {
 
   const prodGroup     = phaseGroups.find(g => g.name.toLowerCase() === 'production');
   const dispatchGroup = phaseGroups.find(g => g.name.toLowerCase() === 'dispatch');
-  const phases             = prodGroup?.phases ?? [];
+  const phases = (prodGroup ? allPhases.filter(p => p.phase_group_id === prodGroup.id) : [])
+    .sort((a, b) => a.sort_order - b.sort_order).map(p => p.name);
+  const dispatchPhases = (dispatchGroup ? allPhases.filter(p => p.phase_group_id === dispatchGroup.id) : [])
+    .sort((a, b) => a.sort_order - b.sort_order).map(p => p.name);
   const lastProdPhase      = phases[phases.length - 1] ?? '';
-  const dispatchFirstPhase = dispatchGroup?.phases[0] ?? '';
+  const dispatchFirstPhase = dispatchPhases[0] ?? '';
   const activeCards = cards.filter(c => c.status !== 'done');
 
   async function load() {
@@ -102,6 +112,7 @@ export default function ProductionKanbanPage() {
       setJobOrders(board.jobOrders ?? []);
       setCards(board.productionCards ?? []);
       setPhaseGroups(board.phaseGroups ?? []);
+      setAllPhases(board.phases ?? []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -160,7 +171,6 @@ export default function ProductionKanbanPage() {
     setDragOverPhase(null);
   }
 
-  const dispatchPhases      = dispatchGroup?.phases ?? [];
   const dispatchActiveCards = cards.filter(c => dispatchPhases.includes(c.effective_phase));
 
   const TABS: { id: Tab; label: string; count: number | null }[] = [

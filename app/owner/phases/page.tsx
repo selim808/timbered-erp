@@ -6,15 +6,20 @@ interface Group {
   id: string;
   name: string;
   sort_order: number;
-  phases: string[];
+}
+
+interface Phase {
+  id: string;
+  phase_group_id: string;
+  name: string;
+  sort_order: number;
 }
 
 interface AffectedItem { id: string; order_id: string; line_item_id: string; }
 
 interface PendingDelete {
   group: Group;
-  phaseIdx: number;
-  phaseName: string;
+  phase: Phase;
   affected: AffectedItem[];
 }
 
@@ -116,6 +121,7 @@ const CSS = `
 
 export default function PhasesPage() {
   const [groups, setGroups]   = useState<Group[]>([]);
+  const [phases, setPhases]   = useState<Phase[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [loadState, setLoad]  = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErrMsg]   = useState('');
@@ -142,29 +148,37 @@ export default function PhasesPage() {
   // Inline editing
   const [editGrpId, setEditGrpId]   = useState<string | null>(null);
   const [editGrpVal, setEditGrpVal] = useState('');
-  const [editPhKey, setEditPhKey]   = useState<string | null>(null); // "gid:idx"
+  const [editPhId, setEditPhId]     = useState<string | null>(null);
   const [editPhVal, setEditPhVal]   = useState('');
 
   // Drag state — refs for data, state for visuals
-  const phaseDrag = useRef<{ gid: string; idx: number } | null>(null);
+  const phaseDrag = useRef<{ gid: string; phaseId: string } | null>(null);
   const groupDrag = useRef<string | null>(null);
-  const [draggingPhKey, setDraggingPhKey] = useState<string | null>(null);
-  const [dragOverPhKey, setDragOverPhKey] = useState<string | null>(null);
+  const [draggingPhId, setDraggingPhId] = useState<string | null>(null);
+  const [dragOverPhId, setDragOverPhId] = useState<string | null>(null);
   const [draggingGrpId, setDraggingGrpId] = useState<string | null>(null);
   const [dragOverGrpId, setDragOverGrpId] = useState<string | null>(null);
 
   // ── Load ───────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/phase-groups')
-      .then(r => r.json())
-      .then((data: Group[] | { error: string }) => {
-        if (!Array.isArray(data)) throw new Error((data as { error: string }).error);
-        setGroups(data);
-        setCollapsed(new Set(data.map((g: Group) => g.id))); // all collapsed initially
+    Promise.all([
+      fetch('/api/phase-groups').then(r => r.json()),
+      fetch('/api/phases').then(r => r.json()),
+    ])
+      .then(([grps, phs]) => {
+        if (!Array.isArray(grps)) throw new Error(grps?.error ?? 'Failed to load groups');
+        if (!Array.isArray(phs))  throw new Error(phs?.error ?? 'Failed to load phases');
+        setGroups(grps);
+        setPhases(phs);
+        setCollapsed(new Set(grps.map((g: Group) => g.id))); // all collapsed initially
         setLoad('done');
       })
       .catch((e: Error) => { setErrMsg(e.message); setLoad('error'); });
   }, []);
+
+  function phasesOf(gid: string) {
+    return phases.filter(p => p.phase_group_id === gid).sort((a, b) => a.sort_order - b.sort_order);
+  }
 
   // ── Toast ──────────────────────────────────────────────────────
   function showToast(msg: string, type: 'saving' | 'ok' | 'err') {
@@ -200,56 +214,53 @@ export default function PhasesPage() {
     showToast('Order saved', 'ok');
   }
 
-  async function savePhase(method: 'POST' | 'PATCH' | 'DELETE', body: object) {
-    showToast('Saving…', 'saving');
-    const res = await fetch('/api/phases', {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) { showToast('Save failed', 'err'); return false; }
-    showToast('Saved', 'ok');
-    return true;
-  }
-
   async function addPhase(gid: string) {
     const name = (addInputs[gid] ?? '').trim();
     if (!name) return;
-    const g = groups.find(x => x.id === gid);
-    if (!g) return;
-    setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases: [...x.phases, name] } : x));
     setAddInputs(prev => ({ ...prev, [gid]: '' }));
-    await savePhase('POST', { group_id: gid, name });
+
+    showToast('Saving…', 'saving');
+    const res = await fetch('/api/phases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase_group_id: gid, name }),
+    });
+    if (!res.ok) { showToast('Save failed', 'err'); return; }
+    const created: Phase = await res.json();
+    setPhases(prev => [...prev, created]);
+    showToast('Saved', 'ok');
   }
 
-  async function delPhase(gid: string, idx: number) {
-    const g = groups.find(x => x.id === gid);
+  async function delPhase(phaseId: string) {
+    const p = phases.find(x => x.id === phaseId);
+    if (!p) return;
+    const g = groups.find(x => x.id === p.phase_group_id);
     if (!g) return;
-    const phaseName = g.phases[idx];
 
     showToast('Checking usage…', 'saving');
     let affected: AffectedItem[] = [];
     try {
-      const res = await fetch(`/api/phase-groups/usage?phase=${encodeURIComponent(phaseName)}`);
+      const res = await fetch(`/api/phase-groups/usage?phase=${encodeURIComponent(p.name)}`);
       affected = await res.json();
     } catch { /* ignore */ }
-    showToast('', 'ok');
     setToastMsg('');
 
     if (affected.length === 0) {
-      if (!confirm(`Delete "${phaseName}" from ${g.name}?`)) return;
-      setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases: x.phases.filter((_, i) => i !== idx) } : x));
-      await savePhase('DELETE', { group_id: gid, name: phaseName });
+      if (!confirm(`Delete "${p.name}" from ${g.name}?`)) return;
+      setPhases(prev => prev.filter(x => x.id !== phaseId));
+      showToast('Saving…', 'saving');
+      const res = await fetch(`/api/phases/${phaseId}`, { method: 'DELETE' });
+      showToast(res.ok ? 'Saved' : 'Save failed', res.ok ? 'ok' : 'err');
       return;
     }
 
     setMoveTarget(''); setMoveHint(''); setProceeding(false);
-    setWarnModal({ group: g, phaseIdx: idx, phaseName, affected });
+    setWarnModal({ group: g, phase: p, affected });
   }
 
   async function proceedDelete(doMove: boolean) {
     if (!warnModal) return;
-    const { group, phaseIdx, phaseName, affected } = warnModal;
+    const { phase, affected } = warnModal;
 
     if (doMove) {
       if (!moveTarget) { setMoveHint('Please select a target phase first.'); return; }
@@ -258,58 +269,64 @@ export default function PhasesPage() {
       await fetch('/api/phase-groups/reassign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: phaseName, to: moveTarget }),
+        body: JSON.stringify({ from: phase.name, to: moveTarget }),
       });
     } else {
       setProceeding(true);
     }
 
-    setGroups(prev => prev.map(x => x.id === group.id ? { ...x, phases: x.phases.filter((_, i) => i !== phaseIdx) } : x));
+    setPhases(prev => prev.filter(x => x.id !== phase.id));
     setWarnModal(null);
-    await savePhase('DELETE', { group_id: group.id, name: phaseName });
+    showToast('Saving…', 'saving');
+    const res = await fetch(`/api/phases/${phase.id}`, { method: 'DELETE' });
+    showToast(res.ok ? 'Saved' : 'Save failed', res.ok ? 'ok' : 'err');
   }
 
   // ── Phase drag & drop ──────────────────────────────────────────
-  function onPhaseDragStart(e: React.DragEvent, gid: string, idx: number) {
-    phaseDrag.current = { gid, idx };
+  function onPhaseDragStart(e: React.DragEvent, gid: string, phaseId: string) {
+    phaseDrag.current = { gid, phaseId };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
-    setDraggingPhKey(`${gid}:${idx}`);
+    setDraggingPhId(phaseId);
   }
 
   function onPhaseDragEnd() {
     phaseDrag.current = null;
-    setDraggingPhKey(null);
-    setDragOverPhKey(null);
+    setDraggingPhId(null);
+    setDragOverPhId(null);
   }
 
-  function onPhaseDragOver(e: React.DragEvent, gid: string, idx: number) {
+  function onPhaseDragOver(e: React.DragEvent, gid: string, phaseId: string) {
     if (!phaseDrag.current || phaseDrag.current.gid !== gid) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOverPhKey(`${gid}:${idx}`);
+    setDragOverPhId(phaseId);
   }
 
-  async function onPhaseDrop(e: React.DragEvent, gid: string, toIdx: number) {
+  async function onPhaseDrop(e: React.DragEvent, gid: string, toPhaseId: string) {
     e.preventDefault();
-    setDragOverPhKey(null);
+    setDragOverPhId(null);
     if (!phaseDrag.current || phaseDrag.current.gid !== gid) return;
-    const fromIdx = phaseDrag.current.idx;
+    const fromPhaseId = phaseDrag.current.phaseId;
     phaseDrag.current = null;
-    if (fromIdx === toIdx) return;
+    if (fromPhaseId === toPhaseId) return;
 
-    const g = groups.find(x => x.id === gid);
-    if (!g) return;
-    const phases = [...g.phases];
-    const [moved] = phases.splice(fromIdx, 1);
-    phases.splice(toIdx, 0, moved);
-    setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases } : x));
+    const groupPhases = phasesOf(gid);
+    const fromIdx = groupPhases.findIndex(p => p.id === fromPhaseId);
+    const toIdx = groupPhases.findIndex(p => p.id === toPhaseId);
+    if (fromIdx === -1 || toIdx === -1) return;
+
+    const reordered = [...groupPhases];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const newOrders = new Map(reordered.map((p, i) => [p.id, (i + 1) * 10]));
+    setPhases(prev => prev.map(p => newOrders.has(p.id) ? { ...p, sort_order: newOrders.get(p.id)! } : p));
 
     showToast('Saving order…', 'saving');
     const res = await fetch('/api/phases/reorder', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ group_id: gid, ordered_names: phases }),
+      body: JSON.stringify({ ordered_ids: reordered.map(p => p.id) }),
     });
     showToast(res.ok ? 'Order saved' : 'Save failed', res.ok ? 'ok' : 'err');
   }
@@ -397,27 +414,28 @@ export default function PhasesPage() {
 
   // ── Inline edit: phase name ────────────────────────────────────
   async function commitPhase() {
-    if (!editPhKey) return;
-    const [gid, idxStr] = editPhKey.split(':');
-    const idx = parseInt(idxStr);
-    const g = groups.find(x => x.id === gid);
-    if (!g) { setEditPhKey(null); return; }
+    if (!editPhId) return;
+    const p = phases.find(x => x.id === editPhId);
     const newName = editPhVal.trim();
-    setEditPhKey(null);
-    const oldName = g.phases[idx];
-    if (!newName || newName === oldName) return;
-    const phases = [...g.phases];
-    phases[idx] = newName;
-    setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases } : x));
-    await savePhase('PATCH', { group_id: gid, old_name: oldName, new_name: newName });
+    setEditPhId(null);
+    if (!p || !newName || newName === p.name) return;
+
+    setPhases(prev => prev.map(x => x.id === p.id ? { ...x, name: newName } : x));
+    showToast('Saving…', 'saving');
+    const res = await fetch(`/api/phases/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    showToast(res.ok ? 'Saved' : 'Save failed', res.ok ? 'ok' : 'err');
   }
 
   // ── All phase options (for move-target dropdown) ───────────────
   const allPhaseOptions = groups.flatMap(g =>
-    g.phases.map(p => ({ group: g.name, phase: p }))
+    phasesOf(g.id).map(p => ({ group: g.name, phase: p.name }))
   );
 
-  const totalPhases = groups.reduce((s, g) => s + g.phases.length, 0);
+  const totalPhases = phases.length;
 
   return (
     <>
@@ -490,7 +508,7 @@ export default function PhasesPage() {
                       title="Edit group name"
                       onClick={e => { e.stopPropagation(); setEditGrpId(g.id); setEditGrpVal(g.name); }}
                     >✎</button>
-                    <span className="pg-card-count" id={`cnt-${g.id}`}>{g.phases.length}</span>
+                    <span className="pg-card-count" id={`cnt-${g.id}`}>{phasesOf(g.id).length}</span>
                     <span className={`pg-chevron${isCollapsed ? ' collapsed' : ''}`}>▼</span>
                   </div>
 
@@ -498,20 +516,19 @@ export default function PhasesPage() {
                   <div className={`pg-collapse-wrap${isCollapsed ? '' : ' expanded'}`}>
                     <div className="pg-collapse-inner">
                       <div className="pg-phases">
-                        {g.phases.length === 0 && <div className="pg-empty-phases">No phases yet</div>}
-                        {g.phases.map((phase, idx) => {
-                          const phKey = `${g.id}:${idx}`;
-                          const isEditingPh = editPhKey === phKey;
+                        {phasesOf(g.id).length === 0 && <div className="pg-empty-phases">No phases yet</div>}
+                        {phasesOf(g.id).map((p, idx) => {
+                          const isEditingPh = editPhId === p.id;
                           return (
                             <div
-                              key={idx}
-                              className={`pg-phase-row${draggingPhKey === phKey ? ' pg-dragging' : ''}${dragOverPhKey === phKey ? ' pg-ph-over' : ''}`}
+                              key={p.id}
+                              className={`pg-phase-row${draggingPhId === p.id ? ' pg-dragging' : ''}${dragOverPhId === p.id ? ' pg-ph-over' : ''}`}
                               draggable
-                              onDragStart={e => onPhaseDragStart(e, g.id, idx)}
+                              onDragStart={e => onPhaseDragStart(e, g.id, p.id)}
                               onDragEnd={onPhaseDragEnd}
-                              onDragOver={e => onPhaseDragOver(e, g.id, idx)}
-                              onDragLeave={() => { if (dragOverPhKey === phKey) setDragOverPhKey(null); }}
-                              onDrop={e => onPhaseDrop(e, g.id, idx)}
+                              onDragOver={e => onPhaseDragOver(e, g.id, p.id)}
+                              onDragLeave={() => { if (dragOverPhId === p.id) setDragOverPhId(null); }}
+                              onDrop={e => onPhaseDrop(e, g.id, p.id)}
                             >
                               <span className="pg-drag-handle" title="Drag to reorder" />
                               <span className="pg-phase-idx">{idx + 1}</span>
@@ -525,15 +542,15 @@ export default function PhasesPage() {
                                   onBlur={commitPhase}
                                   onKeyDown={e => {
                                     if (e.key === 'Enter') { e.preventDefault(); commitPhase(); }
-                                    if (e.key === 'Escape') { setEditPhKey(null); }
+                                    if (e.key === 'Escape') { setEditPhId(null); }
                                   }}
                                 />
                               ) : (
-                                <span className="pg-phase-name">{phase}</span>
+                                <span className="pg-phase-name">{p.name}</span>
                               )}
 
-                              <button className="pg-edit-btn" title="Edit phase name" onClick={() => { setEditPhKey(phKey); setEditPhVal(phase); }}>✎</button>
-                              <button className="pg-del-btn" title="Delete phase" onClick={() => delPhase(g.id, idx)}>×</button>
+                              <button className="pg-edit-btn" title="Edit phase name" onClick={() => { setEditPhId(p.id); setEditPhVal(p.name); }}>✎</button>
+                              <button className="pg-del-btn" title="Delete phase" onClick={() => delPhase(p.id)}>×</button>
                             </div>
                           );
                         })}
@@ -590,7 +607,7 @@ export default function PhasesPage() {
         <div className="pg-overlay" onClick={e => { if (e.target === e.currentTarget) setWarnModal(null); }}>
           <div className="pg-warn-modal">
             <div className="pg-warn-icon">⚠️</div>
-            <div className="pg-warn-title">Delete phase &ldquo;{warnModal.phaseName}&rdquo;?</div>
+            <div className="pg-warn-title">Delete phase &ldquo;{warnModal.phase.name}&rdquo;?</div>
             <div className="pg-warn-sub">
               {warnModal.affected.length} order item{warnModal.affected.length !== 1 ? 's are' : ' is'} currently assigned to this phase.
               Choose a target phase to move them before deleting, or delete without moving.
@@ -613,7 +630,7 @@ export default function PhasesPage() {
               >
                 <option value="">— select target phase —</option>
                 {allPhaseOptions
-                  .filter(o => !(o.group === warnModal.group.name && o.phase === warnModal.phaseName))
+                  .filter(o => !(o.group === warnModal.group.name && o.phase === warnModal.phase.name))
                   .map((o, i) => (
                     <option key={i} value={o.phase}>[{o.group}] {o.phase}</option>
                   ))

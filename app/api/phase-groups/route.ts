@@ -5,21 +5,12 @@ export async function GET() {
   const db = createAdminClient();
   const { data, error } = await db
     .from('phase_groups')
-    .select('id, name, sort_order, phases(name, sort_order, is_active)')
+    .select('id, name, sort_order')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  type PhaseRow = { name: string; sort_order: number; is_active: boolean };
-  const shaped = (data ?? []).map(g => {
-    const phases = ((g.phases ?? []) as PhaseRow[])
-      .filter(p => p.is_active)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map(p => p.name);
-    return { id: g.id, name: g.name, sort_order: g.sort_order, phases };
-  });
-  return NextResponse.json(shaped);
+  return NextResponse.json(data ?? []);
 }
 
 export async function POST(req: Request) {
