@@ -18,12 +18,6 @@ interface PendingDelete {
   affected: AffectedItem[];
 }
 
-const PRESET_COLORS = [
-  '#f59e0b','#f97316','#3b82f6','#14b8a6',
-  '#f43f5e','#8b5cf6','#ef4444','#10b981',
-  '#ec4899','#06b6d4','#84cc16','#64748b',
-];
-
 const CSS = `
 .pg-bar { background:#7A4610; color:#fff; padding:0 20px; height:52px; display:flex; align-items:center; gap:12px; position:sticky; top:64px; z-index:100; }
 .pg-bar-title { font-size:16px; font-weight:700; flex:1; }
@@ -134,7 +128,6 @@ export default function PhasesPage() {
   // New group modal
   const [newGroupOpen, setNewGroupOpen]   = useState(false);
   const [newLabel, setNewLabel]           = useState('');
-  const [newColor, setNewColor]           = useState(PRESET_COLORS[0]);
   const [creating, setCreating]           = useState(false);
 
   // Warn modal
@@ -207,15 +200,26 @@ export default function PhasesPage() {
     showToast('Order saved', 'ok');
   }
 
+  async function savePhase(method: 'POST' | 'PATCH' | 'DELETE', body: object) {
+    showToast('Saving…', 'saving');
+    const res = await fetch('/api/phases', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { showToast('Save failed', 'err'); return false; }
+    showToast('Saved', 'ok');
+    return true;
+  }
+
   async function addPhase(gid: string) {
     const name = (addInputs[gid] ?? '').trim();
     if (!name) return;
     const g = groups.find(x => x.id === gid);
     if (!g) return;
-    const updated = { ...g, phases: [...g.phases, name] };
-    setGroups(prev => prev.map(x => x.id === gid ? updated : x));
+    setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases: [...x.phases, name] } : x));
     setAddInputs(prev => ({ ...prev, [gid]: '' }));
-    await saveGroup(updated, { phases: updated.phases });
+    await savePhase('POST', { group_id: gid, name });
   }
 
   async function delPhase(gid: string, idx: number) {
@@ -234,9 +238,8 @@ export default function PhasesPage() {
 
     if (affected.length === 0) {
       if (!confirm(`Delete "${phaseName}" from ${g.name}?`)) return;
-      const updated = { ...g, phases: g.phases.filter((_, i) => i !== idx) };
-      setGroups(prev => prev.map(x => x.id === gid ? updated : x));
-      await saveGroup(updated, { phases: updated.phases });
+      setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases: x.phases.filter((_, i) => i !== idx) } : x));
+      await savePhase('DELETE', { group_id: gid, name: phaseName });
       return;
     }
 
@@ -261,10 +264,9 @@ export default function PhasesPage() {
       setProceeding(true);
     }
 
-    const updated = { ...group, phases: group.phases.filter((_, i) => i !== phaseIdx) };
-    setGroups(prev => prev.map(x => x.id === group.id ? updated : x));
+    setGroups(prev => prev.map(x => x.id === group.id ? { ...x, phases: x.phases.filter((_, i) => i !== phaseIdx) } : x));
     setWarnModal(null);
-    await saveGroup(updated, { phases: updated.phases });
+    await savePhase('DELETE', { group_id: group.id, name: phaseName });
   }
 
   // ── Phase drag & drop ──────────────────────────────────────────
@@ -288,7 +290,7 @@ export default function PhasesPage() {
     setDragOverPhKey(`${gid}:${idx}`);
   }
 
-  function onPhaseDrop(e: React.DragEvent, gid: string, toIdx: number) {
+  async function onPhaseDrop(e: React.DragEvent, gid: string, toIdx: number) {
     e.preventDefault();
     setDragOverPhKey(null);
     if (!phaseDrag.current || phaseDrag.current.gid !== gid) return;
@@ -296,15 +298,20 @@ export default function PhasesPage() {
     phaseDrag.current = null;
     if (fromIdx === toIdx) return;
 
-    setGroups(prev => prev.map(g => {
-      if (g.id !== gid) return g;
-      const phases = [...g.phases];
-      const [moved] = phases.splice(fromIdx, 1);
-      phases.splice(toIdx, 0, moved);
-      const updated = { ...g, phases };
-      saveGroup(updated, { phases });
-      return updated;
-    }));
+    const g = groups.find(x => x.id === gid);
+    if (!g) return;
+    const phases = [...g.phases];
+    const [moved] = phases.splice(fromIdx, 1);
+    phases.splice(toIdx, 0, moved);
+    setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases } : x));
+
+    showToast('Saving order…', 'saving');
+    const res = await fetch('/api/phases/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_id: gid, ordered_names: phases }),
+    });
+    showToast(res.ok ? 'Order saved' : 'Save failed', res.ok ? 'ok' : 'err');
   }
 
   // ── Group drag & drop ──────────────────────────────────────────
@@ -371,7 +378,7 @@ export default function PhasesPage() {
     setGroups(prev => [...prev, created]);
     setCollapsed(prev => new Set([...prev, created.id]));
     setNewGroupOpen(false);
-    setNewLabel(''); setNewColor(PRESET_COLORS[0]);
+    setNewLabel('');
     showToast('Group created', 'ok');
     setCreating(false);
   }
@@ -397,11 +404,12 @@ export default function PhasesPage() {
     if (!g) { setEditPhKey(null); return; }
     const newName = editPhVal.trim();
     setEditPhKey(null);
-    if (!newName || newName === g.phases[idx]) return;
+    const oldName = g.phases[idx];
+    if (!newName || newName === oldName) return;
     const phases = [...g.phases];
     phases[idx] = newName;
     setGroups(prev => prev.map(x => x.id === gid ? { ...x, phases } : x));
-    await saveGroup({ ...g, phases }, { phases });
+    await savePhase('PATCH', { group_id: gid, old_name: oldName, new_name: newName });
   }
 
   // ── All phase options (for move-target dropdown) ───────────────
@@ -419,7 +427,7 @@ export default function PhasesPage() {
       <div className="pg-bar">
         <span className="pg-bar-title">Phase Groups</span>
         <span className="pg-bar-sub">{loadState === 'done' ? `${groups.length} groups · ${totalPhases} phases` : 'Supabase'}</span>
-        <button className="pg-bar-btn" onClick={() => { setNewLabel(''); setNewColor(PRESET_COLORS[0]); setNewGroupOpen(true); }}>+ New Group</button>
+        <button className="pg-bar-btn" onClick={() => { setNewLabel(''); setNewGroupOpen(true); }}>+ New Group</button>
       </div>
 
       {/* Main content */}
@@ -566,23 +574,6 @@ export default function PhasesPage() {
                 onChange={e => setNewLabel(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') createGroup(); }}
               />
-            </div>
-            <div className="pg-field">
-              <label>Color</label>
-              <div className="pg-swatches">
-                {PRESET_COLORS.map(c => (
-                  <div
-                    key={c}
-                    className={`pg-swatch${newColor === c ? ' selected' : ''}`}
-                    style={{ background: c }}
-                    onClick={() => setNewColor(c)}
-                  />
-                ))}
-                <label className="pg-swatch-custom" title="Custom color">
-                  <input type="color" value={newColor} onInput={e => setNewColor((e.target as HTMLInputElement).value)} />
-                  <span className="pg-swatch-custom-icon">+</span>
-                </label>
-              </div>
             </div>
             <div className="pg-modal-actions">
               <button className="pg-btn-cancel" onClick={() => setNewGroupOpen(false)}>Cancel</button>
