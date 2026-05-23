@@ -27,7 +27,7 @@ export default function ReviewPage() {
       if (Array.isArray(ords)) setOrders(ords);
       if (Array.isArray(grps)) {
         setPhaseGroups(grps);
-        const rg = grps.find((g: PhaseGroup) => g.id === 'review' || g.label.toLowerCase() === 'review');
+        const rg = grps.find((g: PhaseGroup) => g.name.toLowerCase() === 'review');
         if (rg?.phases[0]) setActivePhase(rg.phases[0]);
       }
       setLoading(false);
@@ -84,7 +84,7 @@ export default function ReviewPage() {
   }
 
   const reviewGroup = useMemo(() =>
-    phaseGroups.find(g => g.id === 'review' || g.label.toLowerCase() === 'review'),
+    phaseGroups.find(g => g.name.toLowerCase() === 'review'),
     [phaseGroups]
   );
 
@@ -96,7 +96,7 @@ export default function ReviewPage() {
     return map;
   }, [orders]);
 
-  const activeColor = reviewGroup?.color ?? '#7A4610';
+  const activeColor = '#7A4610';
 
   const phaseOrders = useMemo(() =>
     orders.filter(o => o.lineItems.some(li => li.phase === activePhase)),
@@ -173,7 +173,7 @@ export default function ReviewPage() {
             <select className="rv-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
-                <optgroup key={g.id} label={g.label}>
+                <optgroup key={g.id} label={g.name}>
                   {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
                 </optgroup>
               ))}

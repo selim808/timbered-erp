@@ -13,17 +13,31 @@ export async function GET() {
     db.from('job_orders').select('*').order('created_at', { ascending: false }),
     db.from('production_cards').select('*').order('card_number', { ascending: true }),
     db.from('production_card_items').select('*'),
-    db.from('phase_groups').select('*').order('sort_order', { ascending: true }),
+    db.from('phase_groups')
+      .select('id, name, sort_order, phases(name, sort_order, is_active)')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true }),
   ]);
 
   const err = e1 ?? e2 ?? e3 ?? e4;
   if (err) return NextResponse.json({ error: err.message }, { status: 500 });
 
+  type PhaseRow = { name: string; sort_order: number; is_active: boolean };
+  const shapedGroups = (phaseGroups ?? []).map(g => ({
+    id: g.id,
+    name: g.name,
+    sort_order: g.sort_order,
+    phases: ((g.phases ?? []) as PhaseRow[])
+      .filter(p => p.is_active)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(p => p.name),
+  }));
+
   // Phase ordering for computing effective phase (earliest by group sort)
   const phaseOrder = new Map<string, number>();
   let idx = 0;
-  for (const g of (phaseGroups ?? [])) {
-    for (const p of (g.phases ?? [])) phaseOrder.set(p, idx++);
+  for (const g of shapedGroups) {
+    for (const p of g.phases) phaseOrder.set(p, idx++);
   }
 
   // Items grouped by card
@@ -73,6 +87,6 @@ export async function GET() {
   return NextResponse.json({
     jobOrders: jos,
     productionCards: assembledCards,
-    phaseGroups: phaseGroups ?? [],
+    phaseGroups: shapedGroups,
   });
 }

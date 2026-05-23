@@ -205,7 +205,7 @@ export default function PhaseGroupPage() {
             <select className="pg-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
-                <optgroup key={g.id} label={g.label}>
+                <optgroup key={g.id} label={g.name}>
                   {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
                 </optgroup>
               ))}

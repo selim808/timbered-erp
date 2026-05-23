@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 interface Group {
   id: string;
-  label: string;
-  color: string;
+  name: string;
   sort_order: number;
   phases: string[];
 }
@@ -234,7 +233,7 @@ export default function PhasesPage() {
     setToastMsg('');
 
     if (affected.length === 0) {
-      if (!confirm(`Delete "${phaseName}" from ${g.label}?`)) return;
+      if (!confirm(`Delete "${phaseName}" from ${g.name}?`)) return;
       const updated = { ...g, phases: g.phases.filter((_, i) => i !== idx) };
       setGroups(prev => prev.map(x => x.id === gid ? updated : x));
       await saveGroup(updated, { phases: updated.phases });
@@ -354,19 +353,17 @@ export default function PhasesPage() {
 
   // ── Create group ───────────────────────────────────────────────
   async function createGroup() {
-    const label = newLabel.trim();
-    if (!label) return;
-    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-    if (groups.find(g => g.id === id)) { alert(`A group with id "${id}" already exists.`); return; }
+    const name = newLabel.trim();
+    if (!name) return;
 
-    const sort_order = groups.length ? Math.max(...groups.map(g => g.sort_order)) + 1 : 0;
+    const sort_order = groups.length ? Math.max(...groups.map(g => g.sort_order)) + 10 : 10;
     setCreating(true);
     showToast('Creating…', 'saving');
 
     const res = await fetch('/api/phase-groups', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, label, color: newColor, sort_order }),
+      body: JSON.stringify({ name, sort_order }),
     });
 
     if (!res.ok) { showToast('Create failed', 'err'); setCreating(false); return; }
@@ -386,9 +383,9 @@ export default function PhasesPage() {
     if (!g) { setEditGrpId(null); return; }
     const newLabel = editGrpVal.trim();
     setEditGrpId(null);
-    if (!newLabel || newLabel === g.label) return;
-    setGroups(prev => prev.map(x => x.id === editGrpId ? { ...x, label: newLabel } : x));
-    await saveGroup({ ...g, label: newLabel }, { label: newLabel });
+    if (!newLabel || newLabel === g.name) return;
+    setGroups(prev => prev.map(x => x.id === editGrpId ? { ...x, name: newLabel } : x));
+    await saveGroup({ ...g, name: newLabel }, { name: newLabel });
   }
 
   // ── Inline edit: phase name ────────────────────────────────────
@@ -409,7 +406,7 @@ export default function PhasesPage() {
 
   // ── All phase options (for move-target dropdown) ───────────────
   const allPhaseOptions = groups.flatMap(g =>
-    g.phases.map(p => ({ group: g.label, phase: p }))
+    g.phases.map(p => ({ group: g.name, phase: p }))
   );
 
   const totalPhases = groups.reduce((s, g) => s + g.phases.length, 0);
@@ -444,7 +441,7 @@ export default function PhasesPage() {
                 <div
                   key={g.id}
                   className={`pg-group-card${isDraggingGrp ? ' pg-grp-dragging' : ''}${isDragOverGrp ? ' pg-grp-over' : ''}`}
-                  style={{ borderLeftColor: g.color }}
+                  style={{ borderLeftColor: '#7A4610' }}
                   draggable
                   onDragStart={e => onGroupDragStart(e, g.id)}
                   onDragEnd={() => onGroupDragEnd(g.id)}
@@ -477,13 +474,13 @@ export default function PhasesPage() {
                         onClick={e => e.stopPropagation()}
                       />
                     ) : (
-                      <span className="pg-card-title">{g.label}</span>
+                      <span className="pg-card-title">{g.name}</span>
                     )}
 
                     <button
                       className="pg-grp-edit"
                       title="Edit group name"
-                      onClick={e => { e.stopPropagation(); setEditGrpId(g.id); setEditGrpVal(g.label); }}
+                      onClick={e => { e.stopPropagation(); setEditGrpId(g.id); setEditGrpVal(g.name); }}
                     >✎</button>
                     <span className="pg-card-count" id={`cnt-${g.id}`}>{g.phases.length}</span>
                     <span className={`pg-chevron${isCollapsed ? ' collapsed' : ''}`}>▼</span>
@@ -625,7 +622,7 @@ export default function PhasesPage() {
               >
                 <option value="">— select target phase —</option>
                 {allPhaseOptions
-                  .filter(o => !(o.group === warnModal.group.label && o.phase === warnModal.phaseName))
+                  .filter(o => !(o.group === warnModal.group.name && o.phase === warnModal.phaseName))
                   .map((o, i) => (
                     <option key={i} value={o.phase}>[{o.group}] {o.phase}</option>
                   ))

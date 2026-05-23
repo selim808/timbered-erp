@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface PhaseGroup {
-  id: string; label: string; color: string; sort_order: number; phases: string[];
+  id: string; name: string; sort_order: number; phases: string[];
 }
 
 export default function BottomNav() {
@@ -65,7 +65,7 @@ export default function BottomNav() {
                   : 'border-border text-brown hover:border-brown hover:bg-surface-2'
               }`}
             >
-              {g.label}
+              {g.name}
             </Link>
           );
         })}

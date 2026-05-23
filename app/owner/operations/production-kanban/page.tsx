@@ -56,15 +56,11 @@ interface AssembledCard {
 
 interface PhaseGroup {
   id: string;
-  label: string;
-  color: string;
+  name: string;
   phases: string[];
 }
 
 type Tab = 'production' | 'dispatch' | 'status' | 'shipments';
-
-// ID of the dispatch phase group in Supabase phase_groups table
-const DISPATCH_GROUP_ID = 'dispatch';
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -85,8 +81,8 @@ export default function ProductionKanbanPage() {
   const [dragOverPhase, setDragOverPhase] = useState<string | null>(null);
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
 
-  const prodGroup     = phaseGroups.find(g => g.id === 'production');
-  const dispatchGroup = phaseGroups.find(g => g.id === DISPATCH_GROUP_ID);
+  const prodGroup     = phaseGroups.find(g => g.name.toLowerCase() === 'production');
+  const dispatchGroup = phaseGroups.find(g => g.name.toLowerCase() === 'dispatch');
   const phases             = prodGroup?.phases ?? [];
   const lastProdPhase      = phases[phases.length - 1] ?? '';
   const dispatchFirstPhase = dispatchGroup?.phases[0] ?? '';

@@ -7,8 +7,7 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 
 export interface PhaseGroup {
   id: string;
-  label: string;
-  color: string;
+  name: string;
   sort_order: number;
   phases: string[];
 }
@@ -37,7 +36,7 @@ export function PhaseSelect({ groups, value, onChange }: {
       onClick={e => e.stopPropagation()}>
       <option value="">— phase —</option>
       {groups.map(g => (
-        <optgroup key={g.id} label={g.label}>
+        <optgroup key={g.id} label={g.name}>
           {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
         </optgroup>
       ))}

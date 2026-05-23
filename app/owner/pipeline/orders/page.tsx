@@ -19,6 +19,8 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTooltip, ChartLegend, ChartDataLabels);
 
+const BROWN = '#7A4610';
+
 type Tab = 'orders' | 'wip';
 type GroupBy = 'order' | 'phase' | 'product';
 
@@ -47,7 +49,7 @@ function PhaseView({ orders, groups, bulkMode, selectedItems, onToggleItem, onTo
     const seen = new Set<string>();
     const list: { phase: string; groupLabel: string; color: string }[] = [];
     groups.forEach(g => g.phases.forEach(p => {
-      if (!seen.has(p)) { seen.add(p); list.push({ phase: p, groupLabel: g.label, color: g.color }); }
+      if (!seen.has(p)) { seen.add(p); list.push({ phase: p, groupLabel: g.name, color: BROWN }); }
     }));
     list.push({ phase: '', groupLabel: '', color: '#ccc' });
     return list;
@@ -180,7 +182,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
   const groupStats = useMemo(() => {
     const stats = phaseGroups.map(g => {
       const items = allItems.filter(li => g.phases.includes(li.phase));
-      return { id: g.id, label: g.label, color: g.color, qty: items.reduce((s, li) => s + li.quantity, 0), value: items.reduce((s, li) => s + li.total, 0), orders: new Set(items.map(li => li.orderId)).size, items };
+      return { id: g.id, label: g.name, color: BROWN, qty: items.reduce((s, li) => s + li.quantity, 0), value: items.reduce((s, li) => s + li.total, 0), orders: new Set(items.map(li => li.orderId)).size, items };
     }).filter(g => g.items.length > 0);
 
     const unassignedItems = allItems.filter(li => !li.phase);
@@ -198,7 +200,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
       g.phases.forEach(phase => {
         const items = allItems.filter(li => li.phase === phase);
         if (items.length > 0) result.push({
-          phase, color: g.color,
+          phase, color: BROWN,
           value: items.reduce((s, li) => s + li.total, 0),
           qty: items.reduce((s, li) => s + li.quantity, 0),
           orders: new Set(items.map(li => li.orderId)).size,
@@ -224,7 +226,7 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
   }, [drilledGroup, allItems]);
 
   const activeStats = showAllPhases ? allPhaseStats : drilledGroup ? drillStats : groupStats;
-  const activeColor = drilledGroup?.color ?? null;
+  const activeColor = drilledGroup ? BROWN : null;
 
   const canDrill = !showAllPhases && !chartDrill;
 
@@ -300,13 +302,13 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: `1px solid ${drilledGroup ? drilledGroup.color + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 320, marginBottom: 10, position: 'relative' }}>
+      <div style={{ background: '#fff', border: `1px solid ${drilledGroup ? BROWN + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 320, marginBottom: 10, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           {drilledGroup ? (
             <>
               <button onClick={() => setChartDrill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#7A4610', fontWeight: 700, padding: '0 4px' }}>← All Groups</button>
               <span style={{ fontSize: 11, color: '#aaa' }}>›</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: drilledGroup.color }}>{drilledGroup.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: BROWN }}>{drilledGroup.name}</span>
             </>
           ) : (
             <span style={{ fontSize: 11, fontWeight: 700, color: '#aaa', flex: 1 }}>{showAllPhases ? 'All Phases' : 'By Group'}</span>
@@ -325,8 +327,8 @@ function WipChart({ orders, phaseGroups, onPhaseChange }: {
 
       {groupStats.map(g => (
         <div key={g.id} className="op-wip-group">
-          <div className="op-wip-group-header" style={{ borderLeftColor: g.color }} onClick={() => setExpandedGroup(expandedGroup === g.id ? null : g.id)}>
-            <span className="op-wip-group-dot" style={{ background: g.color }} />
+          <div className="op-wip-group-header" style={{ borderLeftColor: BROWN }} onClick={() => setExpandedGroup(expandedGroup === g.id ? null : g.id)}>
+            <span className="op-wip-group-dot" style={{ background: BROWN }} />
             <span className="op-wip-group-name">{g.label}</span>
             <span className="op-wip-group-stat">{g.qty} items</span>
             <span className="op-wip-group-val">{fmtPrice(g.value)} EGP</span>
@@ -684,7 +686,7 @@ export default function OrdersPipelinePage() {
                   <select className="op-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
                     <option value="">— phase —</option>
                     {phaseGroups.map(g => (
-                      <optgroup key={g.id} label={g.label}>
+                      <optgroup key={g.id} label={g.name}>
                         {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
                       </optgroup>
                     ))}

@@ -29,7 +29,7 @@ export default function PlanningPage() {
       if (Array.isArray(ords)) setOrders(ords);
       if (Array.isArray(grps)) {
         setPhaseGroups(grps);
-        const pg = grps.find((g: PhaseGroup) => g.id === 'planning' || g.label.toLowerCase() === 'planning');
+        const pg = grps.find((g: PhaseGroup) => g.name.toLowerCase() === 'planning');
         if (pg?.phases[0]) setActivePhase(pg.phases[0]);
       }
       setLoading(false);
@@ -86,7 +86,7 @@ export default function PlanningPage() {
   }
 
   const planningGroup = useMemo(() =>
-    phaseGroups.find(g => g.id === 'planning' || g.label.toLowerCase() === 'planning'),
+    phaseGroups.find(g => g.name.toLowerCase() === 'planning'),
     [phaseGroups]
   );
 
@@ -98,12 +98,7 @@ export default function PlanningPage() {
     return map;
   }, [orders]);
 
-  const activeColor = useMemo(() => {
-    for (const g of phaseGroups) {
-      if (g.phases.includes(activePhase)) return g.color;
-    }
-    return '#7A4610';
-  }, [phaseGroups, activePhase]);
+  const activeColor = '#7A4610';
 
   const phaseOrders = useMemo(() =>
     orders.filter(o => o.lineItems.some(li => li.phase === activePhase)),
@@ -155,10 +150,10 @@ export default function PlanningPage() {
         {(planningGroup?.phases ?? []).map(p => (
           <button key={p}
             className={`pl-tab${activePhase === p ? ' active' : ''}`}
-            style={{ '--pl-color': planningGroup!.color } as React.CSSProperties}
+            style={{ '--pl-color': activeColor } as React.CSSProperties}
             onClick={() => setActivePhase(p)}>
             {p}
-            <span className="pl-tab-count" style={activePhase === p ? { background: planningGroup!.color } : {}}>
+            <span className="pl-tab-count" style={activePhase === p ? { background: activeColor } : {}}>
               {phaseCounts.get(p) ?? 0}
             </span>
           </button>
@@ -183,7 +178,7 @@ export default function PlanningPage() {
             <select className="pl-bulk-sel" value={bulkPhase} onChange={e => setBulkPhase(e.target.value)}>
               <option value="">— phase —</option>
               {phaseGroups.map(g => (
-                <optgroup key={g.id} label={g.label}>
+                <optgroup key={g.id} label={g.name}>
                   {g.phases.map(p => <option key={p} value={p}>{p}</option>)}
                 </optgroup>
               ))}
