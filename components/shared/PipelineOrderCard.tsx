@@ -181,7 +181,7 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
 
 // ── CSS ────────────────────────────────────────────────────────────────────
 
-const STYLES = `
+export const PIPELINE_ORDER_CARD_STYLES = `
   .poc-card { background:#fff; border:1px solid #e8ddd4; border-radius:8px; margin-bottom:5px; overflow:hidden; }
   .poc-card.selected { border-color:#7A4610; background:#fef8f2; }
   .poc-header { display:flex; align-items:center; gap:7px; padding:7px 10px; cursor:pointer; }
@@ -262,7 +262,7 @@ export default function PipelineOrderList({
 
   return (
     <>
-      <style>{STYLES}</style>
+      <style>{PIPELINE_ORDER_CARD_STYLES}</style>
       {orders.map(o => {
         const orderLineItems = Array.isArray(o.lineItems) ? o.lineItems : [];
         const items = filterLineItems ? orderLineItems.filter(li => filterLineItems(o, li)) : orderLineItems;

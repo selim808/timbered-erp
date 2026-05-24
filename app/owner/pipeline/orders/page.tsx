@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
-import PipelineOrderList, { PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PIPELINE_ORDER_CARD_STYLES, PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -538,6 +538,8 @@ export default function OrdersPipelinePage() {
   return (
     <>
       <style>{`
+        ${PIPELINE_ORDER_CARD_STYLES}
+
         /* ── layout ── */
         .op-sub-nav { display:flex; background:#fff; border-bottom:1px solid #e8ddd4; position:sticky; top:64px; z-index:51; }
         .op-sub-btn { font-size:12px; font-weight:700; color:#aaa; background:none; border:none; border-bottom:2px solid transparent; padding:8px 16px; cursor:pointer; }
