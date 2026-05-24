@@ -5,7 +5,7 @@ export async function GET() {
   const db = createAdminClient();
   const { data, error } = await db
     .from('phase_groups')
-    .select('id, name, sort_order')
+    .select('id, name, sort_order, color')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const { data, error } = await db
     .from('phase_groups')
     .insert({ name, sort_order })
-    .select('id, name, sort_order')
+    .select('id, name, sort_order, color')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

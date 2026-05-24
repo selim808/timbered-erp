@@ -20,6 +20,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTooltip, ChartLegend, ChartDataLabels);
 
 const BROWN = '#7A4610';
+const FALLBACK_GROUP_COLOR = BROWN;
 
 type Tab = 'orders' | 'wip';
 type GroupBy = 'order' | 'phase' | 'product';
@@ -49,6 +50,10 @@ function normalizeOrders(data: unknown): PipelineOrder[] {
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function groupColor(group?: PhaseGroup | null) {
+  return group?.color || FALLBACK_GROUP_COLOR;
 }
 
 // ── Phase View ─────────────────────────────────────────────────────────────
@@ -209,7 +214,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
     const stats = phaseGroups.map(g => {
       const groupPhaseNames = new Set(phases.filter(p => p.phase_group_id === g.id).map(p => p.name));
       const items = allItems.filter(li => groupPhaseNames.has(li.phase));
-      return { id: g.id, label: g.name, color: BROWN, qty: items.reduce((s, li) => s + li.quantity, 0), value: items.reduce((s, li) => s + li.total, 0), orders: new Set(items.map(li => li.orderId)).size, items };
+      return { id: g.id, label: g.name, color: groupColor(g), qty: items.reduce((s, li) => s + li.quantity, 0), value: items.reduce((s, li) => s + li.total, 0), orders: new Set(items.map(li => li.orderId)).size, items };
     }).filter(g => g.items.length > 0);
 
     const unassignedItems = allItems.filter(li => !li.phase);
@@ -227,7 +232,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
       phases.filter(p => p.phase_group_id === g.id).forEach(p => {
         const items = allItems.filter(li => li.phase === p.name);
         if (items.length > 0) result.push({
-          phase: p.name, color: BROWN,
+          phase: p.name, color: groupColor(g),
           value: items.reduce((s, li) => s + li.total, 0),
           qty: items.reduce((s, li) => s + li.quantity, 0),
           orders: new Set(items.map(li => li.orderId)).size,
@@ -245,6 +250,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
       const items = allItems.filter(li => li.phase === p.name);
       return {
         phase: p.name,
+        color: groupColor(drilledGroup),
         value: items.reduce((s, li) => s + li.total, 0),
         qty: items.reduce((s, li) => s + li.quantity, 0),
         orders: new Set(items.map(li => li.orderId)).size,
@@ -253,7 +259,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
   }, [drilledGroup, allItems, phases]);
 
   const activeStats = showAllPhases ? allPhaseStats : drilledGroup ? drillStats : groupStats;
-  const activeColor = drilledGroup ? BROWN : null;
+  const activeColor = drilledGroup ? groupColor(drilledGroup) : null;
 
   const canDrill = !showAllPhases && !chartDrill;
 
@@ -293,7 +299,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
       datalabels: {
         anchor: 'end' as const,
         align: 'top' as const,
-        color: '#7A4610',
+        color: activeColor || '#7A4610',
         font: { size: 11, weight: 'bold' as const },
         formatter: (val: number) => val > 0 ? fmtK(val) : '',
       },
@@ -329,7 +335,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
         </div>
       </div>
 
-      <div style={{ background: '#fff', border: `1px solid ${drilledGroup ? BROWN + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 320, marginBottom: 10, position: 'relative' }}>
+      <div style={{ background: '#fff', border: `1px solid ${activeColor ? activeColor + '55' : '#e8ddd4'}`, borderRadius: 8, padding: '12px 8px 8px', height: 320, marginBottom: 10, position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           {drilledGroup ? (
             <>
@@ -354,8 +360,8 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
 
       {groupStats.map(g => (
         <div key={g.id} className="op-wip-group">
-          <div className="op-wip-group-header" style={{ borderLeftColor: BROWN }} onClick={() => setExpandedGroup(expandedGroup === g.id ? null : g.id)}>
-            <span className="op-wip-group-dot" style={{ background: BROWN }} />
+          <div className="op-wip-group-header" style={{ borderLeftColor: g.color }} onClick={() => setExpandedGroup(expandedGroup === g.id ? null : g.id)}>
+            <span className="op-wip-group-dot" style={{ background: g.color }} />
             <span className="op-wip-group-name">{g.label}</span>
             <span className="op-wip-group-stat">{g.qty} items</span>
             <span className="op-wip-group-val">{fmtPrice(g.value)} EGP</span>
