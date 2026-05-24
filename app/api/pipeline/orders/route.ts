@@ -64,7 +64,8 @@ export async function GET() {
     const { data: phaseRows } = await db
       .from('item_phase')
       .select('order_id, line_item_id, phase')
-      .in('order_id', orderIds);
+      .in('order_id', orderIds)
+      .order('updated_at', { ascending: true });
 
     const phaseMap = new Map<string, string>();
     (phaseRows ?? []).forEach((r: any) => {

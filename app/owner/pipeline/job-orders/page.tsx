@@ -57,6 +57,9 @@ interface StoredJO {
   created_at: string;
 }
 
+const JO_PREPARATION_PHASE = 'JO Preparation';
+const JO_RELEASED_PHASE = 'JO Released';
+
 function fmtPrice(n: number) {
   return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
 }
@@ -143,7 +146,7 @@ export default function JobOrdersPage() {
     const map = new Map<number, JoProduct>();
     orders.forEach(order => {
       order.lineItems
-        .filter(li => li.phase === 'JO preparation')
+        .filter(li => li.phase === JO_PREPARATION_PHASE)
         .forEach(li => {
           if (excludedPids.has(li.productId)) return;
           if (excludedOrdersByPid[li.productId]?.has(order.id)) return;
@@ -271,7 +274,7 @@ export default function JobOrdersPage() {
       joProducts.forEach(prod => prod.orders.forEach(ord => ord.lineItemIds.forEach(liId => {
         phaseUpdates.push(fetch(`/api/pipeline/orders/${ord.orderId}/phase`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lineItemId: String(liId), phase: 'JO Released' }),
+          body: JSON.stringify({ lineItemId: String(liId), phase: JO_RELEASED_PHASE }),
         }));
       })));
       await Promise.all(phaseUpdates);
@@ -505,7 +508,7 @@ export default function JobOrdersPage() {
           ) : (
             <div className="jo-wrap">
               {joProducts.length === 0 && mtsOnly.length === 0 && (
-                <p className="jo-loading-hint">No items in JO preparation phase. Items move here when their phase is set to "JO preparation" in the planning view.</p>
+                <p className="jo-loading-hint">No items in JO Preparation phase. Items move here when their phase is set to "JO Preparation" in the planning view.</p>
               )}
 
               {/* MTO product cards */}

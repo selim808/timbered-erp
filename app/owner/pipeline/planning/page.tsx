@@ -7,6 +7,8 @@ import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/sha
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 
+const JO_PREPARATION_PHASE = 'JO Preparation';
+
 export default function PlanningPage() {
   const router = useRouter();
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
@@ -194,7 +196,7 @@ export default function PlanningPage() {
             </button>
           </>
         )}
-        {activePhase === 'JO preparation' && (
+        {activePhase === JO_PREPARATION_PHASE && (
           <button className="pl-create-jo" onClick={() => router.push('/owner/pipeline/job-orders')}>+ Create JO</button>
         )}
       </div>

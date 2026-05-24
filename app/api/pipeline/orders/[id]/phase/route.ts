@@ -14,21 +14,32 @@ export async function PATCH(
 
   const db = createAdminClient();
 
-  const { data: existing } = await db
-    .from('item-phase')
+  const { data: existingRows, error: readError } = await db
+    .from('item_phase')
     .select('id')
     .eq('order_id', id)
     .eq('line_item_id', lineItemId)
-    .maybeSingle();
+    .order('updated_at', { ascending: false });
 
-  const { error } = existing
+  if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
+
+  const latest = existingRows?.[0];
+  const duplicates = existingRows?.slice(1).map(row => row.id) ?? [];
+  const now = new Date().toISOString();
+
+  const { error: writeError } = latest
     ? await db.from('item_phase')
-        .update({ phase, updated_at: new Date().toISOString() })
-        .eq('order_id', id)
-        .eq('line_item_id', lineItemId)
+        .update({ phase, updated_at: now })
+        .eq('id', latest.id)
     : await db.from('item_phase')
-        .insert({ order_id: id, line_item_id: lineItemId, phase });
+        .insert({ order_id: id, line_item_id: lineItemId, phase, updated_at: now });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (writeError) return NextResponse.json({ error: writeError.message }, { status: 500 });
+
+  if (duplicates.length > 0) {
+    const { error: deleteError } = await db.from('item_phase').delete().in('id', duplicates);
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
   return NextResponse.json({ ok: true });
 }
