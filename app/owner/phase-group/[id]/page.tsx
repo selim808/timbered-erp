@@ -10,6 +10,18 @@ import ProductPopup from '@/components/shared/ProductPopup';
 const AFTER_SALES_GROUP = 'After-Sales';
 const FOLLOWUP_PHASE    = 'Follow-up';
 
+function followupMessage(): string {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'صباح الخير يا فندم' : 'مساء الخير يا فندم';
+  return `${greeting}
+
+حابين نعرف رأى حضرتك فى المنتج و الخدمة
+__________________________________________
+Hello,
+
+we would like to know your feedback on product and service`;
+}
+
 export default function PhaseGroupPage() {
   const { id } = useParams<{ id: string }>();
   const [group, setGroup]             = useState<PhaseGroup | null>(null);
@@ -304,6 +316,7 @@ export default function PhaseGroupPage() {
               onPhaseChange={handlePhaseChange}
               onOpenDetail={o => setDetailOrder(o)}
               onImageClick={li => setProductPopup(li)}
+              waMessage={isFollowupTab ? followupMessage() : undefined}
             />
             {isFollowupTab && completedTotalPages > 1 && (
               <div className="pg-pager">
