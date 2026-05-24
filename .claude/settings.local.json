@@ -43,7 +43,8 @@
       "Bash(node --env-file=.env.local --input-type=module -e ' *)",
       "Bash(npx next *)",
       "Bash(curl -s http://localhost:3000/api/phase-groups)",
-      "Bash(curl -s http://localhost:3000/api/phases)"
+      "Bash(curl -s http://localhost:3000/api/phases)",
+      "Bash(echo \"EXIT: $?\")"
     ],
     "additionalDirectories": [
       "D:\\IQ BWRS GPDF\\02 BWRS\\01 Bussiness\\01 TG\\TimberedERP\\scripts"
