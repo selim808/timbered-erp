@@ -84,7 +84,7 @@ export async function GET() {
       });
     });
     if (toPlace.length > 0) {
-      await db.from('item_phase').insert(toPlace);
+      await db.from('item_phase').upsert(toPlace, { onConflict: 'order_id,line_item_id' });
     }
 
     // Stock per product
