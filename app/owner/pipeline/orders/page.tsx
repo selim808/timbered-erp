@@ -57,12 +57,14 @@ function groupColor(group?: PhaseGroup | null) {
 }
 
 // ── Phase View ─────────────────────────────────────────────────────────────
-function PhaseView({ orders, groups, phases, bulkMode, selectedItems, onToggleItem, onToggleGroup, onPhaseChange }: {
+function PhaseView({ orders, groups, phases, bulkMode, selectedItems, onToggleItem, onToggleGroup, onPhaseChange, onOpenDetail, onImageClick }: {
   orders: PipelineOrder[]; groups: PhaseGroup[]; phases: Phase[]; bulkMode: boolean;
   selectedItems: Set<string>;
   onToggleItem: (k: string) => void;
   onToggleGroup: (keys: string[]) => void;
   onPhaseChange: (orderId: number, liId: number, phase: string) => void;
+  onOpenDetail: (o: PipelineOrder) => void;
+  onImageClick: (li: PipelineLineItem) => void;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (p: string) => setOpen(s => { const n = new Set(s); n.has(p) ? n.delete(p) : n.add(p); return n; });
@@ -113,6 +115,8 @@ function PhaseView({ orders, groups, phases, bulkMode, selectedItems, onToggleIt
                       selected={selectedItems.has(key)} showOrder={true}
                       onToggle={() => onToggleItem(key)}
                       onPhaseChange={v => onPhaseChange(o.id, li.id, v)}
+                      onOrderClick={() => onOpenDetail(o)}
+                      onImageClick={onImageClick}
                     />
                   );
                 })}
@@ -126,12 +130,14 @@ function PhaseView({ orders, groups, phases, bulkMode, selectedItems, onToggleIt
 }
 
 // ── Product View ───────────────────────────────────────────────────────────
-function ProductView({ orders, groups, phases, bulkMode, selectedItems, prodSort, onToggleItem, onToggleGroup, onPhaseChange }: {
+function ProductView({ orders, groups, phases, bulkMode, selectedItems, prodSort, onToggleItem, onToggleGroup, onPhaseChange, onOpenDetail, onImageClick }: {
   orders: PipelineOrder[]; groups: PhaseGroup[]; phases: Phase[]; bulkMode: boolean;
   selectedItems: Set<string>; prodSort: 'qty' | 'value';
   onToggleItem: (k: string) => void;
   onToggleGroup: (keys: string[]) => void;
   onPhaseChange: (orderId: number, liId: number, phase: string) => void;
+  onOpenDetail: (o: PipelineOrder) => void;
+  onImageClick: (li: PipelineLineItem) => void;
 }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (n: string) => setOpen(s => { const ns = new Set(s); ns.has(n) ? ns.delete(n) : ns.add(n); return ns; });
@@ -177,6 +183,8 @@ function ProductView({ orders, groups, phases, bulkMode, selectedItems, prodSort
                       selected={selectedItems.has(key)} showOrder={true}
                       onToggle={() => onToggleItem(key)}
                       onPhaseChange={v => onPhaseChange(o.id, li.id, v)}
+                      onOrderClick={() => onOpenDetail(o)}
+                      onImageClick={onImageClick}
                     />
                   );
                 })}
@@ -190,11 +198,13 @@ function ProductView({ orders, groups, phases, bulkMode, selectedItems, prodSort
 }
 
 // ── WIP Chart ─────────────────────────────────────────────────────────────
-function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
+function WipChart({ orders, phaseGroups, phases, onPhaseChange, onOpenDetail, onImageClick }: {
   orders: PipelineOrder[];
   phaseGroups: PhaseGroup[];
   phases: Phase[];
   onPhaseChange: (orderId: number, liId: number, phase: string) => void;
+  onOpenDetail: (o: PipelineOrder) => void;
+  onImageClick: (li: PipelineLineItem) => void;
 }) {
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [chartDrill, setChartDrill] = useState<string | null>(null);
@@ -202,7 +212,7 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
 
   const allItems = useMemo(() =>
     orders.flatMap(o => o.lineItems.map((li, idx) => ({
-      ...li, orderId: o.id, orderNum: o.number, liIndex: idx + 1, daysOpen: o.daysOpen,
+      ...li, order: o, orderId: o.id, orderNum: o.number, liIndex: idx + 1, daysOpen: o.daysOpen,
     }))),
     [orders]
   );
@@ -384,6 +394,8 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange }: {
                   showOrder={true}
                   onToggle={() => {}}
                   onPhaseChange={v => onPhaseChange(li.orderId, li.id, v)}
+                  onOrderClick={() => onOpenDetail(li.order)}
+                  onImageClick={onImageClick}
                 />
               ))}
             </div>
@@ -703,7 +715,8 @@ export default function OrdersPipelinePage() {
       </div>
 
       {tab === 'wip' ? (
-        <WipChart orders={orders} phaseGroups={phaseGroups} phases={phases} onPhaseChange={handlePhaseChange} />
+        <WipChart orders={orders} phaseGroups={phaseGroups} phases={phases} onPhaseChange={handlePhaseChange}
+          onOpenDetail={o => setDetailOrderId(o.id)} onImageClick={li => setProductPopup(li)} />
       ) : (
         <>
           {/* Badges */}
@@ -825,12 +838,14 @@ export default function OrdersPipelinePage() {
               {groupBy === 'phase' && (
                 <PhaseView orders={visibleOrders} groups={phaseGroups} phases={phases} bulkMode={bulkMode}
                   selectedItems={selectedItems} onToggleItem={toggleItem}
-                  onToggleGroup={toggleGroup} onPhaseChange={handlePhaseChange} />
+                  onToggleGroup={toggleGroup} onPhaseChange={handlePhaseChange}
+                  onOpenDetail={o => setDetailOrderId(o.id)} onImageClick={li => setProductPopup(li)} />
               )}
               {groupBy === 'product' && (
                 <ProductView orders={visibleOrders} groups={phaseGroups} phases={phases} bulkMode={bulkMode}
                   selectedItems={selectedItems} prodSort={prodSort} onToggleItem={toggleItem}
-                  onToggleGroup={toggleGroup} onPhaseChange={handlePhaseChange} />
+                  onToggleGroup={toggleGroup} onPhaseChange={handlePhaseChange}
+                  onOpenDetail={o => setDetailOrderId(o.id)} onImageClick={li => setProductPopup(li)} />
               )}
             </div>
           )}

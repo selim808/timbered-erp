@@ -67,11 +67,12 @@ export function GroupCheckbox({ keys, selectedItems, onToggleGroup }: {
   );
 }
 
-export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, phases, bulkMode, selected, onToggle, onPhaseChange, onImageClick, showOrder }: {
+export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, phases, bulkMode, selected, onToggle, onPhaseChange, onImageClick, onOrderClick, showOrder }: {
   li: PipelineLineItem; orderNum: string; liIndex: number; daysOpen: number;
   groups: PhaseGroup[]; phases: Phase[]; bulkMode: boolean; selected: boolean;
   onToggle: () => void; onPhaseChange: (v: string) => void;
   onImageClick?: (li: PipelineLineItem) => void;
+  onOrderClick?: () => void;
   showOrder?: boolean;
 }) {
   const ref = `${orderNum}.${liIndex}`;
@@ -88,7 +89,10 @@ export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, phases, bulkM
             onClick={e => { e.stopPropagation(); onImageClick?.(li); }} />
       }
       <span className={daysBadgeClass(daysOpen)}>{daysOpen}d</span>
-      <span className="poc-ref">{ref}</span>
+      <span className={`poc-ref${onOrderClick ? ' clickable' : ''}`}
+        onClick={e => { e.stopPropagation(); onOrderClick?.(); }}>
+        {ref}
+      </span>
       <span className="poc-item-name">{li.name}</span>
       <span className="poc-qty">×{li.quantity}</span>
       <span className="poc-stock" title="In stock">📦{li.stock}</span>
@@ -214,6 +218,8 @@ export const PIPELINE_ORDER_CARD_STYLES = `
   .poc-thumb { width:28px; height:28px; border-radius:5px; object-fit:cover; flex-shrink:0; border:1px solid #e8ddd4; }
   .poc-thumb-ph { width:28px; height:28px; border-radius:5px; background:#f0e8e0; flex-shrink:0; }
   .poc-ref { font-size:10px; color:#aaa; flex-shrink:0; white-space:nowrap; }
+  .poc-ref.clickable { cursor:pointer; }
+  .poc-ref.clickable:hover { color:#7A4610; text-decoration:underline; }
   .poc-item-name { font-size:12px; font-weight:600; color:#333; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .poc-qty { font-size:11px; color:#888; flex-shrink:0; }
   .poc-stock { font-size:10px; color:#1a7a3c; flex-shrink:0; white-space:nowrap; }
