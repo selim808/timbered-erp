@@ -18,42 +18,40 @@ const GOALS = [
 
 async function fetchMonthSales(year: number, month: number): Promise<number> {
   const mm = String(month).padStart(2, '0');
+  const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0');
   const after  = `${year}-${mm}-01T00:00:00`;
-  const before = `${year}-${mm}-31T23:59:59`;
-  let total = 0;
+  const before = `${year}-${mm}-${lastDay}T23:59:59`;
+  const baseParams = {
+    per_page: 100, after, before,
+    status: 'pending,processing,on-hold,completed',
+    _fields: 'total',
+  };
 
-  for (const status of ['pending', 'processing', 'on-hold', 'completed']) {
-    let page = 1, pages = 1;
-    do {
-      const res = await wcClient.get('/orders', {
-        params: { per_page: 100, after, before, status, page },
-      });
-      if (page === 1) pages = parseInt(res.headers['x-wp-totalpages'] ?? '1', 10);
-      (res.data as { total: string }[]).forEach(o => { total += parseFloat(o.total) || 0; });
-      page++;
-    } while (page <= pages);
-  }
+  const first = await wcClient.get('/orders', { params: { ...baseParams, page: 1 } });
+  const pages = parseInt(first.headers['x-wp-totalpages'] ?? '1', 10);
 
-  return Math.round(total);
+  const rest = pages > 1
+    ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) =>
+        wcClient.get('/orders', { params: { ...baseParams, page: i + 2 } })
+      ))
+    : [];
+
+  const all = [first, ...rest].flatMap(r => r.data as { total: string }[]);
+  return Math.round(all.reduce((s, o) => s + (parseFloat(o.total) || 0), 0));
 }
 
 async function fetchAccountSpend(accountId: string, timeRange: string): Promise<number> {
   const token = process.env.META_TOKEN;
   if (!token) return 0;
 
-  let spend = 0;
-  let url: string | null =
+  const url =
     `https://graph.facebook.com/v24.0/${accountId}/insights` +
-    `?level=ad&fields=spend&time_range=${encodeURIComponent(timeRange)}&limit=500&access_token=${token}`;
+    `?level=account&fields=spend&time_range=${encodeURIComponent(timeRange)}&access_token=${token}`;
 
-  while (url) {
-    const res  = await fetch(url);
-    const json = await res.json() as { data?: { spend: string }[]; error?: { message: string }; paging?: { next?: string } };
-    if (json.error) return 0;
-    (json.data ?? []).forEach(d => { spend += parseFloat(d.spend) || 0; });
-    url = json.paging?.next ?? null;
-  }
-  return spend;
+  const res  = await fetch(url);
+  const json = await res.json() as { data?: { spend: string }[]; error?: { message: string } };
+  if (json.error) return 0;
+  return (json.data ?? []).reduce((s, d) => s + (parseFloat(d.spend) || 0), 0);
 }
 
 async function fetchMonthMeta(year: number, month: number): Promise<number> {
@@ -89,7 +87,9 @@ export async function GET() {
       mktAct:   idx < monthCount ? metaActuals[idx] : null,
     }));
 
-    return NextResponse.json({ rows, year: curYear });
+    return NextResponse.json({ rows, year: curYear }, {
+      headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400' },
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
