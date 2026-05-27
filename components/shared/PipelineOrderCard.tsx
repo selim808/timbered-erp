@@ -93,8 +93,10 @@ export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, phases, bulkM
         onClick={e => { e.stopPropagation(); onOrderClick?.(); }}>
         {ref}
       </span>
-      <span className="poc-item-name">{li.name}</span>
-      <span className="poc-qty">×{li.quantity}</span>
+      <span className="poc-name-qty">
+        <span className="poc-item-name">{li.name}</span>
+        <span className="poc-qty">×{li.quantity}</span>
+      </span>
       <span className="poc-stock" title="In stock">📦{li.stock}</span>
       <span className="poc-ordered" title="Total ordered">🛒{li.orderedQty}</span>
       <span className="poc-price">{fmtPrice(li.total)}</span>
@@ -224,7 +226,8 @@ export const PIPELINE_ORDER_CARD_STYLES = `
   .poc-ref { font-size:10px; color:#aaa; flex-shrink:0; white-space:nowrap; }
   .poc-ref.clickable { cursor:pointer; }
   .poc-ref.clickable:hover { color:#7A4610; text-decoration:underline; }
-  .poc-item-name { font-size:12px; font-weight:600; color:#333; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .poc-name-qty { display:flex; align-items:baseline; gap:5px; flex:1; min-width:0; }
+  .poc-item-name { font-size:12px; font-weight:600; color:#333; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .poc-qty { font-size:11px; color:#888; flex-shrink:0; }
   .poc-stock { font-size:10px; color:#1a7a3c; flex-shrink:0; white-space:nowrap; }
   .poc-ordered { font-size:10px; color:#e67e22; flex-shrink:0; white-space:nowrap; }
