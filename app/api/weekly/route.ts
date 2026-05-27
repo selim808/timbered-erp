@@ -82,12 +82,15 @@ export async function GET() {
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const after = oneYearAgo.toISOString().split('T')[0] + 'T00:00:00';
 
-    const first = await wcClient.get('/orders', { params: { per_page: 100, after, orderby: 'date', order: 'desc', page: 1 } });
+    const fields = 'status,total,date_created,date_completed,date_modified';
+    const baseParams = { per_page: 100, after, orderby: 'date', order: 'desc', _fields: fields };
+
+    const first = await wcClient.get('/orders', { params: { ...baseParams, page: 1 } });
     const totalPages = parseInt(first.headers['x-wp-totalpages'] ?? '1', 10);
 
     const rest = totalPages > 1
       ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) =>
-          wcClient.get('/orders', { params: { per_page: 100, after, orderby: 'date', order: 'desc', page: i + 2 } })
+          wcClient.get('/orders', { params: { ...baseParams, page: i + 2 } })
         ))
       : [];
 
@@ -133,7 +136,7 @@ export async function GET() {
     }
 
     const sorted = Object.values(weekMap).sort((a, b) => b.key.localeCompare(a.key));
-    return NextResponse.json(sorted, { headers: { 'Cache-Control': 's-maxage=3600' } });
+    return NextResponse.json(sorted, { headers: { 'Cache-Control': 's-maxage=3600, stale-while-revalidate=86400' } });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
