@@ -1,20 +1,15 @@
 import { NextResponse } from 'next/server';
 import wcClient from '@/lib/woocommerce/client';
 
-const GOALS = [
-  { month: 'Jan', salesTgt: 200000,  mktTgt: 20000  },
-  { month: 'Feb', salesTgt: 300000,  mktTgt: 30000  },
-  { month: 'Mar', salesTgt: 400000,  mktTgt: 40000  },
-  { month: 'Apr', salesTgt: 500000,  mktTgt: 50000  },
-  { month: 'May', salesTgt: 600000,  mktTgt: 60000  },
-  { month: 'Jun', salesTgt: 700000,  mktTgt: 70000  },
-  { month: 'Jul', salesTgt: 900000,  mktTgt: 90000  },
-  { month: 'Aug', salesTgt: 1100000, mktTgt: 110000 },
-  { month: 'Sep', salesTgt: 1300000, mktTgt: 130000 },
-  { month: 'Oct', salesTgt: 1500000, mktTgt: 150000 },
-  { month: 'Nov', salesTgt: 2500000, mktTgt: 250000 },
-  { month: 'Dec', salesTgt: 5000000, mktTgt: 500000 },
-];
+const SALES_TGT: Record<string, number> = {
+  Jan: 200_000, Feb: 300_000, Mar: 400_000, Apr: 500_000, May: 600_000,
+  Jun: 400_000, Jul: 400_000, Aug: 500_000, Sep: 600_000,
+  Oct: 700_000, Nov: 800_000, Dec: 900_000,
+};
+
+const GOALS = Object.entries(SALES_TGT).map(([month, salesTgt]) => ({
+  month, salesTgt, mktTgt: Math.round(salesTgt * 0.3),
+}));
 
 async function fetchMonthSales(year: number, month: number): Promise<number> {
   const mm = String(month).padStart(2, '0');

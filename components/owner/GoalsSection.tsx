@@ -12,7 +12,7 @@ interface GoalRow {
 
 function fmt(val: number | null): string {
   if (val === null || val === 0) return '';
-  return Math.round(val).toLocaleString('en-GB');
+  return Math.round(val / 1000).toLocaleString('en-GB') + 'K';
 }
 
 function salesClass(act: number | null, tgt: number) {
