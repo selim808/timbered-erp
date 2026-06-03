@@ -3,23 +3,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
-import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/shared/PipelineOrderCard';
+import PipelineOrderList, { PhaseGroup, Phase, fmtPrice, waPhone } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 
 const AFTER_SALES_GROUP = 'After-Sales';
 const FOLLOWUP_PHASE    = 'Follow-up';
 
-function followupMessage(): string {
+// Short divider that fits a phone screen (box-drawing line)
+const WA_SEPARATOR = '─────────';
+
+function arabicBlock(): string {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير يا فندم' : 'مساء الخير يا فندم';
   return `${greeting}
 
-حابين نعرف رأى حضرتك فى المنتج و الخدمة
-__________________________________________
-Hello,
+حابين نعرف رأى حضرتك فى المنتج و الخدمة`;
+}
+
+const ENGLISH_BLOCK = `Hello,
 
 we would like to know your feedback on product and service`;
+
+function buildWaMessage(arabic: boolean, english: boolean): string {
+  const parts: string[] = [];
+  if (arabic) parts.push(arabicBlock());
+  if (english) parts.push(ENGLISH_BLOCK);
+  return parts.join(`\n${WA_SEPARATOR}\n`);
 }
 
 export default function PhaseGroupPage() {
@@ -33,6 +43,9 @@ export default function PhaseGroupPage() {
   const [error, setError]             = useState('');
   const [detailOrder, setDetailOrder]   = useState<PipelineOrder | null>(null);
   const [productPopup, setProductPopup] = useState<PipelineLineItem | null>(null);
+  const [waOrder, setWaOrder]         = useState<PipelineOrder | null>(null);
+  const [waArabic, setWaArabic]       = useState(true);
+  const [waEnglish, setWaEnglish]     = useState(false);
   const [bulkMode, setBulkMode]       = useState(false);
   const [bulkPhase, setBulkPhase]     = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -229,6 +242,20 @@ export default function PhaseGroupPage() {
         .pg-pager-btn:hover:not(:disabled) { background:#7A4610; color:#fff; }
         .pg-pager-btn:disabled { border-color:#e8ddd4; color:#ccc; cursor:default; }
         .pg-pager-info { font-size:11px; font-weight:600; color:#888; white-space:nowrap; }
+        .wa-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:600; display:flex; align-items:center; justify-content:center; padding:20px; }
+        .wa-modal { background:#fff; border-radius:14px; width:100%; max-width:340px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.2); }
+        .wa-head { display:flex; flex-direction:column; gap:2px; margin-bottom:12px; }
+        .wa-title { font-size:14px; font-weight:700; color:#222; }
+        .wa-cust { font-size:12px; color:#888; }
+        .wa-opt { display:flex; align-items:center; gap:9px; padding:7px 4px; font-size:14px; font-weight:600; color:#333; cursor:pointer; }
+        .wa-opt input { width:17px; height:17px; accent-color:#25D366; flex-shrink:0; cursor:pointer; }
+        .wa-opt-sub { font-size:11px; font-weight:500; color:#aaa; }
+        .wa-preview { margin:10px 0 14px; padding:10px 12px; background:#f6f3ef; border-radius:10px; font-size:12px; color:#444; line-height:1.5; white-space:pre-wrap; word-break:break-word; min-height:40px; }
+        .wa-preview-empty { color:#bbb; font-style:italic; }
+        .wa-actions { display:flex; gap:8px; }
+        .wa-btn-cancel { flex:1; font-size:13px; font-weight:700; padding:9px; border-radius:10px; border:1.5px solid #e8ddd4; background:#fff; color:#888; cursor:pointer; }
+        .wa-btn-send { flex:2; text-align:center; font-size:13px; font-weight:700; padding:9px; border-radius:10px; background:#25D366; color:#fff; text-decoration:none; cursor:pointer; }
+        .wa-btn-send.disabled { background:#cde7d5; cursor:default; }
       `}</style>
 
       {/* Phase tabs */}
@@ -316,7 +343,7 @@ export default function PhaseGroupPage() {
               onPhaseChange={handlePhaseChange}
               onOpenDetail={o => setDetailOrder(o)}
               onImageClick={li => setProductPopup(li)}
-              waMessage={isFollowupTab ? followupMessage() : undefined}
+              onWaClick={isFollowupTab ? (o => { setWaArabic(true); setWaEnglish(false); setWaOrder(o); }) : undefined}
             />
             {isFollowupTab && completedTotalPages > 1 && (
               <div className="pg-pager">
@@ -349,6 +376,52 @@ export default function PhaseGroupPage() {
       {productPopup && (
         <ProductPopup li={productPopup} orders={orders} onClose={() => setProductPopup(null)} />
       )}
+
+      {waOrder && (() => {
+        const msg = buildWaMessage(waArabic, waEnglish);
+        const canSend = msg.length > 0 && !!waOrder.customerPhone;
+        const href = canSend
+          ? `https://wa.me/${waPhone(waOrder.customerPhone!)}?text=${encodeURIComponent(msg)}`
+          : '#';
+        return (
+          <div className="wa-overlay" onClick={() => setWaOrder(null)}>
+            <div className="wa-modal" onClick={e => e.stopPropagation()}>
+              <div className="wa-head">
+                <span className="wa-title">WhatsApp message</span>
+                <span className="wa-cust">{waOrder.customerName}</span>
+              </div>
+
+              <label className="wa-opt">
+                <input type="checkbox" checked={waArabic} onChange={e => setWaArabic(e.target.checked)} />
+                <span>العربية <span className="wa-opt-sub">Arabic</span></span>
+              </label>
+              <label className="wa-opt">
+                <input type="checkbox" checked={waEnglish} onChange={e => setWaEnglish(e.target.checked)} />
+                <span>English</span>
+              </label>
+
+              <div className="wa-preview">
+                {msg
+                  ? msg.split('\n').map((line, i) => <div key={i}>{line || ' '}</div>)
+                  : <span className="wa-preview-empty">Select at least one language</span>}
+              </div>
+
+              <div className="wa-actions">
+                <button className="wa-btn-cancel" onClick={() => setWaOrder(null)}>Cancel</button>
+                <a
+                  className={`wa-btn-send${canSend ? '' : ' disabled'}`}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={e => { if (!canSend) { e.preventDefault(); return; } setWaOrder(null); }}
+                >
+                  Open WhatsApp
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {toast && <div className="pg-toast">{toast}</div>}
     </>
