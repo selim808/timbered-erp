@@ -36,6 +36,8 @@ interface Round {
 
 // ─── Helpers ─────────────────────────────────────────────────────
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
+const fmtK = (n: number) => `${Math.round(n / 1000)}K`;
+const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 
 function sumKey(data: Round[], key: keyof Round): number {
   return data.reduce((acc, d) => acc + ((d[key] as number) || 0), 0);
@@ -104,6 +106,11 @@ const STYLES = `
 .fin-exp-list { list-style:none; padding:0; margin:0; }
 .fin-exp-item { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f0f0f0; }
 .fin-exp-item:last-child { border-bottom:none; }
+.fin-exp-name { font-size:13px; font-weight:600; color:#555; }
+.fin-exp-name b { color:#333; font-weight:800; }
+.fin-exp-pcts { display:flex; flex-shrink:0; }
+.fin-exp-pcts span { width:52px; text-align:right; font-size:13px; font-weight:700; color:#333; }
+.fin-exp-head span { width:52px; text-align:right; font-size:9px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.3px; }
 .fin-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .fin-tbl th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.8px; color:#9e9087; font-weight:700; padding:0 8px 10px; }
 .fin-tbl th:not(:first-child) { text-align:right; }
@@ -179,13 +186,19 @@ export default function FinanceSection() {
   const opmNo   = Math.round((d.Total_Orders_No    || 0) / dur);
   const opmVal  = Math.round((d.Total_Orders_Value || 0) / dur);
 
+  const ordersVal = d.Total_Orders_Value || 0;
   const expRows = [
-    { label: 'COGS',      color: C.cogs,      val: d.COGS_Value      || 0, pct: Math.round((d.COGS_Percent      || 0) * 100) },
-    { label: 'Marketing', color: C.marketing, val: d.MRK_Value        || 0, pct: Math.round((d.MRK_Percent       || 0) * 100) },
-    { label: 'Fixed',     color: C.fixed,     val: d.FixedCost_Value  || 0, pct: Math.round((d.FixedCost_Percent || 0) * 100) },
-    { label: 'Logistics', color: C.logistics, val: d.Logistics_Value  || 0, pct: Math.round((d.Logistics_Percent || 0) * 100) },
-    { label: 'Others',    color: C.others,    val: d.Others_Value     || 0, pct: Math.round((d.Others_Percent    || 0) * 100) },
-  ];
+    { label: 'COGS',      color: C.cogs,      val: d.COGS_Value      || 0 },
+    { label: 'Marketing', color: C.marketing, val: d.MRK_Value        || 0 },
+    { label: 'Fixed',     color: C.fixed,     val: d.FixedCost_Value  || 0 },
+    { label: 'Logistics', color: C.logistics, val: d.Logistics_Value  || 0 },
+    { label: 'Others',    color: C.others,    val: d.Others_Value     || 0 },
+  ].map(r => ({
+    ...r,
+    pctCash:  pct(r.val, cashIn),
+    pctExp:   pct(r.val, exp),
+    pctOrder: pct(r.val, ordersVal),
+  }));
 
   const startDateStr = d.Start_Date
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -307,17 +320,26 @@ export default function FinanceSection() {
         {/* ── Expense breakdown ── */}
         <p className="fin-sec-title">Expense breakdown</p>
         <div className="fin-card">
-          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 4, fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-            % from orders
+          <div className="fin-exp-item fin-exp-head" style={{ padding: '0 0 6px', borderBottom: '1px solid #eee' }}>
+            <span style={{ flex: 1 }} />
+            <div className="fin-exp-pcts">
+              <span>% Cash</span>
+              <span>% Exp</span>
+              <span>% Order</span>
+            </div>
           </div>
           <ul className="fin-exp-list">
             {expRows.map(e => (
               <li key={e.label} className="fin-exp-item">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: e.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>{e.label}</span>
+                  <span className="fin-exp-name">{e.label}: <b>{fmtK(e.val)}</b></span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>{e.pct}% ({fmt(e.val)})</span>
+                <div className="fin-exp-pcts">
+                  <span>{e.pctCash}%</span>
+                  <span>{e.pctExp}%</span>
+                  <span>{e.pctOrder}%</span>
+                </div>
               </li>
             ))}
           </ul>
