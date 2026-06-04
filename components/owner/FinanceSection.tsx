@@ -204,20 +204,46 @@ export default function FinanceSection() {
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'N/A';
 
+  // Three concentric rings — each ring sums to its own base, so the coloured
+  // arc is expenses and the faint remainder arc is the margin for that base.
+  //   inner = % of Cash In · middle = % of Expenses · outer = % of Orders
+  const vals      = expRows.map(e => e.val);
+  const colors    = expRows.map(e => e.color);
+  const MARGIN_BG = 'rgba(0,0,0,0.05)';
+  const ring = (base: number) => ({
+    data: [...vals, Math.max(base - exp, 0)],
+    backgroundColor: [...colors, MARGIN_BG],
+    borderWidth: 2, borderColor: '#fff', weight: 1,
+  });
   const chartData = {
-    labels: expRows.map(e => e.label),
-    datasets: [{ data: expRows.map(e => e.val), backgroundColor: expRows.map(e => e.color), borderWidth: 2 }],
+    labels: [...expRows.map(e => e.label), 'Margin'],
+    datasets: [ring(cashIn), ring(exp), ring(ordersVal)], // inner → outer
   };
+  const ringBase = [cashIn, exp, ordersVal];
+  const ringName = ['Cash In', 'Expenses', 'Orders'];
   const chartOptions = {
-    responsive: true, maintainAspectRatio: false, cutout: '58%' as const,
+    responsive: true, maintainAspectRatio: false, cutout: '30%' as const,
     plugins: {
       legend: { display: false },
+      tooltip: {
+        callbacks: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          label: (ctx: any) => {
+            const base = ringBase[ctx.datasetIndex] || 1;
+            const p = Math.round((ctx.raw / base) * 100);
+            const who = ctx.dataIndex === vals.length ? 'Margin' : ctx.label;
+            return `${who} — ${p}% of ${ringName[ctx.datasetIndex]} (${fmt(ctx.raw)})`;
+          },
+        },
+      },
       datalabels: {
-        color: '#fff', font: { weight: 'bold' as const, size: 11 },
+        color: '#fff', font: { weight: 'bold' as const, size: 9 },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (value: number, ctx: any) => {
-          const total = (ctx.chart.data.datasets[0].data as number[]).reduce((a: number, b: number) => a + b, 0);
-          return value > 0 ? Math.round(value * 100 / total) + '%' : '';
+          if (ctx.dataIndex === vals.length) return ''; // hide margin slice
+          const base = ringBase[ctx.datasetIndex] || 1;
+          const p = Math.round((value / base) * 100);
+          return p >= 8 ? p + '%' : '';
         },
       },
     },
@@ -343,10 +369,15 @@ export default function FinanceSection() {
               </li>
             ))}
           </ul>
-          <div style={{ position: 'relative', height: 200, width: '100%', marginTop: 16 }}>
+          <div style={{ position: 'relative', height: 240, width: '100%', marginTop: 16 }}>
             <Doughnut data={chartData} options={chartOptions} />
           </div>
-          <div style={{ fontSize: 11, color: '#aaa', marginTop: 8, textAlign: 'center' }}>% from the expenses</div>
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11, color: '#888', fontWeight: 600 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 14, height: 7, borderRadius: 4, background: 'linear-gradient(90deg,#e67e22,#3498db)', opacity: 0.5 }} />Inner · % Cash In</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 14, height: 7, borderRadius: 4, background: 'linear-gradient(90deg,#e67e22,#3498db)', opacity: 0.75 }} />Middle · % Expenses</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 14, height: 7, borderRadius: 4, background: 'linear-gradient(90deg,#e67e22,#3498db)' }} />Outer · % Orders</span>
+          </div>
+          <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'center' }}>Faint arc = margin (the non-expense share of each base)</div>
         </div>
 
         {/* ── Cash In vs Completed ── */}
