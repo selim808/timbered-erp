@@ -35,7 +35,8 @@ interface Round {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
-const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
+const fmt  = (n: number) => Math.round(n).toLocaleString('en-GB');
+const fmtK = (n: number) => `${Math.round(n / 1000)}K`;
 
 function sumKey(data: Round[], key: keyof Round): number {
   return data.reduce((acc, d) => acc + ((d[key] as number) || 0), 0);
@@ -179,8 +180,14 @@ export default function FinanceSection() {
   const opmNo   = Math.round((d.Total_Orders_No    || 0) / dur);
   const opmVal  = Math.round((d.Total_Orders_Value || 0) / dur);
 
+  const cogsVal      = d.COGS_Value || 0;
+  const cogsK        = fmtK(cogsVal);
+  const cogsCashPct  = cashIn   ? Math.round(cogsVal / cashIn * 100) : 0;
+  const cogsExpPct   = exp      ? Math.round(cogsVal / exp   * 100) : 0;
+  const cogsOrdPct   = (d.Total_Orders_Value || 0) ? Math.round(cogsVal / (d.Total_Orders_Value || 1) * 100) : 0;
+
   const expRows = [
-    { label: 'COGS',      color: C.cogs,      val: d.COGS_Value      || 0, pct: Math.round((d.COGS_Percent      || 0) * 100) },
+    { label: 'COGS',      color: C.cogs,      val: cogsVal,             pct: Math.round((d.COGS_Percent      || 0) * 100) },
     { label: 'Marketing', color: C.marketing, val: d.MRK_Value        || 0, pct: Math.round((d.MRK_Percent       || 0) * 100) },
     { label: 'Fixed',     color: C.fixed,     val: d.FixedCost_Value  || 0, pct: Math.round((d.FixedCost_Percent || 0) * 100) },
     { label: 'Logistics', color: C.logistics, val: d.Logistics_Value  || 0, pct: Math.round((d.Logistics_Percent || 0) * 100) },
@@ -315,9 +322,27 @@ export default function FinanceSection() {
               <li key={e.label} className="fin-exp-item">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: e.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>{e.label}</span>
+                  {e.label === 'COGS'
+                    ? <span style={{ fontSize: 13, fontWeight: 700, color: '#555' }}>COGS: {cogsK}</span>
+                    : <span style={{ fontSize: 13, fontWeight: 600, color: '#555' }}>{e.label}</span>
+                  }
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>{e.pct}% ({fmt(e.val)})</span>
+                {e.label === 'COGS'
+                  ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[
+                        { val: cogsCashPct, lbl: 'CASH' },
+                        { val: cogsExpPct,  lbl: 'EXP'  },
+                        { val: cogsOrdPct,  lbl: 'ORD'  },
+                      ].map(({ val, lbl }) => (
+                        <span key={lbl} style={{ fontSize: 11, fontWeight: 700, color: '#555', background: '#f4efe8', borderRadius: 5, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                          {val}%<span style={{ fontWeight: 500, color: '#999', marginLeft: 2 }}>{lbl}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )
+                  : <span style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>{e.pct}% ({fmt(e.val)})</span>
+                }
               </li>
             ))}
           </ul>
