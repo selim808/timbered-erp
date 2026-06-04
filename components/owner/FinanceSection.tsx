@@ -215,12 +215,13 @@ export default function FinanceSection() {
     backgroundColor: [...colors, MARGIN_BG],
     borderWidth: 2, borderColor: '#fff', weight: 1,
   });
+  // Chart.js draws dataset[0] as the OUTER ring, so order is outer → inner.
   const chartData = {
     labels: [...expRows.map(e => e.label), 'Margin'],
-    datasets: [ring(cashIn), ring(exp), ring(ordersVal)], // inner → outer
+    datasets: [ring(ordersVal), ring(exp), ring(cashIn)], // outer → inner
   };
-  const ringBase = [cashIn, exp, ordersVal];
-  const ringName = ['Cash In', 'Expenses', 'Orders'];
+  const ringBase = [ordersVal, exp, cashIn];
+  const ringName = ['Orders', 'Expenses', 'Cash In'];
   const chartOptions = {
     responsive: true, maintainAspectRatio: false, cutout: '30%' as const,
     plugins: {
