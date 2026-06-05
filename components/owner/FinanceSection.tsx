@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 
-ChartJS.register(ArcElement, Tooltip, ChartDataLabels);
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, ChartDataLabels);
 
 // ─── Types ───────────────────────────────────────────────────────
 interface Round {
@@ -204,48 +204,45 @@ export default function FinanceSection() {
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'N/A';
 
-  // Three concentric rings — each ring sums to its own base, so the coloured
-  // arc is expenses and the faint remainder arc is the margin for that base.
-  //   inner = % of Cash In · middle = % of Expenses · outer = % of Orders
-  const vals      = expRows.map(e => e.val);
-  const colors    = expRows.map(e => e.color);
-  const MARGIN_BG = 'rgba(0,0,0,0.05)';
-  const ring = (base: number) => ({
-    data: [...vals, Math.max(base - exp, 0)],
-    backgroundColor: [...colors, MARGIN_BG],
-    borderWidth: 2, borderColor: '#fff', weight: 1,
-  });
-  // Chart.js draws dataset[0] as the OUTER ring, so order is outer → inner.
+  // Grouped horizontal bars — each category shows 3 bars: % of Cash, of
+  // Expenses, of Orders. Bars are coloured by metric (see legend below).
+  const SERIES = [
+    { name: '% Cash',  color: '#27ae60', get: (e: typeof expRows[number]) => e.pctCash  },
+    { name: '% Exp',   color: '#e67e22', get: (e: typeof expRows[number]) => e.pctExp   },
+    { name: '% Order', color: '#2980b9', get: (e: typeof expRows[number]) => e.pctOrder },
+  ];
   const chartData = {
-    labels: [...expRows.map(e => e.label), 'Margin'],
-    datasets: [ring(ordersVal), ring(exp), ring(cashIn)], // outer → inner
+    labels: expRows.map(e => e.label),
+    datasets: SERIES.map(s => ({
+      label: s.name,
+      data: expRows.map(s.get),
+      backgroundColor: s.color,
+      borderRadius: 4,
+      barPercentage: 0.82,
+      categoryPercentage: 0.72,
+    })),
   };
-  const ringBase = [ordersVal, exp, cashIn];
-  const ringName = ['Orders', 'Expenses', 'Cash In'];
+  const maxPct = Math.max(...expRows.map(e => e.pctCash), 10);
   const chartOptions = {
-    responsive: true, maintainAspectRatio: false, cutout: '30%' as const,
+    indexAxis: 'y' as const,
+    responsive: true, maintainAspectRatio: false,
+    layout: { padding: { right: 26 } },
+    scales: {
+      x: { display: false, beginAtZero: true, max: Math.ceil(maxPct / 10) * 10 + 6 },
+      y: { grid: { display: false }, ticks: { font: { size: 12, weight: 700 as const }, color: '#555' } },
+    },
     plugins: {
       legend: { display: false },
       tooltip: {
         callbacks: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          label: (ctx: any) => {
-            const base = ringBase[ctx.datasetIndex] || 1;
-            const p = Math.round((ctx.raw / base) * 100);
-            const who = ctx.dataIndex === vals.length ? 'Margin' : ctx.label;
-            return `${who} — ${p}% of ${ringName[ctx.datasetIndex]} (${fmt(ctx.raw)})`;
-          },
+          label: (ctx: any) => `${ctx.dataset.label}: ${ctx.raw}%`,
         },
       },
       datalabels: {
-        color: '#fff', font: { weight: 'bold' as const, size: 9 },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        formatter: (value: number, ctx: any) => {
-          if (ctx.dataIndex === vals.length) return ''; // hide margin slice
-          const base = ringBase[ctx.datasetIndex] || 1;
-          const p = Math.round((value / base) * 100);
-          return p >= 8 ? p + '%' : '';
-        },
+        anchor: 'end' as const, align: 'end' as const, offset: 2,
+        color: '#555', font: { weight: 'bold' as const, size: 10 },
+        formatter: (value: number) => `${value}%`,
       },
     },
   };
@@ -370,15 +367,16 @@ export default function FinanceSection() {
               </li>
             ))}
           </ul>
-          <div style={{ position: 'relative', height: 240, width: '100%', marginTop: 16 }}>
-            <Doughnut data={chartData} options={chartOptions} />
+          <div style={{ position: 'relative', height: 260, width: '100%', marginTop: 16 }}>
+            <Bar data={chartData} options={chartOptions} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11, color: '#888', fontWeight: 600 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 14, height: 7, borderRadius: 4, background: 'linear-gradient(90deg,#e67e22,#3498db)', opacity: 0.5 }} />Inner · % Cash In</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 14, height: 7, borderRadius: 4, background: 'linear-gradient(90deg,#e67e22,#3498db)', opacity: 0.75 }} />Middle · % Expenses</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 14, height: 7, borderRadius: 4, background: 'linear-gradient(90deg,#e67e22,#3498db)' }} />Outer · % Orders</span>
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 16, marginTop: 10, fontSize: 11, color: '#888', fontWeight: 600 }}>
+            {[{ n: '% Cash In', c: '#27ae60' }, { n: '% Expenses', c: '#e67e22' }, { n: '% Orders', c: '#2980b9' }].map(l => (
+              <span key={l.n} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: l.c }} />{l.n}
+              </span>
+            ))}
           </div>
-          <div style={{ fontSize: 10, color: '#bbb', marginTop: 6, textAlign: 'center' }}>Faint arc = margin (the non-expense share of each base)</div>
         </div>
 
         {/* ── Cash In vs Completed ── */}
