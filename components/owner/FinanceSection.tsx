@@ -204,32 +204,23 @@ export default function FinanceSection() {
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'N/A';
 
-  // Grouped horizontal bars — each category shows 3 bars: % of Cash, of
-  // Expenses, of Orders. Bars are coloured by metric (see legend below).
-  const SERIES = [
-    { name: '% Cash',  color: '#27ae60', get: (e: typeof expRows[number]) => e.pctCash  },
-    { name: '% Exp',   color: '#e67e22', get: (e: typeof expRows[number]) => e.pctExp   },
-    { name: '% Order', color: '#2980b9', get: (e: typeof expRows[number]) => e.pctOrder },
-  ];
+  // Three stacked bars — one per base (Cash In, Expenses, Orders). Each bar is
+  // stacked by category, so a segment is that category's % of the base.
   const chartData = {
-    labels: expRows.map(e => e.label),
-    datasets: SERIES.map(s => ({
-      label: s.name,
-      data: expRows.map(s.get),
-      backgroundColor: s.color,
-      borderRadius: 4,
-      barPercentage: 0.82,
-      categoryPercentage: 0.72,
+    labels: ['% Cash In', '% Expenses', '% Orders'],
+    datasets: expRows.map(e => ({
+      label: e.label,
+      data: [e.pctCash, e.pctExp, e.pctOrder],
+      backgroundColor: e.color,
+      borderWidth: 1, borderColor: '#fff',
     })),
   };
-  const maxPct = Math.max(...expRows.map(e => e.pctCash), 10);
   const chartOptions = {
     indexAxis: 'y' as const,
     responsive: true, maintainAspectRatio: false,
-    layout: { padding: { right: 26 } },
     scales: {
-      x: { display: false, beginAtZero: true, max: Math.ceil(maxPct / 10) * 10 + 6 },
-      y: { grid: { display: false }, ticks: { font: { size: 12, weight: 700 as const }, color: '#555' } },
+      x: { stacked: true, display: false, beginAtZero: true },
+      y: { stacked: true, grid: { display: false }, ticks: { font: { size: 12, weight: 700 as const }, color: '#555' } },
     },
     plugins: {
       legend: { display: false },
@@ -240,9 +231,8 @@ export default function FinanceSection() {
         },
       },
       datalabels: {
-        anchor: 'end' as const, align: 'end' as const, offset: 2,
-        color: '#555', font: { weight: 'bold' as const, size: 10 },
-        formatter: (value: number) => `${value}%`,
+        color: '#fff', font: { weight: 'bold' as const, size: 10 },
+        formatter: (value: number) => (value >= 6 ? `${value}%` : ''),
       },
     },
   };
@@ -367,13 +357,13 @@ export default function FinanceSection() {
               </li>
             ))}
           </ul>
-          <div style={{ position: 'relative', height: 260, width: '100%', marginTop: 16 }}>
+          <div style={{ position: 'relative', height: 200, width: '100%', marginTop: 16 }}>
             <Bar data={chartData} options={chartOptions} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 16, marginTop: 10, fontSize: 11, color: '#888', fontWeight: 600 }}>
-            {[{ n: '% Cash In', c: '#27ae60' }, { n: '% Expenses', c: '#e67e22' }, { n: '% Orders', c: '#2980b9' }].map(l => (
-              <span key={l.n} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 12, height: 12, borderRadius: 3, background: l.c }} />{l.n}
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11, color: '#888', fontWeight: 600 }}>
+            {expRows.map(e => (
+              <span key={e.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 3, background: e.color }} />{e.label}
               </span>
             ))}
           </div>
