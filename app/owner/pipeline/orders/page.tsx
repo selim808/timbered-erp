@@ -22,7 +22,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTooltip, ChartLege
 const BROWN = '#7A4610';
 const FALLBACK_GROUP_COLOR = BROWN;
 
-type Tab = 'orders' | 'wip';
+type Tab = 'orders' | 'kanban' | 'wip';
 type GroupBy = 'order' | 'phase' | 'product';
 
 function normalizeOrders(data: unknown): PipelineOrder[] {
@@ -407,6 +407,149 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange, onOpenDetail, on
 }
 
 
+// ── Kanban View ────────────────────────────────────────────────────────────
+type KanbanCard = { o: PipelineOrder; li: PipelineLineItem; liIndex: number; key: string };
+
+function KanbanView({ orders, groups, phases, onPhaseChange, onOpenDetail, onImageClick }: {
+  orders: PipelineOrder[]; groups: PhaseGroup[]; phases: Phase[];
+  onPhaseChange: (orderId: number, liId: number, phase: string) => void;
+  onOpenDetail: (o: PipelineOrder) => void;
+  onImageClick: (li: PipelineLineItem) => void;
+}) {
+  const [groupFilter, setGroupFilter] = useState<string>('all');
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overPhase, setOverPhase] = useState<string | null>(null);
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const [scrollPct, setScrollPct] = useState(0);
+  const [scrollable, setScrollable] = useState(false);
+
+  // Flatten all line items into draggable cards
+  const cards = useMemo<KanbanCard[]>(() => {
+    const rows: KanbanCard[] = [];
+    orders.forEach(o => o.lineItems.forEach((li, idx) =>
+      rows.push({ o, li, liIndex: idx + 1, key: `${o.id}-${li.id}` })
+    ));
+    return rows;
+  }, [orders]);
+
+  // Columns: ordered phases (filtered by group) + an Unassigned column
+  const columns = useMemo(() => {
+    const cols: { phase: string; label: string; groupLabel: string; color: string }[] = [];
+    groups.forEach(g => {
+      if (groupFilter !== 'all' && groupFilter !== g.id) return;
+      phases
+        .filter(p => p.phase_group_id === g.id)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .forEach(p => cols.push({ phase: p.name, label: p.name, groupLabel: g.name, color: groupColor(g) }));
+    });
+    cols.push({ phase: '', label: 'Unassigned', groupLabel: '', color: '#bbb' });
+    return cols;
+  }, [groups, phases, groupFilter]);
+
+  function handleDrop(phase: string) {
+    if (!dragKey) return;
+    const [orderId, liId] = dragKey.split('-').map(Number);
+    const card = cards.find(c => c.key === dragKey);
+    if (card && card.li.phase !== phase) onPhaseChange(orderId, liId, phase);
+    setDragKey(null);
+    setOverPhase(null);
+  }
+
+  function syncSliderFromBoard() {
+    const el = boardRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setScrollable(max > 1);
+    setScrollPct(max > 0 ? (el.scrollLeft / max) * 100 : 0);
+  }
+
+  function handleSlide(v: number) {
+    const el = boardRef.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    el.scrollLeft = (v / 100) * max;
+    setScrollPct(v);
+  }
+
+  // Recompute whether the board overflows whenever columns/cards change.
+  useEffect(syncSliderFromBoard, [columns, cards]);
+
+  return (
+    <div className="op-kb-wrap">
+      <div className="op-kb-filters">
+        <span className="op-tb-label">Stage</span>
+        <button className={`op-view-btn${groupFilter === 'all' ? ' active' : ''}`} onClick={() => setGroupFilter('all')}>All</button>
+        {groups.map(g => (
+          <button key={g.id} className={`op-view-btn${groupFilter === g.id ? ' active' : ''}`} onClick={() => setGroupFilter(g.id)}>
+            {g.name}
+          </button>
+        ))}
+      </div>
+
+      {scrollable && (
+        <div className="op-kb-slider">
+          <span className="op-kb-slider-icon">⟵</span>
+          <input type="range" min={0} max={100} step={0.5} value={scrollPct}
+            onChange={e => handleSlide(Number(e.target.value))} aria-label="Scroll kanban" />
+          <span className="op-kb-slider-icon">⟶</span>
+        </div>
+      )}
+
+      <div className="op-kb-board" ref={boardRef} onScroll={syncSliderFromBoard}>
+        {columns.map(col => {
+          const colCards = cards.filter(c => c.li.phase === col.phase);
+          const colValue = colCards.reduce((s, c) => s + c.li.total, 0);
+          return (
+            <div
+              key={col.phase || '__unassigned'}
+              className={`op-kb-col${overPhase === col.phase ? ' over' : ''}`}
+              onDragOver={e => { e.preventDefault(); setOverPhase(col.phase); }}
+              onDragLeave={() => setOverPhase(p => (p === col.phase ? null : p))}
+              onDrop={() => handleDrop(col.phase)}
+            >
+              <div className="op-kb-col-head" style={{ borderTopColor: col.color }}>
+                <span className="op-kb-col-name">{col.label}</span>
+                <span className="op-kb-col-count">{colCards.length}</span>
+              </div>
+              {col.groupLabel && groupFilter === 'all' && (
+                <div className="op-kb-col-group">{col.groupLabel}</div>
+              )}
+              <div className="op-kb-col-sub">{fmtPrice(colValue)} EGP</div>
+              <div className="op-kb-col-body">
+                {colCards.map(c => (
+                  <div
+                    key={c.key}
+                    className={`op-kb-card${dragKey === c.key ? ' dragging' : ''}`}
+                    draggable
+                    onDragStart={() => setDragKey(c.key)}
+                    onDragEnd={() => { setDragKey(null); setOverPhase(null); }}
+                  >
+                    <div className="op-kb-card-top">
+                      <span className={daysBadgeClass(c.o.daysOpen)}>{c.o.daysOpen}d</span>
+                      <span className="op-kb-card-ref" onClick={() => onOpenDetail(c.o)}>{c.o.number}.{c.liIndex}</span>
+                      <span className="op-kb-card-price">{fmtPrice(c.li.total)}</span>
+                    </div>
+                    <div className="op-kb-card-body">
+                      {c.li.imageUrl
+                        ? <img src={c.li.imageUrl} alt="" className="op-kb-card-thumb" onClick={() => onImageClick(c.li)} />
+                        : <div className="op-kb-card-thumb-ph" onClick={() => onImageClick(c.li)} />}
+                      <span className="op-kb-card-name">{c.li.name}</span>
+                      <span className="op-kb-card-qty">×{c.li.quantity}</span>
+                    </div>
+                    <div className="op-kb-card-cust" onClick={() => onOpenDetail(c.o)}>{c.o.customerName}</div>
+                  </div>
+                ))}
+                {colCards.length === 0 && <div className="op-kb-empty">Drop here</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function OrdersPipelinePage() {
   const [tab, setTab]             = useState<Tab>('orders');
@@ -703,13 +846,48 @@ export default function OrdersPipelinePage() {
         .op-wip-phase-stat { font-size:11px; color:#888; white-space:nowrap; }
         .op-wip-phase-val { font-size:11px; color:#7A4610; font-weight:600; white-space:nowrap; }
         .op-wip-phase-ord { font-size:11px; color:#aaa; white-space:nowrap; }
+
+        /* ── kanban ── */
+        .op-kb-wrap { display:flex; flex-direction:column; height:calc(100vh - 110px); }
+        .op-kb-filters { display:flex; align-items:center; gap:6px; padding:8px 12px; background:#fff; border-bottom:1px solid #e8ddd4; flex-wrap:wrap; }
+        .op-kb-slider { display:flex; align-items:center; gap:10px; padding:8px 14px; background:#fff; border-bottom:1px solid #e8ddd4; }
+        .op-kb-slider-icon { font-size:13px; color:#bba; flex-shrink:0; }
+        .op-kb-slider input[type=range] { flex:1; appearance:none; -webkit-appearance:none; height:6px; border-radius:6px; background:#ece2d8; outline:none; cursor:pointer; }
+        .op-kb-slider input[type=range]::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:26px; height:16px; border-radius:8px; background:#7A4610; cursor:grab; border:2px solid #fff; box-shadow:0 1px 3px rgba(122,70,16,.4); }
+        .op-kb-slider input[type=range]::-webkit-slider-thumb:active { cursor:grabbing; }
+        .op-kb-slider input[type=range]::-moz-range-thumb { width:26px; height:16px; border-radius:8px; background:#7A4610; cursor:grab; border:2px solid #fff; }
+        .op-kb-slider input[type=range]::-moz-range-track { height:6px; border-radius:6px; background:#ece2d8; }
+        .op-kb-board { flex:1; display:flex; gap:10px; padding:10px 12px; overflow-x:auto; overflow-y:hidden; align-items:flex-start; }
+        .op-kb-col { flex:0 0 230px; display:flex; flex-direction:column; max-height:100%; background:#faf6f2; border:1px solid #e8ddd4; border-radius:10px; overflow:hidden; }
+        .op-kb-col.over { background:#fef3e2; border-color:#7A4610; }
+        .op-kb-col-head { display:flex; align-items:center; gap:6px; padding:9px 10px 7px; border-top:3px solid #ccc; }
+        .op-kb-col-name { font-size:12px; font-weight:700; color:#7A4610; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .op-kb-col-count { font-size:11px; font-weight:700; color:#7A4610; background:#fef3e2; border-radius:10px; padding:1px 8px; flex-shrink:0; }
+        .op-kb-col-group { font-size:10px; color:#aaa; padding:0 10px; text-transform:uppercase; letter-spacing:.4px; }
+        .op-kb-col-sub { font-size:10px; color:#999; padding:2px 10px 6px; border-bottom:1px solid #ece2d8; }
+        .op-kb-col-body { flex:1; overflow-y:auto; padding:7px; display:flex; flex-direction:column; gap:6px; }
+        .op-kb-card { background:#fff; border:1px solid #e8ddd4; border-radius:8px; padding:7px 8px; cursor:grab; }
+        .op-kb-card:hover { border-color:#d8c4ac; box-shadow:0 1px 4px rgba(122,70,16,.08); }
+        .op-kb-card.dragging { opacity:.4; }
+        .op-kb-card-top { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+        .op-kb-card-ref { font-size:10px; font-weight:700; color:#7A4610; cursor:pointer; flex:1; }
+        .op-kb-card-ref:hover { text-decoration:underline; }
+        .op-kb-card-price { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; }
+        .op-kb-card-body { display:flex; align-items:center; gap:6px; }
+        .op-kb-card-thumb { width:30px; height:30px; border-radius:5px; object-fit:cover; flex-shrink:0; border:1px solid #e8ddd4; cursor:pointer; }
+        .op-kb-card-thumb-ph { width:30px; height:30px; border-radius:5px; background:#f0e8e0; flex-shrink:0; cursor:pointer; }
+        .op-kb-card-name { font-size:12px; font-weight:600; color:#333; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .op-kb-card-qty { font-size:11px; color:#888; flex-shrink:0; }
+        .op-kb-card-cust { font-size:11px; color:#999; margin-top:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+        .op-kb-card-cust:hover { color:#7A4610; }
+        .op-kb-empty { font-size:11px; color:#ccc; text-align:center; padding:14px 0; border:1.5px dashed #e0d4c6; border-radius:8px; }
       `}</style>
 
       {/* Sub-nav */}
       <div className="op-sub-nav">
-        {(['orders','wip'] as Tab[]).map(t => (
+        {(['orders','wip','kanban'] as Tab[]).map(t => (
           <button key={t} className={`op-sub-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'orders' ? 'Orders' : 'WIP Chart'}
+            {t === 'orders' ? 'Orders' : t === 'wip' ? 'WIP Chart' : 'Kanban'}
           </button>
         ))}
       </div>
@@ -717,6 +895,15 @@ export default function OrdersPipelinePage() {
       {tab === 'wip' ? (
         <WipChart orders={orders} phaseGroups={phaseGroups} phases={phases} onPhaseChange={handlePhaseChange}
           onOpenDetail={o => setDetailOrderId(o.id)} onImageClick={li => setProductPopup(li)} />
+      ) : tab === 'kanban' ? (
+        loading ? (
+          <div className="op-state">Loading orders…</div>
+        ) : error ? (
+          <div className="op-state" style={{ color: '#e74c3c' }}>{error}</div>
+        ) : (
+          <KanbanView orders={visibleOrders} groups={phaseGroups} phases={phases} onPhaseChange={handlePhaseChange}
+            onOpenDetail={o => setDetailOrderId(o.id)} onImageClick={li => setProductPopup(li)} />
+        )
       ) : (
         <>
           {/* Badges */}
