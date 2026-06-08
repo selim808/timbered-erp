@@ -35,8 +35,9 @@ interface Round {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────
-const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
-const fmtK = (n: number) => `${Math.round(n / 1000)}K`;
+const num = (x: unknown): number => { const n = Number(x); return Number.isFinite(n) ? n : 0; };
+const fmt = (n: number) => Math.round(num(n)).toLocaleString('en-GB');
+const fmtK = (n: number) => `${Math.round(num(n) / 1000)}K`;
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 
 function sumKey(data: Round[], key: keyof Round): number {
@@ -175,10 +176,13 @@ export default function FinanceSection() {
   const cashPct = (cashIn / max) * 100;
   const expPct  = (exp    / max) * 100;
 
-  const totalFunnel = (d.Completed_Value || 0) + (d.Processing_Value || 0) + (d.Cancelled_Value || 0) || 1;
-  const compPct = Math.round((d.Completed_Value  || 0) / totalFunnel * 100);
-  const procPct = Math.round((d.Processing_Value || 0) / totalFunnel * 100);
-  const canPct  = Math.round((d.Cancelled_Value  || 0) / totalFunnel * 100);
+  const compFunnel = num(d.Completed_Value);
+  const procFunnel = num(d.Processing_Value);
+  const canFunnel  = num(d.Cancelled_Value);
+  const totalFunnel = compFunnel + procFunnel + canFunnel || 1;
+  const compPct = Math.round((compFunnel / totalFunnel) * 100);
+  const procPct = Math.round((procFunnel / totalFunnel) * 100);
+  const canPct  = Math.round((canFunnel  / totalFunnel) * 100);
 
   const gap     = d.Ceiling_Gap ?? (cashIn - ceil);
   const diffVal = d.Cash_Minus_Com_Value || 0;
@@ -418,7 +422,7 @@ export default function FinanceSection() {
               <tr className="f-total">
                 <td><div className="fin-stage"><div className="fin-dot" style={{ background: '#34495e' }} />Total</div></td>
                 <td>{fmt(d.Total_Orders_Value || 0)}</td>
-                <td>{Math.round(d.Total_Orders_No || 0)}</td>
+                <td>{Math.round(num(d.Total_Orders_No))}</td>
                 <td><span className="fin-pct" style={{ background: '#f0f0f0', color: '#555' }}>100%</span></td>
               </tr>
               {[
@@ -429,7 +433,7 @@ export default function FinanceSection() {
                 <tr key={row.label}>
                   <td><div className="fin-stage"><div className="fin-dot" style={{ background: row.dot }} />{row.label}</div></td>
                   <td style={{ color: row.textColor }}>{fmt(row.val || 0)}</td>
-                  <td style={{ color: row.textColor }}>{Math.round(row.no || 0)}</td>
+                  <td style={{ color: row.textColor }}>{Math.round(num(row.no))}</td>
                   <td><span className="fin-pct" style={{ background: row.pctBg, color: row.pctColor }}>{row.pct}%</span></td>
                 </tr>
               ))}
