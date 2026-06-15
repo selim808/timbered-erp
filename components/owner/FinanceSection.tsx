@@ -11,6 +11,8 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, ChartDataLabel
 interface Round {
   Round: string;
   Start_Date: string | null;
+  Start_Order: string | number | null;
+  End_Order: string | number | null;
   Duration: number;
   Total_Orders_No: number;
   Total_Orders_Value: number;
@@ -56,6 +58,8 @@ function aggregateAll(data: Round[]): Round {
   const oth  = sumKey(data, 'Others_Value');
   return {
     Round: 'All', Start_Date: data[0]?.Start_Date ?? null,
+    Start_Order: data[0]?.Start_Order ?? null,
+    End_Order: data[data.length - 1]?.End_Order ?? null,
     Duration: sumKey(data, 'Duration'),
     Total_Orders_No: sumKey(data, 'Total_Orders_No'),
     Total_Orders_Value: sumKey(data, 'Total_Orders_Value'),
@@ -270,6 +274,8 @@ export default function FinanceSection() {
               { label: 'Start date',  val: startDateStr },
               { label: 'Duration',    val: `${Math.round(d.Duration || 0)} m` },
               { label: 'Orders/Mon',  val: <>{opmNo.toLocaleString('en-GB')}<span style={{ fontSize: 12, color: '#888', fontWeight: 600, marginLeft: 5 }}>({fmt(opmVal)})</span></> },
+              { label: 'Start order', val: d.Start_Order ?? '—' },
+              { label: 'End order',   val: d.End_Order   ?? '—' },
             ].map(({ label, val }) => (
               <div key={label} style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="fin-label">{label}</span>
