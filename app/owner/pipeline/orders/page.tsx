@@ -5,6 +5,7 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import PipelineOrderList, { PIPELINE_ORDER_CARD_STYLES, PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
+import CancelOrdersModal, { CancellationReason } from '@/components/owner/CancelOrdersModal';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -570,6 +571,9 @@ export default function OrdersPipelinePage() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [completeMode, setCompleteMode] = useState(false);
   const [cancelMode, setCancelMode]     = useState(false);
+  const [cancelReasons, setCancelReasons] = useState<CancellationReason[]>([]);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
   const [prodSort, setProdSort]   = useState<'qty' | 'value'>('qty');
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
@@ -583,11 +587,13 @@ export default function OrdersPipelinePage() {
       fetch('/api/pipeline/orders').then(r => r.json()),
       fetch('/api/phase-groups').then(r => r.json()),
       fetch('/api/phases').then(r => r.json()),
-    ]).then(([ords, grps, phs]) => {
+      fetch('/api/cancellation-reasons').then(r => r.json()),
+    ]).then(([ords, grps, phs, reasons]) => {
       if (Array.isArray(ords)) setOrders(normalizeOrders(ords));
       else setError(ords.error ?? 'Failed to load orders');
       if (Array.isArray(grps)) setPhaseGroups(grps);
       if (Array.isArray(phs)) setPhases(phs);
+      if (Array.isArray(reasons)) setCancelReasons(reasons);
       setLoading(false);
     }).catch(e => { setError(e.message); setLoading(false); });
   }, []);
@@ -630,11 +636,40 @@ export default function OrdersPipelinePage() {
   async function handleStatusAction(action: 'complete' | 'cancel') {
     if (selectedOrders.size === 0) return;
     const ids = Array.from(selectedOrders);
-    for (const id of ids) await fetch(`/api/pipeline/orders/${id}/${action}`, { method: 'POST' });
-    setOrders(prev => prev.filter(o => !selectedOrders.has(o.id)));
+    const failed: number[] = [];
+    for (const id of ids) {
+      const res = await fetch(`/api/pipeline/orders/${id}/${action}`, { method: 'POST' });
+      if (!res.ok) failed.push(id);
+    }
+    const succeeded = new Set(ids.filter(id => !failed.includes(id)));
+    setOrders(prev => prev.filter(o => !succeeded.has(o.id)));
     setSelectedOrders(new Set());
     setCompleteMode(false); setCancelMode(false);
-    showToast(`${ids.length} order(s) ${action === 'complete' ? 'completed' : 'cancelled'}`);
+    if (failed.length) showToast(`${succeeded.size} order(s) ${action === 'complete' ? 'completed' : 'cancelled'}, ${failed.length} failed`);
+    else showToast(`${ids.length} order(s) ${action === 'complete' ? 'completed' : 'cancelled'}`);
+  }
+
+  async function confirmCancel(reasonByOrder: Record<number, string>) {
+    const ids = Object.keys(reasonByOrder).map(Number);
+    if (ids.length === 0) return;
+    setCancelSubmitting(true);
+    const failed: number[] = [];
+    for (const id of ids) {
+      const res = await fetch(`/api/pipeline/orders/${id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reasonByOrder[id] }),
+      });
+      if (!res.ok) failed.push(id);
+    }
+    const succeeded = new Set(ids.filter(id => !failed.includes(id)));
+    setOrders(prev => prev.filter(o => !succeeded.has(o.id)));
+    setCancelSubmitting(false);
+    setCancelModalOpen(false);
+    setSelectedOrders(new Set());
+    setCancelMode(false);
+    if (failed.length) showToast(`${succeeded.size} order(s) cancelled, ${failed.length} failed`);
+    else showToast(`${ids.length} order(s) cancelled`);
   }
 
   const stockSummary = useMemo(() => {
@@ -997,7 +1032,7 @@ export default function OrdersPipelinePage() {
                 {selectedOrders.size > 0 ? `${selectedOrders.size} selected` : `Select orders to ${completeMode ? 'complete' : 'cancel'}`}
               </span>
               {selectedOrders.size > 0 && (
-                <button className="op-sel-bar-do" onClick={() => handleStatusAction(completeMode ? 'complete' : 'cancel')}>
+                <button className="op-sel-bar-do" onClick={() => completeMode ? handleStatusAction('complete') : setCancelModalOpen(true)}>
                   {completeMode ? 'Mark Completed' : 'Mark Cancelled'}
                 </button>
               )}
@@ -1041,6 +1076,14 @@ export default function OrdersPipelinePage() {
 
       {detailOrder && <OrderDetailSheet order={detailOrder} onClose={() => setDetailOrderId(null)} />}
       {productPopup && <ProductPopup li={productPopup} orders={orders} onClose={() => setProductPopup(null)} />}
+      <CancelOrdersModal
+        open={cancelModalOpen}
+        orders={orders.filter(o => selectedOrders.has(o.id))}
+        reasons={cancelReasons}
+        submitting={cancelSubmitting}
+        onConfirm={confirmCancel}
+        onClose={() => { if (!cancelSubmitting) setCancelModalOpen(false); }}
+      />
       {toast && <div className="op-toast">{toast}</div>}
     </>
   );
