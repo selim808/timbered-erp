@@ -6,6 +6,7 @@ import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import PipelineOrderList, { PIPELINE_ORDER_CARD_STYLES, PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
 import CancelOrdersModal, { CancellationReason } from '@/components/owner/CancelOrdersModal';
+import CancelledOrdersTab from '@/components/owner/CancelledOrdersTab';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -23,7 +24,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTooltip, ChartLege
 const BROWN = '#7A4610';
 const FALLBACK_GROUP_COLOR = BROWN;
 
-type Tab = 'orders' | 'kanban' | 'wip';
+type Tab = 'orders' | 'kanban' | 'wip' | 'cancelled';
 type GroupBy = 'order' | 'phase' | 'product';
 
 function normalizeOrders(data: unknown): PipelineOrder[] {
@@ -920,14 +921,16 @@ export default function OrdersPipelinePage() {
 
       {/* Sub-nav */}
       <div className="op-sub-nav">
-        {(['orders','wip','kanban'] as Tab[]).map(t => (
+        {(['orders','wip','kanban','cancelled'] as Tab[]).map(t => (
           <button key={t} className={`op-sub-btn${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t === 'orders' ? 'Orders' : t === 'wip' ? 'WIP Chart' : 'Kanban'}
+            {t === 'orders' ? 'Orders' : t === 'wip' ? 'WIP Chart' : t === 'kanban' ? 'Kanban' : 'Cancelled'}
           </button>
         ))}
       </div>
 
-      {tab === 'wip' ? (
+      {tab === 'cancelled' ? (
+        <CancelledOrdersTab />
+      ) : tab === 'wip' ? (
         <WipChart orders={orders} phaseGroups={phaseGroups} phases={phases} onPhaseChange={handlePhaseChange}
           onOpenDetail={o => setDetailOrderId(o.id)} onImageClick={li => setProductPopup(li)} />
       ) : tab === 'kanban' ? (
