@@ -274,8 +274,8 @@ export default function FinanceSection() {
               { label: 'Start date',  val: startDateStr },
               { label: 'Duration',    val: `${Math.round(d.Duration || 0)} m` },
               { label: 'Orders/Mon',  val: <>{opmNo.toLocaleString('en-GB')}<span style={{ fontSize: 12, color: '#888', fontWeight: 600, marginLeft: 5 }}>({fmt(opmVal)})</span></> },
-              { label: 'Start order', val: d.Start_Order ?? '—' },
-              { label: 'End order',   val: d.End_Order   ?? '—' },
+              { label: 'Start order', val: d.Start_Order != null && d.Start_Order !== '' ? String(d.Start_Order) : '—' },
+              { label: 'End order',   val: d.End_Order   != null && d.End_Order   !== '' ? String(d.End_Order)   : JSON.stringify(d.End_Order) },
             ].map(({ label, val }) => (
               <div key={label} style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="fin-label">{label}</span>
