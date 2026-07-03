@@ -18,7 +18,7 @@ async function fetchMonthSales(year: number, month: number): Promise<number> {
   const before = `${year}-${mm}-${lastDay}T23:59:59`;
   const baseParams = {
     per_page: 100, after, before,
-    status: 'pending,processing,on-hold,completed',
+    status: 'pending,processing,on-hold,completed,cancelled',
     _fields: 'total',
   };
 
