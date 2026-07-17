@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import wc from '@/lib/woocommerce/client';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(
   req: Request,
@@ -30,6 +31,20 @@ export async function POST(
     }
 
     await wc.put(`/orders/${id}`, payload);
+
+    // Durable CS-facing record — the WC meta_data/last-name marker above is
+    // the source of truth for WC itself, but doesn't give CS a queryable log.
+    const db = createAdminClient();
+    if (reason) {
+      await db.from('cs_cancellations').insert({ wc_order_id: id, reason });
+    }
+    await db.rpc('cs_set_order_status', {
+      p_wc_order_id: id,
+      p_new_status: 'cancelled',
+      p_note: reason || null,
+      p_created_by: null,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

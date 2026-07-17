@@ -13,6 +13,7 @@ interface Phase {
   phase_group_id: string;
   name: string;
   sort_order: number;
+  expected_days: number | null;
 }
 
 interface AffectedItem { id: string; order_id: string; line_item_id: string; }
@@ -67,6 +68,10 @@ const CSS = `
 .pg-del-btn:hover { background:#fee2e2; }
 .pg-edit-btn { opacity:0; background:none; border:none; cursor:pointer; color:#7A4610; font-size:13px; line-height:1; padding:2px 4px; border-radius:4px; transition:opacity .15s,background .15s; flex-shrink:0; }
 .pg-edit-btn:hover { background:#fef3c7; }
+.pg-days-badge { flex-shrink:0; font-size:10px; font-weight:700; color:#aaa; background:#f5f0eb; border-radius:20px; padding:2px 8px; cursor:pointer; white-space:nowrap; }
+.pg-days-badge:hover { background:#efe6da; color:#7A4610; }
+.pg-days-badge.set { color:#7A4610; }
+.pg-days-input { width:46px; border:1px solid #7A4610; border-radius:4px; padding:1px 4px; font-size:11px; font-family:inherit; color:#333; background:#fff; outline:none; flex-shrink:0; }
 .pg-inline-input { border:1px solid #7A4610; border-radius:4px; padding:1px 6px; font-size:inherit; font-family:inherit; color:#333; background:#fff; outline:none; width:100%; }
 .pg-add-row { padding:8px 10px; border-top:1px solid #f0e8e0; display:flex; gap:6px; }
 .pg-add-input { flex:1; border:1px solid #e0d8d0; border-radius:6px; padding:5px 10px; font-size:12px; color:#333; background:#faf7f4; outline:none; }
@@ -150,6 +155,8 @@ export default function PhasesPage() {
   const [editGrpVal, setEditGrpVal] = useState('');
   const [editPhId, setEditPhId]     = useState<string | null>(null);
   const [editPhVal, setEditPhVal]   = useState('');
+  const [editDaysId, setEditDaysId] = useState<string | null>(null);
+  const [editDaysVal, setEditDaysVal] = useState('');
 
   // Drag state — refs for data, state for visuals
   const phaseDrag = useRef<{ gid: string; phaseId: string } | null>(null);
@@ -430,6 +437,27 @@ export default function PhasesPage() {
     showToast(res.ok ? 'Saved' : 'Save failed', res.ok ? 'ok' : 'err');
   }
 
+  // ── Inline edit: expected days (delay threshold, read by CS Delay Flags) ──
+  async function commitDays() {
+    if (!editDaysId) return;
+    const p = phases.find(x => x.id === editDaysId);
+    const raw = editDaysVal.trim();
+    setEditDaysId(null);
+    if (!p) return;
+
+    const expected_days = raw === '' ? null : Math.max(0, parseInt(raw, 10) || 0);
+    if (expected_days === p.expected_days) return;
+
+    setPhases(prev => prev.map(x => x.id === p.id ? { ...x, expected_days } : x));
+    showToast('Saving…', 'saving');
+    const res = await fetch(`/api/phases/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expected_days }),
+    });
+    showToast(res.ok ? 'Saved' : 'Save failed', res.ok ? 'ok' : 'err');
+  }
+
   // ── All phase options (for move-target dropdown) ───────────────
   const allPhaseOptions = groups.flatMap(g =>
     phasesOf(g.id).map(p => ({ group: g.name, phase: p.name }))
@@ -549,6 +577,29 @@ export default function PhasesPage() {
                                 <span className="pg-phase-name">{p.name}</span>
                               )}
 
+                              {editDaysId === p.id ? (
+                                <input
+                                  className="pg-days-input"
+                                  type="number"
+                                  min={0}
+                                  autoFocus
+                                  value={editDaysVal}
+                                  onChange={e => setEditDaysVal(e.target.value)}
+                                  onBlur={commitDays}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') { e.preventDefault(); commitDays(); }
+                                    if (e.key === 'Escape') { setEditDaysId(null); }
+                                  }}
+                                />
+                              ) : (
+                                <span
+                                  className={`pg-days-badge${p.expected_days != null ? ' set' : ''}`}
+                                  title="Expected days in this phase before CS flags the order as delayed"
+                                  onClick={() => { setEditDaysId(p.id); setEditDaysVal(p.expected_days != null ? String(p.expected_days) : ''); }}
+                                >
+                                  {p.expected_days != null ? `${p.expected_days}d` : 'set days'}
+                                </span>
+                              )}
                               <button className="pg-edit-btn" title="Edit phase name" onClick={() => { setEditPhId(p.id); setEditPhVal(p.name); }}>✎</button>
                               <button className="pg-del-btn" title="Delete phase" onClick={() => delPhase(p.id)}>×</button>
                             </div>

@@ -1,16 +1,8 @@
 import { NextResponse } from 'next/server';
 import wc from '@/lib/woocommerce/client';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { mapOrderBase } from '@/lib/woocommerce/orders';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
-
-const EG_STATES: Record<string, string> = {
-  '0':'Alexandria','1':'Assuit','2':'Aswan','3':'Bani Suif','4':'Behira',
-  '5':'Cairo','6':'Dakahlia','7':'Damietta','8':'El Kalioubia','9':'Fayoum',
-  '10':'Gharbia','11':'Giza','12':'Ismailia','13':'Kafr Alsheikh','14':'Luxor',
-  '15':'Matrouh','16':'Menya','17':'Monufia','18':'New Valley','19':'North Coast',
-  '21':'Port Said','22':'Qena','23':'Red Sea','24':'Sharqia','25':'Sohag',
-  '26':'South Sinai','27':'Suez',
-};
 
 const PER_PAGE = 50;
 
@@ -57,10 +49,8 @@ export async function GET(req: Request) {
     const stockMap = new Map<number, number>();
     (stockRows ?? []).forEach((r: any) => stockMap.set(Number(r.product_id), r.stock ?? 0));
 
-    const now = Date.now();
     const orders: PipelineOrder[] = data.map((o: any) => {
       const completedAt = o.date_completed ?? o.date_modified ?? o.date_created;
-      const daysOpen = Math.floor((now - new Date(completedAt).getTime()) / 86400000);
       const lineItems: PipelineLineItem[] = (o.line_items ?? []).map((li: any) => ({
         id: li.id,
         productId: li.product_id,
@@ -74,21 +64,7 @@ export async function GET(req: Request) {
         orderedQty: li.quantity ?? 0,
       }));
 
-      return {
-        id: o.id,
-        number: o.number,
-        dateCreated: completedAt,
-        customerName: `${o.billing?.first_name ?? ''} ${o.billing?.last_name ?? ''}`.trim(),
-        customerPhone: o.billing?.phone ?? '',
-        customerAddress: o.billing?.address_1 ?? '',
-        customerAddress2: o.billing?.address_2 ?? '',
-        customerCity: o.billing?.city ?? '',
-        customerState: EG_STATES[o.billing?.state] ?? o.billing?.state ?? '',
-        customerNote: o.customer_note ?? '',
-        total: parseFloat(o.total ?? '0'),
-        daysOpen,
-        lineItems,
-      };
+      return { ...mapOrderBase(o, completedAt), lineItems };
     });
 
     const body: CompletedOrdersResponse = { orders, page, totalPages, total, perPage: PER_PAGE };
