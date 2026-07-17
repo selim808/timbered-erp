@@ -132,4 +132,7 @@ export const CS_CSS = `
 .cs-faq-actions button { background:none; border:none; cursor:pointer; font-size:11px; font-weight:700; padding:0; }
 .cs-faq-actions .edit { color:#7A4610; }
 .cs-faq-actions .del { color:#ef4444; }
+.cs-pager { display:flex; align-items:center; justify-content:center; gap:16px; margin-top:16px; font-size:13px; color:#777; }
+.cs-pager button { background:#fff; border:1px solid #e0d8d0; border-radius:8px; padding:6px 14px; font-size:13px; font-weight:600; color:#7A4610; cursor:pointer; }
+.cs-pager button:disabled { opacity:.4; cursor:default; }
 `;
