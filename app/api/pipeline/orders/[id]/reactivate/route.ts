@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import wc from '@/lib/woocommerce/client';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 // POST: move a cancelled order back to processing. Reverts the "__<reason>"
 // suffix on the customer's last name and clears the cancellation_reason meta,
@@ -20,6 +21,14 @@ export async function POST(
       ...(idx === -1 ? {} : { billing: { last_name: cleanLast } }),
       meta_data: [{ key: 'cancellation_reason', value: '' }],
     });
+
+    await createAdminClient().rpc('cs_set_order_status', {
+      p_wc_order_id: id,
+      p_new_status: 'new',
+      p_note: 'Reactivated',
+      p_created_by: null,
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

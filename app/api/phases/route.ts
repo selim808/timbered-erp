@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const db = createAdminClient();
   let q = db
     .from('phases')
-    .select('id, phase_group_id, name, sort_order')
+    .select('id, phase_group_id, name, sort_order, expected_days')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
   if (groupId) q = q.eq('phase_group_id', groupId);

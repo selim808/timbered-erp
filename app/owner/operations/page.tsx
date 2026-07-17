@@ -122,7 +122,7 @@ const sections: Section[] = [
         label: 'Customer Service',
         description: 'Handle follow-ups, complaints, and feedback',
         href: '/owner/operations/customer-service',
-        ready: false,
+        ready: true,
         icon: (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
