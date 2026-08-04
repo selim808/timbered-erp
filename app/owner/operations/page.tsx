@@ -144,6 +144,23 @@ const sections: Section[] = [
       },
     ],
   },
+  {
+    title: 'Extra Pages',
+    tools: [
+      {
+        label: 'Extra Pages',
+        description: 'Upload HTML files and open them as plain pages',
+        href: '/owner/operations/extra-pages',
+        ready: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+              d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        ),
+      },
+    ],
+  },
 ];
 
 export default function OperationsPage() {
