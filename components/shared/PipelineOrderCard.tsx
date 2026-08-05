@@ -139,7 +139,14 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
         {bulkMode && (
           <GroupCheckbox keys={groupKeys} selectedItems={selectedItems} onToggleGroup={onToggleGroup} />
         )}
-        <span className={daysBadgeClass(o.daysOpen)}>{o.daysOpen}d</span>
+        {o.completedDaysAgo != null && o.leadTimeDays != null ? (
+          <span className="poc-days poc-done"
+            title={`Completed ${o.completedDaysAgo} day(s) ago · Lead time ${o.leadTimeDays} day(s)`}>
+            {o.completedDaysAgo}C,{o.leadTimeDays}LT
+          </span>
+        ) : (
+          <span className={daysBadgeClass(o.daysOpen)}>{o.daysOpen}d</span>
+        )}
         <span className="poc-num" onClick={e => { e.stopPropagation(); onOpenDetail(); }}>
           {o.number}
         </span>
@@ -210,6 +217,7 @@ export const PIPELINE_ORDER_CARD_STYLES = `
   .poc-days { font-size:10px; font-weight:700; color:#fff; background:#7A4610; border-radius:4px; padding:1px 5px; flex-shrink:0; white-space:nowrap; }
   .poc-days.warn { background:#e67e22; }
   .poc-days.urgent { background:#e74c3c; }
+  .poc-days.poc-done { background:#16A34A; }
   .poc-num { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; cursor:pointer; }
   .poc-num:hover { text-decoration:underline; }
   .poc-name { font-size:13px; font-weight:700; color:#222; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

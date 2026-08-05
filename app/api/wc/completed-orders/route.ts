@@ -51,6 +51,10 @@ export async function GET(req: Request) {
 
     const orders: PipelineOrder[] = data.map((o: any) => {
       const completedAt = o.date_completed ?? o.date_modified ?? o.date_created;
+      const completedMs = new Date(completedAt).getTime();
+      const createdMs   = new Date(o.date_created ?? completedAt).getTime();
+      const completedDaysAgo = Math.floor((Date.now() - completedMs) / 86400000);
+      const leadTimeDays     = Math.max(0, Math.floor((completedMs - createdMs) / 86400000));
       const lineItems: PipelineLineItem[] = (o.line_items ?? []).map((li: any) => ({
         id: li.id,
         productId: li.product_id,
@@ -64,7 +68,7 @@ export async function GET(req: Request) {
         orderedQty: li.quantity ?? 0,
       }));
 
-      return { ...mapOrderBase(o, completedAt), lineItems };
+      return { ...mapOrderBase(o, completedAt), completedDaysAgo, leadTimeDays, lineItems };
     });
 
     const body: CompletedOrdersResponse = { orders, page, totalPages, total, perPage: PER_PAGE };

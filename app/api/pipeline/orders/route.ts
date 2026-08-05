@@ -28,6 +28,9 @@ export interface PipelineOrder {
   customerNote: string;
   total: number;
   daysOpen: number;
+  // Set only for the After-Sales / Follow-up (completed orders) feed:
+  completedDaysAgo?: number; // days since the order was completed
+  leadTimeDays?: number;     // days from order creation to completion
   lineItems: PipelineLineItem[];
 }
 
