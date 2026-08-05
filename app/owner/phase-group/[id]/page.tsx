@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 import PipelineOrderList, { PhaseGroup, Phase, fmtPrice, waPhone } from '@/components/shared/PipelineOrderCard';
@@ -8,6 +8,8 @@ import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
+import { readCompletedCache, writeCompletedCache, fetchCompletedOrders } from '@/lib/completedOrdersCache';
+import type { CompletedOrdersResponse } from '@/app/api/wc/completed-orders/route';
 
 const AFTER_SALES_GROUP = 'After-Sales';
 const FOLLOWUP_PHASE    = 'Follow-up';
@@ -48,6 +50,7 @@ export default function PhaseGroupPage() {
   const [waOrder, setWaOrder]         = useState<PipelineOrder | null>(null);
   const [waArabic, setWaArabic]       = useState(true);
   const [waEnglish, setWaEnglish]     = useState(false);
+  const [waMode, setWaMode]           = useState<'ar' | 'en' | 'other'>('ar');
   const [bulkMode, setBulkMode]       = useState(false);
   const [bulkPhase, setBulkPhase]     = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -70,6 +73,21 @@ export default function PhaseGroupPage() {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
+  }
+
+  // WA button on a Follow-up order. Ar/En go straight to WhatsApp; Other opens
+  // the popup so the languages can be combined/customised.
+  function handleWaClick(o: PipelineOrder) {
+    if (waMode === 'other') {
+      setWaArabic(true);
+      setWaEnglish(false);
+      setWaOrder(o);
+      return;
+    }
+    if (!o.customerPhone) { showToast('No phone number'); return; }
+    const msg = buildWaMessage(waMode === 'ar', waMode === 'en');
+    const href = `https://wa.me/${waPhone(o.customerPhone)}?text=${encodeURIComponent(msg)}`;
+    window.open(href, '_blank', 'noopener,noreferrer');
   }
 
   useEffect(() => {
@@ -100,22 +118,46 @@ export default function PhaseGroupPage() {
     if (isFollowupTab) setCompletedPage(1);
   }, [isFollowupTab]);
 
-  // Load completed orders for the current page when on Follow-up tab
-  useEffect(() => {
-    if (!isFollowupTab) return;
-    setCompletedLoading(true);
+  const applyCompleted = useCallback((d: CompletedOrdersResponse) => {
+    setCompletedOrders(Array.isArray(d.orders) ? d.orders : []);
+    setCompletedTotalPages(Number(d.totalPages) || 1);
+    setCompletedTotal(Number(d.total) || 0);
+  }, []);
+
+  // Load completed orders for a page. Serves the cached copy instantly and only
+  // hits the network when the cache is missing/stale (>5h) or a refresh is forced.
+  const loadCompleted = useCallback((page: number, opts?: { force?: boolean }) => {
+    const force = opts?.force ?? false;
     setCompletedError('');
-    fetch(`/api/wc/completed-orders?page=${completedPage}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d?.error) { setCompletedError(d.error); return; }
-        setCompletedOrders(Array.isArray(d.orders) ? d.orders : []);
-        setCompletedTotalPages(Number(d.totalPages) || 1);
-        setCompletedTotal(Number(d.total) || 0);
-      })
+
+    const cached = force ? null : readCompletedCache(page);
+    if (cached) {
+      applyCompleted(cached.data);
+      setCompletedLoading(false);
+      if (!cached.stale) return;            // fresh enough — no network
+      // Stale: quietly refresh in the background, keep showing cache.
+      fetchCompletedOrders(page)
+        .then(d => { writeCompletedCache(page, d); applyCompleted(d); })
+        .catch(() => {});
+      return;
+    }
+
+    // No cache (or forced refresh): live fetch with the loading state.
+    setCompletedLoading(true);
+    fetchCompletedOrders(page)
+      .then(d => { writeCompletedCache(page, d); applyCompleted(d); })
       .catch((e: Error) => setCompletedError(e.message))
       .finally(() => setCompletedLoading(false));
-  }, [isFollowupTab, completedPage]);
+  }, [applyCompleted]);
+
+  function handleRefreshCompleted() {
+    loadCompleted(completedPage, { force: true });
+  }
+
+  useEffect(() => {
+    if (!isFollowupTab) return;
+    loadCompleted(completedPage);
+  }, [isFollowupTab, completedPage, loadCompleted]);
 
   async function handlePhaseChange(orderId: number, liId: number, phase: string) {
     const prev = orders.find(o => o.id === orderId)?.lineItems.find(li => li.id === liId)?.phase ?? '';
@@ -218,6 +260,9 @@ export default function PhaseGroupPage() {
         .pg-sub-nav::-webkit-scrollbar { display:none; }
         .pg-sub-btn { font-size:12px; font-weight:700; color:#aaa; background:none; border:none; border-bottom:2px solid transparent; padding:8px 16px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
         .pg-sub-btn.active { color:#7A4610; border-bottom-color:#7A4610; }
+        .pg-sub-refresh { margin-left:auto; align-self:center; font-size:11px; font-weight:700; color:#7A4610; background:#fef3e2; border:1px solid #e8ddd4; border-radius:20px; padding:4px 12px; margin:4px 8px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+        .pg-sub-refresh:hover:not(:disabled) { background:#7A4610; color:#fff; }
+        .pg-sub-refresh:disabled { opacity:.6; cursor:default; }
         .pg-tab-cnt { margin-left:5px; font-size:10px; border-radius:10px; padding:1px 6px; font-weight:700; }
         .pg-badges  { display:flex; gap:8px; align-items:center; padding:7px 12px; background:#fff; border-bottom:1px solid #e8ddd4; }
         .pg-badge   { font-size:11px; font-weight:600; padding:2px 9px; border-radius:10px; }
@@ -234,6 +279,9 @@ export default function PhaseGroupPage() {
         .pg-toggle input:checked + .pg-toggle-slider { background:#7A4610; }
         .pg-toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#fff; border-radius:50%; transition:transform .2s; }
         .pg-toggle input:checked + .pg-toggle-slider:before { transform:translateX(16px); }
+        .pg-wa-mode { display:flex; align-items:center; gap:8px; padding:2px 4px; }
+        .pg-wa-radio { display:flex; align-items:center; gap:3px; font-size:11px; font-weight:700; color:#7A4610; cursor:pointer; }
+        .pg-wa-radio input { width:14px; height:14px; accent-color:#25D366; cursor:pointer; }
         .pg-filter-btn { font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; border:1.5px solid #e8ddd4; background:#fff; color:#888; cursor:pointer; white-space:nowrap; }
         .pg-filter-btn.active { background:#7A4610; color:#fff; border-color:#7A4610; }
         .pg-bulk-sel { font-size:11px; border:1.5px solid #e8ddd4; border-radius:8px; padding:3px 4px; color:#555; max-width:110px; }
@@ -284,6 +332,16 @@ export default function PhaseGroupPage() {
             </button>
           );
         })}
+        {isFollowupTab && (
+          <button
+            className="pg-sub-refresh"
+            onClick={handleRefreshCompleted}
+            disabled={completedLoading}
+            title="Fetch latest completed orders"
+          >
+            {completedLoading ? '⏳' : '↻'} Refresh
+          </button>
+        )}
       </div>
 
       {/* Stats bar */}
@@ -316,6 +374,17 @@ export default function PhaseGroupPage() {
             </button>
           </>
         )}
+        {isFollowupTab && (
+          <div className="pg-wa-mode">
+            <span className="pg-tb-label">WA</span>
+            {([['ar', 'Ar'], ['en', 'En'], ['other', 'Other']] as const).map(([m, label]) => (
+              <label key={m} className="pg-wa-radio">
+                <input type="radio" name="waMode" checked={waMode === m} onChange={() => setWaMode(m)} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        )}
         <button className={`pg-filter-btn${noteFilter ? ' active' : ''}`} onClick={() => setNoteFilter(f => !f)}>
           📝 Notes
         </button>
@@ -345,7 +414,7 @@ export default function PhaseGroupPage() {
               onPhaseChange={handlePhaseChange}
               onOpenDetail={o => setDetailOrder(o)}
               onImageClick={li => setProductPopup(li)}
-              onWaClick={isFollowupTab ? (o => { setWaArabic(true); setWaEnglish(false); setWaOrder(o); }) : undefined}
+              onWaClick={isFollowupTab ? handleWaClick : undefined}
             />
             {isFollowupTab && completedTotalPages > 1 && (
               <div className="pg-pager">
