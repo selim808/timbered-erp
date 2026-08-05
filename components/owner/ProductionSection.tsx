@@ -13,8 +13,7 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, ChartDa
 // ─── Types ────────────────────────────────────────────────────────
 interface Phase {
   Phases: string;
-  'WIP Value': number;
-  'WIP No': number;
+  Value: number;
 }
 
 interface ProdData {
@@ -78,23 +77,23 @@ export default function ProductionSection() {
   const { phases, ordersNo, itemsNo, procValue } = data;
 
   // ── WIP totals ────────────────────────────────────────────────
-  const totalWip = phases.reduce((s, p) => s + (p['WIP Value'] || 0), 0);
-  const splitIdx = phases.findIndex(p => p.Phases === 'Rdy for ship');
+  const totalWip = phases.reduce((s, p) => s + (p.Value || 0), 0);
+  const splitIdx = phases.findIndex(p => p.Phases === 'Ready to Ship');
   const fabPhases = splitIdx >= 0 ? phases.slice(0, splitIdx + 1) : phases;
   const dlvPhases = splitIdx >= 0 ? phases.slice(splitIdx + 1)    : [];
-  const fabVal    = fabPhases.reduce((s, p) => s + (p['WIP Value'] || 0), 0);
-  const dlvVal    = dlvPhases.reduce((s, p) => s + (p['WIP Value'] || 0), 0);
+  const fabVal    = fabPhases.reduce((s, p) => s + (p.Value || 0), 0);
+  const dlvVal    = dlvPhases.reduce((s, p) => s + (p.Value || 0), 0);
   const fabPct    = totalWip > 0 ? Math.round(fabVal / totalWip * 100) : 0;
   const dlvPct    = totalWip > 0 ? Math.round(dlvVal / totalWip * 100) : 0;
 
   const mismatch = totalWip > 0 && procValue > 0 && totalWip !== procValue;
 
   // ── Bar chart ────────────────────────────────────────────────
-  const filtered = phases.filter(p => (p['WIP Value'] || 0) > 0);
+  const filtered = phases.filter(p => (p.Value || 0) > 0);
   const colors   = filtered.map(p => phaseColor(p.Phases));
   const chartData = {
     labels: filtered.map(p => p.Phases),
-    datasets: [{ data: filtered.map(p => p['WIP Value']), backgroundColor: colors, borderWidth: 0 }],
+    datasets: [{ data: filtered.map(p => p.Value), backgroundColor: colors, borderWidth: 0 }],
   };
   const chartOptions = {
     responsive: true, maintainAspectRatio: false,
