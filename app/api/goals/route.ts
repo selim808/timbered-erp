@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import wcClient from '@/lib/woocommerce/client';
 
+// Aug–Dec ramps linearly from 700K to 1M (+75K/month).
 const SALES_TGT: Record<string, number> = {
   Jan: 200_000, Feb: 300_000, Mar: 400_000, Apr: 500_000, May: 600_000,
-  Jun: 400_000, Jul: 400_000, Aug: 500_000, Sep: 600_000,
-  Oct: 700_000, Nov: 800_000, Dec: 900_000,
+  Jun: 400_000, Jul: 400_000, Aug: 700_000, Sep: 775_000,
+  Oct: 850_000, Nov: 925_000, Dec: 1_000_000,
 };
 
+const MKT_RATIO = 0.15;
+
 const GOALS = Object.entries(SALES_TGT).map(([month, salesTgt]) => ({
-  month, salesTgt, mktTgt: Math.round(salesTgt * 0.3),
+  month, salesTgt, mktTgt: Math.round(salesTgt * MKT_RATIO),
 }));
 
 async function fetchMonthSales(year: number, month: number): Promise<number> {
