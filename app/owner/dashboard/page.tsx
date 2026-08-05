@@ -5,6 +5,7 @@ import FinanceSection from '@/components/owner/FinanceSection';
 import ProductionSection from '@/components/owner/ProductionSection';
 import WeeklySection from '@/components/owner/WeeklySection';
 import MonthlySection from '@/components/owner/MonthlySection';
+import LoadPhasesButton from '@/components/owner/LoadPhasesButton';
 
 export default function DashboardPage() {
   return (
@@ -19,6 +20,8 @@ export default function DashboardPage() {
       <CollapsibleSection index="3" title="Production"><ProductionSection /></CollapsibleSection>
       <CollapsibleSection index="4" title="Weekly Performance"><WeeklySection /></CollapsibleSection>
       <CollapsibleSection index="5" title="Monthly Performance"><MonthlySection /></CollapsibleSection>
+
+      <LoadPhasesButton />
 
     </div>
   );

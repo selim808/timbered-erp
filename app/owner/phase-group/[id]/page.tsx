@@ -6,6 +6,8 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import PipelineOrderList, { PhaseGroup, Phase, fmtPrice, waPhone } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
+import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
+import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 
 const AFTER_SALES_GROUP = 'After-Sales';
 const FOLLOWUP_PHASE    = 'Follow-up';
@@ -37,8 +39,8 @@ export default function PhaseGroupPage() {
   const [group, setGroup]             = useState<PhaseGroup | null>(null);
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
   const [activePhase, setActivePhase] = useState<string | null>(null);
-  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
-  const [phases, setPhases]           = useState<Phase[]>([]);
+  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>(PREDEFINED_PHASE_GROUPS);
+  const [phases, setPhases]           = useState<Phase[]>(PREDEFINED_PHASES);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [detailOrder, setDetailOrder]   = useState<PipelineOrder | null>(null);
@@ -71,22 +73,22 @@ export default function PhaseGroupPage() {
   }
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/phase-groups').then(r => r.json()),
-      fetch('/api/phases').then(r => r.json()),
-      fetch('/api/pipeline/orders').then(r => r.json()),
-    ])
-      .then(([groups, phs, ords]) => {
-        if (!Array.isArray(groups)) { setError('Failed to load phase groups'); return; }
-        if (!Array.isArray(phs))    { setError('Failed to load phases'); return; }
-        if (!Array.isArray(ords))   { setError(ords?.error ?? 'Failed to load orders'); return; }
-        setPhaseGroups(groups);
-        setPhases(phs);
-        const g = (groups as PhaseGroup[]).find(g => g.id === id);
-        if (!g) { setError('Phase group not found'); return; }
-        setGroup(g);
-        const first = (phs as Phase[]).filter(p => p.phase_group_id === g.id)[0];
-        if (first) setActivePhase(first.name);
+    // Phases come from the predefined/cached snapshot — no network needed.
+    const groups = getPhaseGroups();
+    const phs    = getPhases();
+    setPhaseGroups(groups);
+    setPhases(phs);
+    const g = groups.find(g => g.id === id);
+    if (!g) { setError('Phase group not found'); setLoading(false); return; }
+    setGroup(g);
+    const first = phs.filter(p => p.phase_group_id === g.id)[0];
+    if (first) setActivePhase(first.name);
+
+    // Only the orders actually require a live fetch.
+    fetch('/api/pipeline/orders')
+      .then(r => r.json())
+      .then((ords) => {
+        if (!Array.isArray(ords)) { setError(ords?.error ?? 'Failed to load orders'); return; }
         setOrders(ords);
       })
       .catch((e: Error) => setError(e.message))

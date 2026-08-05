@@ -3,20 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-
-interface PhaseGroup {
-  id: string; name: string; sort_order: number;
-}
+import { getPhaseGroups } from '@/lib/phaseCache';
+import { PREDEFINED_PHASE_GROUPS } from '@/data/phases';
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const [groups, setGroups] = useState<PhaseGroup[]>([]);
+  // Render from the predefined snapshot immediately, then swap in any cached
+  // copy the owner refreshed via "Load new phases" (localStorage is client-only).
+  const [groups, setGroups] = useState(PREDEFINED_PHASE_GROUPS);
 
   useEffect(() => {
-    fetch('/api/phase-groups')
-      .then(r => r.json())
-      .then(d => Array.isArray(d) && setGroups(d))
-      .catch(() => {});
+    setGroups(getPhaseGroups());
   }, []);
 
   return (

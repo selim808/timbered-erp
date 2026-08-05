@@ -5,6 +5,8 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import PipelineOrderList, { PIPELINE_ORDER_CARD_STYLES, PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
+import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
+import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 import CancelOrdersModal, { CancellationReason } from '@/components/owner/CancelOrdersModal';
 import CancelledOrdersTab from '@/components/owner/CancelledOrdersTab';
 import { Bar } from 'react-chartjs-2';
@@ -557,8 +559,8 @@ export default function OrdersPipelinePage() {
   const [tab, setTab]             = useState<Tab>('orders');
   const [groupBy, setGroupBy]     = useState<GroupBy>('order');
   const [orders, setOrders]       = useState<PipelineOrder[]>([]);
-  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
-  const [phases, setPhases] = useState<Phase[]>([]);
+  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>(PREDEFINED_PHASE_GROUPS);
+  const [phases, setPhases] = useState<Phase[]>(PREDEFINED_PHASES);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [search, setSearch]       = useState('');
@@ -584,16 +586,16 @@ export default function OrdersPipelinePage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Phases come from the predefined/cached snapshot — no network needed.
+    setPhaseGroups(getPhaseGroups());
+    setPhases(getPhases());
+
     Promise.all([
       fetch('/api/pipeline/orders').then(r => r.json()),
-      fetch('/api/phase-groups').then(r => r.json()),
-      fetch('/api/phases').then(r => r.json()),
       fetch('/api/cancellation-reasons').then(r => r.json()),
-    ]).then(([ords, grps, phs, reasons]) => {
+    ]).then(([ords, reasons]) => {
       if (Array.isArray(ords)) setOrders(normalizeOrders(ords));
       else setError(ords.error ?? 'Failed to load orders');
-      if (Array.isArray(grps)) setPhaseGroups(grps);
-      if (Array.isArray(phs)) setPhases(phs);
       if (Array.isArray(reasons)) setCancelReasons(reasons);
       setLoading(false);
     }).catch(e => { setError(e.message); setLoading(false); });

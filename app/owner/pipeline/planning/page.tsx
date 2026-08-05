@@ -6,14 +6,16 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
+import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
+import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 
 const JO_PREPARATION_PHASE = 'JO Preparation';
 
 export default function PlanningPage() {
   const router = useRouter();
   const [orders, setOrders]           = useState<PipelineOrder[]>([]);
-  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>([]);
-  const [phases, setPhases]           = useState<Phase[]>([]);
+  const [phaseGroups, setPhaseGroups] = useState<PhaseGroup[]>(PREDEFINED_PHASE_GROUPS);
+  const [phases, setPhases]           = useState<Phase[]>(PREDEFINED_PHASES);
   const [loading, setLoading]         = useState(true);
   const [activePhase, setActivePhase] = useState('');
   const [toast, setToast]             = useState('');
@@ -25,21 +27,20 @@ export default function PlanningPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/pipeline/orders').then(r => r.json()),
-      fetch('/api/phase-groups').then(r => r.json()),
-      fetch('/api/phases').then(r => r.json()),
-    ]).then(([ords, grps, phs]) => {
-      if (Array.isArray(ords)) setOrders(ords);
-      if (Array.isArray(grps)) setPhaseGroups(grps);
-      if (Array.isArray(phs)) {
-        setPhases(phs);
-        const pg = (grps as PhaseGroup[]).find(g => g.name.toLowerCase() === 'planning');
-        const first = pg ? (phs as Phase[]).filter(p => p.phase_group_id === pg.id)[0] : undefined;
-        if (first) setActivePhase(first.name);
-      }
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    // Phases from the predefined/cached snapshot; only orders need a live fetch.
+    const grps = getPhaseGroups();
+    const phs  = getPhases();
+    setPhaseGroups(grps);
+    setPhases(phs);
+    const pg = grps.find(g => g.name.toLowerCase() === 'planning');
+    const first = pg ? phs.filter(p => p.phase_group_id === pg.id)[0] : undefined;
+    if (first) setActivePhase(first.name);
+
+    fetch('/api/pipeline/orders')
+      .then(r => r.json())
+      .then((ords) => { if (Array.isArray(ords)) setOrders(ords); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   function showToast(msg: string) {
