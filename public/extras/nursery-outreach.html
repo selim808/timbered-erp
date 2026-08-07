@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="format-detection" content="telephone=no">
+<title>Timbered — Nursery Outreach</title>
+<style>
+  :root{
+    --bg: #EDE7DA;
+    --paper: #FBF9F4;
+    --ink: #2B2420;
+    --ink-soft: #6B5F52;
+    --walnut: #6E4B33;
+    --walnut-dark: #4A3220;
+    --sage: #4F7A5C;
+    --sage-light: #E4EEE6;
+    --line: #DDD4C2;
+    --amber: #B98A3E;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(180deg, rgba(110,75,51,0.025) 0px, rgba(110,75,51,0.025) 1px, transparent 1px, transparent 24px),
+      var(--bg);
+    color:var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding: 32px 20px 80px;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap{ max-width: 880px; margin: 0 auto; }
+
+  header{ margin-bottom: 28px; }
+  .eyebrow{
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    color: var(--amber);
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    margin: 0 0 4px;
+  }
+  h1{
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 34px;
+    margin: 0 0 10px;
+    color: var(--walnut-dark);
+    letter-spacing: -0.01em;
+  }
+  .sub{
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.55;
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  .stats{
+    display:flex; gap:10px; margin: 22px 0 18px;
+    flex-wrap: wrap;
+  }
+  .stat{
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 16px;
+    min-width: 108px;
+  }
+  .stat .n{ font-family: Georgia, serif; font-size: 22px; font-weight:700; color:var(--walnut-dark); line-height:1; }
+  .stat .l{ font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin-top: 4px; }
+
+  .controls{
+    display:flex; gap:10px; margin-bottom: 18px; flex-wrap:wrap; align-items:center;
+  }
+  input[type="search"]{
+    flex: 1 1 220px;
+    padding: 10px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-size: 14px;
+    color: var(--ink);
+  }
+  input[type="search"]:focus{ outline: 2px solid var(--sage); outline-offset: 1px; }
+  select{
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .toggle-opt{
+    display:flex; align-items:center; gap:6px;
+    font-size: 13px; color: var(--ink-soft);
+    cursor:pointer; user-select:none;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+  }
+
+  .list{ display:flex; flex-direction:column; gap:8px; }
+  .row{
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display:grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 14px;
+    align-items:center;
+    transition: opacity 0.2s ease, border-color 0.2s ease;
+  }
+  .row.sent{ border-color: var(--sage); }
+  .row.called:not(.sent){ border-color: var(--amber); }
+  .row.hidden{ display:none; }
+  .info .name{ font-weight:600; font-size: 15px; color: var(--ink); }
+  .info .meta{ font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+  .info .phone{
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+  .badges{ display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+  .badge{
+    font-size: 11px;
+    font-weight:600;
+    letter-spacing: 0.03em;
+    padding: 4px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .badge-sent{ background: var(--sage-light); color: var(--sage); }
+  .badge-called{ background: #F5E9D3; color: var(--amber); }
+  .row.sent .badge-sent{ opacity: 1; }
+  .row.called .badge-called{ opacity: 1; }
+
+  .actions{ display:flex; gap:8px; }
+
+  .send-btn, .call-btn{
+    display:inline-flex; align-items:center; gap:7px;
+    color: #fff;
+    border: none;
+    padding: 9px 14px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  .send-btn{ background: var(--sage); }
+  .call-btn{ background: var(--amber); }
+  .send-btn:hover{ background: #416a4d; }
+  .call-btn:hover{ background: #9c7434; }
+  .send-btn:active, .call-btn:active{ transform: scale(0.97); }
+  .row.sent .send-btn{ background: var(--ink-soft); opacity: 0.55; }
+  .row.called .call-btn{ background: var(--ink-soft); opacity: 0.55; }
+  .send-btn svg, .call-btn svg{ width:14px; height:14px; flex-shrink:0; }
+
+  footer{
+    margin-top: 28px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-align:center;
+  }
+
+  .empty{
+    text-align:center;
+    padding: 40px 20px;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  @media (max-width: 620px){
+    body{ padding: 20px 14px 64px; }
+    h1{ font-size: 26px; }
+    .sub{ font-size: 13.5px; }
+
+    .stats{ gap: 8px; }
+    .stat{ flex: 1 1 auto; min-width: 0; padding: 10px 12px; }
+    .stat .n{ font-size: 19px; }
+    .stat .l{ font-size: 10px; }
+
+    .controls{ flex-direction: column; align-items: stretch; }
+    input[type="search"], select, .toggle-opt{ width: 100%; flex: none; }
+    .toggle-opt{ justify-content: center; }
+
+    .row{
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "info"
+        "badge"
+        "action";
+      padding: 14px;
+      gap: 8px;
+    }
+    .info{ display:flex; align-items:baseline; flex-wrap:wrap; gap: 8px; grid-area: info; }
+    .info .name{ font-size: 14.5px; flex: 1 1 100%; }
+    .info .meta{ margin-top: 0; }
+    .info .meta::after{ content: "·"; margin-left: 8px; color: var(--line); }
+    .info .phone{ margin-top: 0; }
+
+    .badges{
+      grid-area: badge;
+      flex-direction: row;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .badge{ display: none; }
+    .row.sent .badge-sent{ display: inline-flex; }
+    .row.called .badge-called{ display: inline-flex; }
+
+    .actions{
+      grid-area: action;
+      flex-direction: column;
+    }
+    .send-btn, .call-btn{
+      width: 100%;
+      justify-content: center;
+      padding: 12px 14px;
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Timbered Group</p>
+    <h1>Nursery &amp; Preschool Outreach</h1>
+    <p class="sub">Tap "Call" to dial, or "Send" to open WhatsApp with the catalog message pre-filled. Each action is marked and saved — closing or reopening this page keeps your progress.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="n" id="statTotal">0</div><div class="l">Total</div></div>
+    <div class="stat"><div class="n" id="statSent">0</div><div class="l">Sent</div></div>
+    <div class="stat"><div class="n" id="statCalled">0</div><div class="l">Called</div></div>
+    <div class="stat"><div class="n" id="statRemaining">0</div><div class="l">Remaining</div></div>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Search by name or area…">
+    <select id="areaFilter"><option value="">All areas</option></select>
+    <label class="toggle-opt">
+      <input type="checkbox" id="hideSent">
+      Hide sent
+    </label>
+    <label class="toggle-opt">
+      <input type="checkbox" id="hideCalled">
+      Hide called
+    </label>
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="empty" id="emptyState" style="display:none;">No contacts match your search.</div>
+
+  <footer>WhatsApp links open <strong>web.whatsapp.com</strong> or the app with the text pre-filled — you still press Send yourself. Call links open your phone's dialer.</footer>
+</div>
+
+<script>
+const MESSAGE = `Hi! We're Timbered Group — handcrafted wooden furniture for nurseries and kids' spaces: Montessori shelving, Pikler climbers, jungle gyms, cots, and storage, built to order.
+
+We'd love to send you our nursery catalog and see if we can support your space. Happy to share photos or arrange a quick call — whichever's easier for you.
+
+https://timberedgroup.com/product-category/kids/page/1/`;
+
+const CONTACTS = [
+["Downtown Kids Nursery","Abdeen, Cairo","+20 11 11839001"],
+["Urban Toddlers - Zamalek","Zamalek, Cairo","+20 10 07070014"],
+["Jardin Magique Nursery & Preschool","Zamalek, Cairo","+20 10 11452992"],
+["Nile River Montessori - Dokki/Mohandessen","Dokki, Giza","+20 12 70002065"],
+["Kiddy Camp Nursery","Shobra, Cairo","+20 15 51451863"],
+["Lads N' Lasses","Heliopolis, Cairo","+20 2 26435935"],
+["Small World Preschool","Maadi, Cairo","+20 12 24068983"],
+["Home Nursery","Old Cairo","+20 11 19930644"],
+["Preschool (Al-Rehab)","Qasr El Nil, Cairo","+20 10 00521275"],
+["Topo Gigio Nursery","Dokki, Giza","+20 10 00863400"],
+["R2M International Preschool","Dokki, Giza","+20 10 00485840"],
+["Ladybird Preschool","Dokki, Giza","+20 2 37609533"],
+["Little Angels Nursery & Pre-School","Dokki, Giza","+20 2 37480142"],
+["ALOHA Kids Nursery & Pre-School","Dokki, Giza","+20 10 01719859"],
+["The Canadian Academy (Nursery)","Dokki, Giza","+20 10 32168686"],
+["Baby College Academy","Al Haram, Giza","+20 10 33018419"],
+["Happy Dolphins Academy","Dokki, Giza","+20 15 50015251"],
+["Creative Academy - Mohandseen Branch","Agouza, Giza","+20 12 03333556"],
+["Under 5 International Preschool - Alexandria","Sidi Gaber, Alexandria","+20 12 05009799"],
+["The Little Kingdom Academy","Alexandria","+20 11 41888298"],
+["Kleine Sterne Kindergarten","Smouha, Alexandria","+20 12 25159915"],
+["Alexandria Montessori Preschool - Smouha","Smouha, Alexandria","+20 10 98644427"],
+["Kinder Daycare and Nursery - San Stefano","Alexandria","+20 10 91985996"],
+["International American Nursery School","Alexandria","+20 3 5820020"],
+["Le Canari Nursery and Preschool","Alexandria","+20 3 5848448"],
+["Alexandria Montessori Nurseries - Mini Town","Kafr Abdo, Alexandria","+20 10 25902259"],
+["Starz International Preschool & Daycare","Sidi Gaber, Alexandria","+20 3 4255192"],
+["La Garderie International Montessori Preschool","New Cairo","+20 11 00011911"],
+["Tiny Town Nursery & Preschool","New Cairo","+20 10 08549449"],
+["Fairytales International Academy - Lotus","New Cairo","+20 11 17929111"],
+["Little Hearts Nursery & Preschool","New Cairo","+20 11 16357525"],
+["HEI Schools - International Preschool Egypt","New Cairo","+20 11 22225725"],
+["Utopia Nursery","New Cairo","+20 11 22676777"],
+["Petals Preschool New Cairo Branch","New Cairo","+20 10 00521275"],
+["Fairy Tales International Academy","New Cairo","+20 12 05022648"],
+["Tiny Feet Nursery","New Cairo","+20 2 25628604"],
+["Invento Montessori Home","New Cairo","+20 11 00470888"],
+["Under 5 International Preschool - 6th October","6th of October","+20 10 00980660"],
+["Kids House","6th of October","+20 10 15339919"],
+["Tree House Nursery & Pre-School","6th of October","+20 15 56780523"],
+["Kipina Kids Cairo Nursery","6th of October","+20 10 12766407"],
+["Emy's Academy - Nursery & Preschool","6th of October","+20 10 11611926"],
+["Epoch Daycare & Preschool","6th of October","+20 10 12668877"],
+["Colors International Nursery","6th of October","+20 15 55553430"],
+["Fun Home Nursery & Home Schooling Academy","6th of October","+20 10 01728818"],
+["Montessori International Preschool (MIP)","6th of October","+20 12 84440760"],
+["Sprinkles Nursery","6th of October","+20 15 50515147"],
+["NANANEES Montessori World Nursery","Heliopolis, Cairo","+20 10 01270627"],
+["Montessori Child","Heliopolis, Cairo","+20 12 83456753"],
+["Trillium - The Montessori House - Mivida","New Cairo","+20 10 22287112"],
+["Montessori Child's House Nursery Academy","Maadi, Cairo","+20 11 54552911"],
+["Tiny Gems Montessori Preschool","Heliopolis, Cairo","+20 10 25832459"],
+["Trillium - The Montessori House","Heliopolis, Cairo","+20 11 01443780"],
+["Five Petals Montessori","Nasr City, Cairo","+20 10 22005585"],
+["Petals Preschool Maadi","Maadi, Cairo","+20 2 25213482"],
+["Simba International Academy","Maadi, Cairo","+20 12 27443959"],
+["International Montessori Preschool","Maadi, Cairo","+20 2 25166407"],
+["Yasmine Deutscher Kindergarten","Maadi, Cairo","+20 2 23596245"],
+["Irish School Maadi Nursery","Maadi, Cairo","+20 10 05349954"],
+["Chunky Monkey Academy","Maadi, Cairo","+20 10 00083448"],
+["Child Space Montessori Home","Maadi, Cairo","+20 11 52874528"],
+["Smart Beginners International Preschool","Maadi, Cairo","+20 10 10303304"],
+["Top Notch Academy","Maadi, Cairo","+20 11 54088534"],
+["Champs Nursery and Preschool","Sheikh Zayed","+20 10 02641444"],
+["The Ark Academy","Sheikh Zayed","+20 11 29858584"],
+["Pixie Wings Nursery & Children Daycare","Sheikh Zayed","+20 15 53198080"],
+["Ma Maisonnette Nursery","Sheikh Zayed","+20 11 10053549"],
+["Creative Academy Nursery & Preschool (Zayed)","Sheikh Zayed","+20 12 80070000"],
+["Busy Bees Preschool","Sheikh Zayed","+20 10 18944221"],
+["Our Dream Nursery Sheikh Zayed City","Sheikh Zayed","+20 12 07034637"],
+["Little Kingdom Daycare","Sheikh Zayed","+20 10 50813549"],
+["International Nursery","Sheikh Zayed","+20 10 94727330"],
+["Pinop Nursery","Heliopolis, Cairo","+20 12 72214887"],
+["Beehive Nursery & Preschool","Heliopolis, Cairo","+20 10 07551204"],
+["Love & Care Nursery","Heliopolis, Cairo","+20 2 22404502"],
+["CherryBess Nursery","Heliopolis, Cairo","+20 10 28228961"],
+["Joy Nursery","Heliopolis, Cairo","+20 12 28631002"],
+["Honey Bunny","Heliopolis, Cairo","+20 2 24185300"],
+["Kiddy Corner","Heliopolis, Cairo","+20 2 22685944"],
+["Heliopolis Kid's Activities","Heliopolis, Cairo","+20 10 01886361"],
+["First Steps Nursery","Heliopolis, Cairo","+20 11 50259183"],
+["Angels Park International Nursery","Mansoura","+20 10 90959363"],
+["Victoria European Preschool","Mansoura","+20 50 2315549"],
+["Kinder Kids - Nursery & Preschool","Mansoura","+20 50 2269135"],
+["American Nursery","Mansoura","+20 10 60096000"],
+["Kids Island Nursery & Preschool","Mansoura","+20 10 10360042"],
+["Disney Land Nursery","Mansoura","+20 10 60605563"],
+["Turquoise Nursery Mixed Languages Branch","Mansoura","+20 10 12899128"],
+["Hummingbird Nursery Mansoura","Mansoura","+20 15 59284039"],
+["Noor Academy","Mansoura","+20 10 94891172"],
+["Giggles Academy","Mansoura","+20 10 13419731"]
+].map(([name, area, phone], i) => ({
+  id: "c" + i,
+  name, area, phone,
+  digits: phone.replace(/\D/g, "")
+}));
+
+const STORAGE_KEY = "timbered-nursery-outreach-sent";
+const CALL_STORAGE_KEY = "timbered-nursery-outreach-called";
+let sentMap = {};
+let calledMap = {};
+
+// Progress is kept in this browser's localStorage, per device.
+async function storageGet(key){
+  try{
+    return window.localStorage.getItem(key);
+  }catch(e){
+    console.error("Storage read failed for", key, e);
+    return null;
+  }
+}
+
+async function storageSet(key, value){
+  try{
+    window.localStorage.setItem(key, value);
+  }catch(e){
+    console.error("Storage write failed for", key, e);
+  }
+}
+
+async function loadSentState(){
+  const raw = await storageGet(STORAGE_KEY);
+  try{ sentMap = raw ? JSON.parse(raw) : {}; }catch(e){ sentMap = {}; }
+}
+
+async function saveSentState(){
+  await storageSet(STORAGE_KEY, JSON.stringify(sentMap));
+}
+
+async function loadCalledState(){
+  const raw = await storageGet(CALL_STORAGE_KEY);
+  try{ calledMap = raw ? JSON.parse(raw) : {}; }catch(e){ calledMap = {}; }
+}
+
+async function saveCalledState(){
+  await storageSet(CALL_STORAGE_KEY, JSON.stringify(calledMap));
+}
+
+function waLink(contact){
+  return `https://wa.me/${contact.digits}?text=${encodeURIComponent(MESSAGE)}`;
+}
+
+function telLink(contact){
+  return `tel:+${contact.digits}`;
+}
+
+function markSent(id){
+  sentMap[id] = { sent: true, at: new Date().toISOString() };
+  saveSentState();
+}
+
+function markCalled(id){
+  calledMap[id] = { called: true, at: new Date().toISOString() };
+  saveCalledState();
+}
+
+const listEl = document.getElementById("list");
+const emptyEl = document.getElementById("emptyState");
+const searchEl = document.getElementById("search");
+const areaFilterEl = document.getElementById("areaFilter");
+const hideSentEl = document.getElementById("hideSent");
+const hideCalledEl = document.getElementById("hideCalled");
+
+function populateAreaFilter(){
+  const areas = [...new Set(CONTACTS.map(c => c.area))].sort();
+  for(const a of areas){
+    const opt = document.createElement("option");
+    opt.value = a; opt.textContent = a;
+    areaFilterEl.appendChild(opt);
+  }
+}
+
+function sendIcon(){
+  return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.86 9.86 0 0 0 12.04 2m0 1.67a8.2 8.2 0 0 1 5.83 2.42 8.18 8.18 0 0 1 2.41 5.82c0 4.55-3.7 8.25-8.25 8.25a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.18 8.18 0 0 1-1.26-4.38c0-4.55 3.7-8.25 8.25-8.25M8.53 6.98c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.55c.13.16 1.7 2.72 4.2 3.7 2.07.82 2.49.66 2.94.62.45-.04 1.45-.59 1.65-1.16.2-.57.2-1.06.14-1.16-.06-.1-.22-.16-.45-.28-.24-.13-1.45-.71-1.67-.79-.22-.08-.39-.13-.55.13-.16.25-.63.79-.78.95-.14.16-.29.18-.53.06-.25-.13-1.03-.38-1.97-1.21-.73-.65-1.22-1.45-1.36-1.7-.15-.24-.02-.38.1-.5.11-.11.25-.29.37-.44.13-.14.17-.25.25-.41.08-.16.04-.31-.02-.44-.06-.13-.55-1.35-.76-1.84-.2-.48-.4-.42-.55-.42h-.5" /></svg>`;
+}
+
+function callIcon(){
+  return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2z"/></svg>`;
+}
+
+function render(){
+  const q = searchEl.value.trim().toLowerCase();
+  const areaVal = areaFilterEl.value;
+  const hideSent = hideSentEl.checked;
+  const hideCalled = hideCalledEl.checked;
+
+  listEl.innerHTML = "";
+  let visibleCount = 0;
+
+  for(const c of CONTACTS){
+    const isSent = !!sentMap[c.id];
+    const isCalled = !!calledMap[c.id];
+    const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.area.toLowerCase().includes(q);
+    const matchesArea = !areaVal || c.area === areaVal;
+    const matchesHide = !(hideSent && isSent) && !(hideCalled && isCalled);
+
+    if(!(matchesSearch && matchesArea && matchesHide)) continue;
+    visibleCount++;
+
+    const row = document.createElement("div");
+    row.className = "row" + (isSent ? " sent" : "") + (isCalled ? " called" : "");
+    row.innerHTML = `
+      <div class="info">
+        <div class="name">${c.name}</div>
+        <div class="meta">${c.area}</div>
+        <div class="phone">${c.phone}</div>
+      </div>
+      <div class="badges">
+        <span class="badge badge-sent">✓ Sent</span>
+        <span class="badge badge-called">✓ Called</span>
+      </div>
+      <div class="actions">
+        <button class="call-btn" type="button">${callIcon()} ${isCalled ? "Called" : "Call"}</button>
+        <button class="send-btn" type="button">${sendIcon()} ${isSent ? "Resend" : "Send"}</button>
+      </div>
+    `;
+    row.querySelector(".send-btn").addEventListener("click", () => {
+      window.open(waLink(c), "_blank");
+      markSent(c.id);
+      row.classList.add("sent");
+      row.querySelector(".send-btn").innerHTML = sendIcon() + " Resend";
+      updateStats();
+      if(hideSentEl.checked) render();
+    });
+    row.querySelector(".call-btn").addEventListener("click", () => {
+      window.location.href = telLink(c);
+      markCalled(c.id);
+      row.classList.add("called");
+      row.querySelector(".call-btn").innerHTML = callIcon() + " Called";
+      updateStats();
+      if(hideCalledEl.checked) render();
+    });
+
+    listEl.appendChild(row);
+  }
+
+  emptyEl.style.display = visibleCount === 0 ? "block" : "none";
+  updateStats();
+}
+
+function updateStats(){
+  const total = CONTACTS.length;
+  const sent = Object.keys(sentMap).length;
+  const called = Object.keys(calledMap).length;
+  document.getElementById("statTotal").textContent = total;
+  document.getElementById("statSent").textContent = sent;
+  document.getElementById("statCalled").textContent = called;
+  document.getElementById("statRemaining").textContent = total - sent;
+}
+
+searchEl.addEventListener("input", render);
+areaFilterEl.addEventListener("change", render);
+hideSentEl.addEventListener("change", render);
+hideCalledEl.addEventListener("change", render);
+
+(async function init(){
+  try{
+    populateAreaFilter();
+    await Promise.all([loadSentState(), loadCalledState()]);
+  }catch(e){
+    console.error("Init warning:", e);
+  }finally{
+    render();
+  }
+})();
+</script>
+</body>
+</html>

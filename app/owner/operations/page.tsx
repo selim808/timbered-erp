@@ -7,15 +7,49 @@ interface Tool {
   description: string;
   href: string;
   ready: boolean;
-  icon: React.ReactNode;
+  /** optional — falls back to a generic "+" icon */
+  icon?: React.ReactNode;
+  /** true for plain .html files served from /public (opens in a new tab) */
+  external?: boolean;
 }
 
 interface Section {
   title: string;
   tools: Tool[];
+  /** shown instead of the list when tools is empty */
+  emptyHint?: string;
 }
 
 const sections: Section[] = [
+  {
+    title: 'Sales',
+    tools: [
+      {
+        label: 'Orders',
+        description: 'Browse incoming orders and their current status',
+        href: '/owner/pipeline/orders',
+        ready: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+              d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Order Review',
+        description: 'Check and confirm new orders before planning',
+        href: '/owner/pipeline/review',
+        ready: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      },
+    ],
+  },
   {
     title: 'Production',
     tools: [
@@ -144,9 +178,39 @@ const sections: Section[] = [
       },
     ],
   },
+  {
+    title: 'Extras',
+    emptyHint: 'No extra pages yet — add one below and it shows up here.',
+    tools: [
+      // Add extra pages here. Two ways:
+      //  1. A Next route:   href: '/owner/operations/my-page'
+      //  2. A quick static HTML file in /public/extras/my-page.html:
+      //     href: '/extras/my-page.html', external: true
+      {
+        label: 'Nursery Outreach',
+        description: 'Call & WhatsApp list for nurseries and preschools',
+        href: '/extras/nursery-outreach.html',
+        ready: true,
+        external: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+              d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+        ),
+      },
+    ],
+  },
 ];
 
-export default function OperationsPage() {
+const extraIcon = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+      d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+  </svg>
+);
+
+export default function DepartmentsPage() {
   return (
     <div className="min-h-screen bg-background pb-28 pt-4 px-4">
       <div className="max-w-2xl mx-auto space-y-8">
@@ -156,15 +220,41 @@ export default function OperationsPage() {
               {section.title}
             </h2>
             <div className="space-y-2">
+              {section.tools.length === 0 && section.emptyHint && (
+                <div className="bg-surface border border-dashed border-border rounded-xl px-4 py-5 text-center">
+                  <p className="text-xs text-text-muted">{section.emptyHint}</p>
+                </div>
+              )}
               {section.tools.map(tool => (
                 tool.ready ? (
+                  tool.external ? (
+                    <a
+                      key={tool.label}
+                      href={tool.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-4 bg-surface border border-border rounded-xl px-4 py-3.5 hover:border-brown hover:bg-surface-2 transition-colors group"
+                    >
+                      <span className="text-brown group-hover:scale-110 transition-transform">
+                        {tool.icon ?? extraIcon}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text">{tool.label}</p>
+                        <p className="text-xs text-text-muted truncate">{tool.description}</p>
+                      </div>
+                      <svg className="w-4 h-4 text-border group-hover:text-brown transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M14 5h5m0 0v5m0-5L10 14M19 14v5a1 1 0 01-1 1H6a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+                      </svg>
+                    </a>
+                  ) : (
                   <Link
                     key={tool.label}
                     href={tool.href}
                     className="flex items-center gap-4 bg-surface border border-border rounded-xl px-4 py-3.5 hover:border-brown hover:bg-surface-2 transition-colors group"
                   >
                     <span className="text-brown group-hover:scale-110 transition-transform">
-                      {tool.icon}
+                      {tool.icon ?? extraIcon}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-text">{tool.label}</p>
@@ -174,12 +264,13 @@ export default function OperationsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </Link>
+                  )
                 ) : (
                   <div
                     key={tool.label}
                     className="flex items-center gap-4 bg-surface border border-border rounded-xl px-4 py-3.5 opacity-50 cursor-not-allowed"
                   >
-                    <span className="text-text-muted">{tool.icon}</span>
+                    <span className="text-text-muted">{tool.icon ?? extraIcon}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-text">{tool.label}</p>
                       <p className="text-xs text-text-muted truncate">{tool.description}</p>

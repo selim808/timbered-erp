@@ -69,7 +69,7 @@ export default function BottomNav() {
 
         <div className="w-px h-4 bg-border flex-shrink-0 mx-1" />
 
-        {/* Operations hub */}
+        {/* Departments hub */}
         <Link
           href="/owner/operations"
           className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
@@ -78,7 +78,7 @@ export default function BottomNav() {
               : 'border-border text-text-muted hover:border-brown hover:text-brown'
           }`}
         >
-          Operations
+          Departments
         </Link>
 
       </div>
