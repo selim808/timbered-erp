@@ -592,7 +592,9 @@ export default function OrdersPipelinePage() {
 
     Promise.all([
       fetch('/api/pipeline/orders').then(r => r.json()),
-      fetch('/api/cancellation-reasons').then(r => r.json()),
+      // Reasons are secondary — a failure here must not blank out the orders
+      // list, so swallow it and let the cancel modal report the empty list.
+      fetch('/api/cancellation-reasons').then(r => r.json()).catch(() => []),
     ]).then(([ords, reasons]) => {
       if (Array.isArray(ords)) setOrders(normalizeOrders(ords));
       else setError(ords.error ?? 'Failed to load orders');

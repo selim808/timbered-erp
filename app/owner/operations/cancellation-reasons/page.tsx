@@ -58,12 +58,18 @@ export default function CancellationReasonsPage() {
 
   useEffect(() => {
     fetch('/api/cancellation-reasons')
-      .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) throw new Error(data?.error ?? 'Failed to load');
-        setReasons(data);
-        setLoad('done');
+      .then(async r => {
+        // A crashed route answers with an HTML error page, so read the body
+        // as text first and only then try to parse it.
+        const body = await r.text();
+        let data: unknown;
+        try { data = JSON.parse(body); }
+        catch { throw new Error(`Server error (${r.status})`); }
+        if (!Array.isArray(data))
+          throw new Error((data as { error?: string })?.error ?? 'Failed to load');
+        return data as Reason[];
       })
+      .then(data => { setReasons(data); setLoad('done'); })
       .catch((e: Error) => { setErrMsg(e.message); setLoad('error'); });
   }, []);
 
@@ -83,7 +89,12 @@ export default function CancellationReasonsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
     });
-    if (!res.ok) { showToast('Save failed', 'err'); setAdding(false); return; }
+    if (!res.ok) {
+      const msg = await res.json().then(b => b?.error).catch(() => null);
+      showToast(msg ?? 'Save failed', 'err');
+      setAdding(false);
+      return;
+    }
     const created: Reason = await res.json();
     setReasons(prev => [...prev, created]);
     setNewLabel('');

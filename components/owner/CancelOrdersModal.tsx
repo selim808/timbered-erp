@@ -65,6 +65,12 @@ export default function CancelOrdersModal({
         </div>
 
         <div className="com-body">
+          {reasons.length === 0 && (
+            <div className="com-warn">
+              No cancellation reasons are set up — add them under
+              Operations → Cancellation Reasons first.
+            </div>
+          )}
           {orders.map(o => (
             <div className="com-row" key={o.id}>
               <div className="com-row-info">
@@ -126,6 +132,10 @@ export default function CancelOrdersModal({
           padding: 16px 18px; border-bottom: 1px solid #f0e9e1;
         }
         .com-title { font-weight: 700; color: #c0392b; font-size: 15px; }
+        .com-warn {
+          background: #fef3c7; color: #92400e; border-radius: 8px;
+          padding: 9px 11px; font-size: 12px; line-height: 1.45; margin-bottom: 10px;
+        }
         .com-x {
           border: none; background: transparent; cursor: pointer;
           font-size: 15px; color: #999; line-height: 1;
