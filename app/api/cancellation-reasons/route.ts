@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, describeDbError } from '@/lib/supabase/admin';
 
 // GET: list active cancellation reasons, ordered by sort_order.
 export async function GET() {
@@ -10,7 +10,7 @@ export async function GET() {
       .select('id, label, sort_order')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: describeDbError(error) }, { status: 500 });
     return NextResponse.json(data ?? []);
   } catch (err) {
     // createAdminClient() throws outright when the Supabase env vars are
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     if (error) {
       // 23505 = unique violation on label.
       const status = error.code === '23505' ? 409 : 500;
-      const message = status === 409 ? 'That reason already exists' : error.message;
+      const message = status === 409 ? 'That reason already exists' : describeDbError(error);
       return NextResponse.json({ error: message }, { status });
     }
     return NextResponse.json(data, { status: 201 });

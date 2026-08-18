@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createAdminClient, describeDbError } from '@/lib/supabase/admin';
 
 // PUT: set sort_order on every reason by position.
 // Body: { ordered_ids: string[] }
@@ -15,7 +15,7 @@ export async function PUT(req: Request) {
     );
     const results = await Promise.all(updates);
     const firstErr = results.find(r => r.error)?.error;
-    if (firstErr) return NextResponse.json({ error: firstErr.message }, { status: 500 });
+    if (firstErr) return NextResponse.json({ error: describeDbError(firstErr) }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch (err) {
