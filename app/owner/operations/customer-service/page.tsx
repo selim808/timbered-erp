@@ -1,33 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import CancelledOrdersTab from '@/components/owner/CancelledOrdersTab';
 import { CS_CSS } from '@/components/owner/cs/csShared';
-import CallQueueTab from '@/components/owner/cs/CallQueueTab';
-import DelayFlagsTab from '@/components/owner/cs/DelayFlagsTab';
-import PostDeliveryIssuesTab from '@/components/owner/cs/PostDeliveryIssuesTab';
-import ReviewFollowupTab from '@/components/owner/cs/ReviewFollowupTab';
+import CallConfirmationTab from '@/components/owner/cs/CallConfirmationTab';
+import DepositTab from '@/components/owner/cs/DepositTab';
+import DelayNoticeTab from '@/components/owner/cs/DelayNoticeTab';
+import NoResponseTab from '@/components/owner/cs/NoResponseTab';
+import FollowUpTab from '@/components/owner/cs/FollowUpTab';
 import ReturnsTab from '@/components/owner/cs/ReturnsTab';
-import IssueFlagsTab from '@/components/owner/cs/IssueFlagsTab';
-import FaqTab from '@/components/owner/cs/FaqTab';
-import UpsellTab from '@/components/owner/cs/UpsellTab';
+import TicketsTab from '@/components/owner/cs/TicketsTab';
 
 const TABS = [
-  { key: 'queue', label: 'Call Queue' },
-  { key: 'delay', label: 'Delay Flags' },
-  { key: 'cancellations', label: 'Cancellations' },
-  { key: 'issues', label: 'Post-Delivery Issues' },
-  { key: 'followup', label: 'Review Follow-up' },
-  { key: 'returns', label: 'Returns/Exchanges' },
-  { key: 'flags', label: 'Issue Flags' },
-  { key: 'faq', label: 'FAQ / Script' },
-  { key: 'upsell', label: 'Upsell' },
+  { key: 'confirmation', label: 'Call confirmation' },
+  { key: 'deposit', label: 'Deposit' },
+  { key: 'delay', label: 'Delay Notice' },
+  { key: 'noresponse', label: 'No response' },
+  { key: 'followup', label: 'Follow up' },
+  { key: 'returns', label: 'Returns' },
+  { key: 'tickets', label: 'Tickets' },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
 
 export default function CustomerServicePage() {
-  const [tab, setTab] = useState<TabKey>('queue');
+  const [tab, setTab] = useState<TabKey>('confirmation');
 
   return (
     <>
@@ -46,15 +42,13 @@ export default function CustomerServicePage() {
       </div>
 
       <div className="cs-body">
-        {tab === 'queue' && <CallQueueTab />}
-        {tab === 'delay' && <DelayFlagsTab />}
-        {tab === 'cancellations' && <CancelledOrdersTab />}
-        {tab === 'issues' && <PostDeliveryIssuesTab />}
-        {tab === 'followup' && <ReviewFollowupTab />}
+        {tab === 'confirmation' && <CallConfirmationTab />}
+        {tab === 'deposit' && <DepositTab />}
+        {tab === 'delay' && <DelayNoticeTab />}
+        {tab === 'noresponse' && <NoResponseTab />}
+        {tab === 'followup' && <FollowUpTab />}
         {tab === 'returns' && <ReturnsTab />}
-        {tab === 'flags' && <IssueFlagsTab />}
-        {tab === 'faq' && <FaqTab />}
-        {tab === 'upsell' && <UpsellTab />}
+        {tab === 'tickets' && <TicketsTab />}
       </div>
     </>
   );

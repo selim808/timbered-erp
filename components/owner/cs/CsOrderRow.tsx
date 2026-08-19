@@ -3,16 +3,19 @@
 import { useState } from 'react';
 import type { CsOrder } from '@/app/api/cs/orders/route';
 import { fmtPrice, waPhone } from '@/components/shared/PipelineOrderCard';
-import { CS_STATUSES, CS_STATUS_LABEL } from './csShared';
+import { CS_STATUSES, CS_STATUS_LABEL, fmtDateTime } from './csShared';
+
+export type CsRowMode = 'confirm' | 'deposit' | 'delay' | 'noresponse';
 
 interface Props {
   order: CsOrder;
-  mode: 'queue' | 'delay';
+  mode: CsRowMode;
   onChanged: () => void;
 }
 
-// Shared order card used by both Call Queue and Delay Flags — they read the
-// same /api/cs/orders list, just filtered differently, so they share one row.
+// Shared order card behind every order-list tab (Call confirmation, Deposit,
+// Delay Notice, No response). They all read the same /api/cs/orders list and
+// differ only in how it's filtered and which action block the row shows.
 export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
   const [status, setStatus] = useState(o.csStatus);
   const [note, setNote] = useState('');
@@ -31,6 +34,20 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to_status: toStatus, note: (autoNote ?? note).trim() || undefined }),
+    });
+    setNote('');
+    setBusy(false);
+    onChanged();
+  }
+
+  // Records one confirmation-call attempt: bumps the attempt counter and moves
+  // the order to the outcome status in a single round trip.
+  async function logCall(outcome: 'no_response' | 'confirmed' | 'called') {
+    setBusy(true);
+    await fetch(`/api/cs/orders/${o.id}/call-attempt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome, note: note.trim() || undefined }),
     });
     setNote('');
     setBusy(false);
@@ -80,6 +97,13 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
         <span className="cs-badge">{CS_STATUS_LABEL[o.csStatus] ?? o.csStatus}</span>
       </div>
 
+      {(mode === 'confirm' || mode === 'noresponse') && o.callAttempts > 0 && (
+        <div className="cs-sub">
+          <span>{o.callAttempts} call attempt{o.callAttempts === 1 ? '' : 's'}</span>
+          <span>last tried {fmtDateTime(o.lastCallAt)}</span>
+        </div>
+      )}
+
       {wp && (
         <div className="cs-contact">
           <a className="cs-contact-btn wa" href={`https://wa.me/${wp}`} target="_blank" rel="noreferrer">WhatsApp</a>
@@ -96,6 +120,22 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
         ))}
       </div>
 
+      {(mode === 'confirm' || mode === 'noresponse') && (
+        <div className="cs-row-actions">
+          <button className="cs-btn" disabled={busy} onClick={() => logCall('confirmed')}>
+            Reached &amp; confirmed
+          </button>
+          <button className="cs-btn ghost" disabled={busy} onClick={() => logCall('no_response')}>
+            {mode === 'noresponse' ? 'Tried again — still no answer' : 'No answer'}
+          </button>
+          {mode === 'noresponse' && (
+            <button className="cs-btn danger" disabled={busy} onClick={() => updateStatus('cancelled', 'Cancelled after repeated no-response')}>
+              Cancel order
+            </button>
+          )}
+        </div>
+      )}
+
       {mode === 'delay' && delayedItems.length > 0 && o.csStatus !== 'delayed' && (
         <div className="cs-row-actions">
           <button
@@ -103,7 +143,7 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
             disabled={busy}
             onClick={() => updateStatus('delayed', 'Customer notified of production delay')}
           >
-            Flag delayed &amp; log notification
+            Send delay notice &amp; flag delayed
           </button>
         </div>
       )}
@@ -124,40 +164,40 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
         )}
       </div>
 
-      {mode === 'queue' && (
-        <>
-          <div className="cs-row-actions">
-            <label className="cs-check">
-              <input type="checkbox" checked={depositRequired} onChange={e => setDepositRequired(e.target.checked)} />
-              &nbsp;Deposit required
-            </label>
-            {depositRequired && (
-              <>
-                <input
-                  className="cs-input" type="number" placeholder="Amount" value={depositAmount}
-                  onChange={e => setDepositAmount(e.target.value)} style={{ width: 90 }}
-                />
-                {o.depositPaidAt
-                  ? <span className="cs-badge ok">Paid {new Date(o.depositPaidAt).toLocaleDateString('en-GB')}</span>
-                  : <button className="cs-btn ghost" disabled={busy} onClick={() => saveDeposit(true)}>Mark paid</button>}
-              </>
-            )}
-            <button className="cs-btn ghost" disabled={busy} onClick={() => saveDeposit(false)}>Save deposit</button>
-          </div>
+      {mode === 'deposit' && (
+        <div className="cs-row-actions">
+          <label className="cs-check">
+            <input type="checkbox" checked={depositRequired} onChange={e => setDepositRequired(e.target.checked)} />
+            &nbsp;Deposit required
+          </label>
+          {depositRequired && (
+            <>
+              <input
+                className="cs-input" type="number" placeholder="Amount" value={depositAmount}
+                onChange={e => setDepositAmount(e.target.value)} style={{ width: 90 }}
+              />
+              {o.depositPaidAt
+                ? <span className="cs-badge ok">Paid {new Date(o.depositPaidAt).toLocaleDateString('en-GB')}</span>
+                : <button className="cs-btn ghost" disabled={busy} onClick={() => saveDeposit(true)}>Mark paid</button>}
+            </>
+          )}
+          <button className="cs-btn ghost" disabled={busy} onClick={() => saveDeposit(false)}>Save deposit</button>
+        </div>
+      )}
 
-          <div className="cs-row-actions">
-            <label className="cs-check">
-              <input type="checkbox" checked={upsellOffered} onChange={e => setUpsellOffered(e.target.checked)} />
-              &nbsp;Upsell offered
-            </label>
-            <label className="cs-check">
-              <input type="checkbox" checked={upsellAccepted} disabled={!upsellOffered}
-                onChange={e => setUpsellAccepted(e.target.checked)} />
-              &nbsp;Accepted
-            </label>
-            <button className="cs-btn ghost" disabled={busy} onClick={saveUpsell}>Save upsell</button>
-          </div>
-        </>
+      {mode === 'confirm' && (
+        <div className="cs-row-actions">
+          <label className="cs-check">
+            <input type="checkbox" checked={upsellOffered} onChange={e => setUpsellOffered(e.target.checked)} />
+            &nbsp;Upsell offered
+          </label>
+          <label className="cs-check">
+            <input type="checkbox" checked={upsellAccepted} disabled={!upsellOffered}
+              onChange={e => setUpsellAccepted(e.target.checked)} />
+            &nbsp;Accepted
+          </label>
+          <button className="cs-btn ghost" disabled={busy} onClick={saveUpsell}>Save upsell</button>
+        </div>
       )}
     </div>
   );

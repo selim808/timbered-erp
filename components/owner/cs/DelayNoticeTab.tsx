@@ -4,15 +4,19 @@ import { useCsOrders } from './csShared';
 import CsOrderRow from './CsOrderRow';
 
 // Orders with at least one line item that has sat in its current production
-// phase longer than that phase's expected_days (set on /owner/phases).
-export default function DelayFlagsTab() {
+// phase longer than that phase's expected_days (set on /owner/phases) — these
+// are the customers who need a proactive delay notice.
+export default function DelayNoticeTab() {
   const { orders, loadState, errMsg, reload } = useCsOrders();
   const delayed = orders.filter(o => o.isDelayed);
+  const notified = delayed.filter(o => o.csStatus === 'delayed').length;
 
   return (
     <div>
-      <p style={{ fontSize: 12, color: '#999', margin: '0 0 12px' }}>
-        Set an expected-days threshold per phase on the Phases page to control what counts as delayed here.
+      <p className="cs-hint">
+        Orders past their expected phase duration. Send the notice, then flag the order so the
+        rest of the team knows the customer has been told — {notified} of {delayed.length} notified.
+        Thresholds come from each phase&apos;s expected-days setting on the Phases page.
       </p>
       {loadState === 'loading' && <div className="cs-state">Checking delay estimates…</div>}
       {loadState === 'error' && <div className="cs-state">Failed to load: {errMsg}</div>}

@@ -25,6 +25,8 @@ export interface CsOrder {
   daysOpen: number;
   lineItems: CsLineItem[];
   csStatus: string;
+  callAttempts: number;
+  lastCallAt: string | null;
   depositRequired: boolean;
   depositAmount: number | null;
   depositPaidAt: string | null;
@@ -109,6 +111,8 @@ export async function GET() {
         ...mapOrderBase(o, o.date_created),
         lineItems,
         csStatus: cs?.cs_status ?? 'new',
+        callAttempts: cs?.call_attempts ?? 0,
+        lastCallAt: cs?.last_call_at ?? null,
         depositRequired: cs?.deposit_required ?? false,
         depositAmount: cs?.deposit_amount ?? null,
         depositPaidAt: cs?.deposit_paid_at ?? null,

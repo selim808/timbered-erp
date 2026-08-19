@@ -15,9 +15,9 @@ interface Followup {
 
 const OUTCOMES = ['left_review', 'declined', 'no_response'];
 
-// Surfaces orders due for a satisfaction/review follow-up call — the row is
-// created automatically when a CS rep marks an order delivered.
-export default function ReviewFollowupTab() {
+// Orders due for a satisfaction/review follow-up call — the row is created
+// automatically when a CS rep marks an order delivered.
+export default function FollowUpTab() {
   const [rows, setRows] = useState<Followup[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'done' | 'error'>('loading');
   const [showAll, setShowAll] = useState(false);
@@ -46,6 +46,11 @@ export default function ReviewFollowupTab() {
 
   return (
     <div>
+      <p className="cs-hint">
+        Post-delivery follow-up calls, due a week after delivery. Record how each call went so the
+        order drops off the list.
+      </p>
+
       <label className="cs-check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={showAll} onChange={e => setShowAll(e.target.checked)} />
         &nbsp;Show all (including not-yet-due and already contacted)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CsOrder } from '@/app/api/cs/orders/route';
 
 /** Shared fetch for the "processing" orders view (Call Queue + Delay Flags read the same list). */
@@ -40,7 +40,7 @@ export function useCsToast() {
 }
 
 export const CS_STATUSES = [
-  'new', 'called', 'confirmed', 'deposit_pending', 'deposit_paid',
+  'new', 'called', 'no_response', 'confirmed', 'deposit_pending', 'deposit_paid',
   'in_production', 'delayed', 'delivered', 'review_requested', 'closed',
 ] as const;
 
@@ -49,6 +49,7 @@ export type CsStatus = typeof CS_STATUSES[number] | 'cancelled';
 export const CS_STATUS_LABEL: Record<string, string> = {
   new: 'New',
   called: 'Called',
+  no_response: 'No Response',
   confirmed: 'Confirmed',
   deposit_pending: 'Deposit Pending',
   deposit_paid: 'Deposit Paid',
@@ -59,6 +60,20 @@ export const CS_STATUS_LABEL: Record<string, string> = {
   closed: 'Closed',
   cancelled: 'Cancelled',
 };
+
+/** Client-side pagination shared by the order-list tabs. Clamping happens at
+ *  render time (not in an effect) so a page that empties out — orders left the
+ *  filter after a status change — falls back to a valid page immediately. */
+export function useCsPager<T>(items: T[], pageSize = 10) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [items, currentPage, pageSize],
+  );
+  return { pageItems, currentPage, totalPages, setPage };
+}
 
 export function fmtDateTime(iso: string | null) {
   if (!iso) return '—';
@@ -76,7 +91,9 @@ export const CS_CSS = `
 .cs-tab { background:transparent; border:none; color:rgba(255,255,255,.65); font-size:12px; font-weight:700; padding:8px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; }
 .cs-tab:hover { color:#fff; background:rgba(255,255,255,.1); }
 .cs-tab.active { color:#fff; background:rgba(255,255,255,.2); }
+.cs-tab-count { display:inline-block; margin-left:6px; font-size:10px; font-weight:700; background:rgba(255,255,255,.25); border-radius:20px; padding:1px 6px; }
 .cs-body { padding:20px; max-width:760px; margin:0 auto; }
+.cs-hint { font-size:12px; color:#999; margin:0 0 12px; }
 .cs-state { background:#fff; border-radius:10px; padding:32px; text-align:center; color:#999; font-size:14px; border:1px solid #e8ddd4; }
 .cs-list { display:flex; flex-direction:column; gap:10px; }
 .cs-card { background:#fff; border:1px solid #e8ddd4; border-radius:10px; padding:12px 14px; }
