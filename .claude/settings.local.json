@@ -81,7 +81,10 @@
       "Bash(rmdir public/extras)",
       "Bash(curl -s -b \"owner_session=true\" http://localhost:3000/owner/operations)",
       "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless=new --disable-gpu --window-size=900,1500 --remote-debugging-port=9222 --user-data-dir=\"C:/Users/selim/AppData/Local/Temp/claude/d--IQ-BWRS-GPDF-02-BWRS-01-Bussiness-01-TG-TimberedERP/16161434-36b0-4e4d-9adf-ccdda247eca7/scratchpad/chrome-profile3\" \"http://localhost:3000/\")",
-      "Bash(node shot.mjs \"http://localhost:3000/owner/operations\" \"ops2.png\")"
+      "Bash(node shot.mjs \"http://localhost:3000/owner/operations\" \"ops2.png\")",
+      "Bash(mkdir -p content/extras)",
+      "Bash(git mv *)",
+      "PowerShell(git add -A)"
     ],
     "additionalDirectories": [
       "D:\\IQ BWRS GPDF\\02 BWRS\\01 Bussiness\\01 TG\\TimberedERP\\scripts"
