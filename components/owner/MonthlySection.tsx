@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -152,9 +153,7 @@ export default function MonthlySection() {
   }, [visibleLabels, chartMonthMap]);
 
   // ── Early returns ─────────────────────────────────────────────
-  if (loadState === 'loading') return (
-    <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>Loading monthly data…</div>
-  );
+  if (loadState === 'loading') return <LoadingDots label="Loading monthly data" />;
   if (loadState === 'error') return (
     <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>Could not load monthly data — {errMsg}</div>
   );

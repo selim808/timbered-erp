@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
@@ -161,9 +162,7 @@ export default function FinanceSection() {
       : (rounds.find(r => r.Round === selected) ?? null);
   }, [rounds, selected]);
 
-  if (loadState === 'loading') return (
-    <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>Loading finance…</div>
-  );
+  if (loadState === 'loading') return <LoadingDots label="Loading finance" />;
   if (loadState === 'error') return (
     <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>Could not load finance — {errMsg}</div>
   );

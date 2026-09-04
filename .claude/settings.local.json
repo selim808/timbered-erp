@@ -84,7 +84,11 @@
       "Bash(node shot.mjs \"http://localhost:3000/owner/operations\" \"ops2.png\")",
       "Bash(mkdir -p content/extras)",
       "Bash(git mv *)",
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "PowerShell(git push origin main)",
+      "PowerShell(npm run dev)",
+      "Read(//c/Users/selim/AppData/Local/Temp/claude/d--IQ-BWRS-GPDF-02-BWRS-01-Bussiness-01-TG-TimberedERP/d0b617b2-a97a-4ef0-9352-ba5601904544/tasks/**)",
+      "Bash(sleep 0.5)"
     ],
     "additionalDirectories": [
       "D:\\IQ BWRS GPDF\\02 BWRS\\01 Bussiness\\01 TG\\TimberedERP\\scripts"

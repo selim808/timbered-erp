@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS, BarElement, CategoryScale,
@@ -66,9 +67,7 @@ export default function ProductionSection() {
       .catch((e: Error) => { setErr(e.message); setLoad('error'); });
   }, []);
 
-  if (loadState === 'loading') return (
-    <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>Loading production…</div>
-  );
+  if (loadState === 'loading') return <LoadingDots label="Loading production" />;
   if (loadState === 'error') return (
     <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>Could not load production — {errMsg}</div>
   );

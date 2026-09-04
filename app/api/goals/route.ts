@@ -14,15 +14,21 @@ const GOALS = Object.entries(SALES_TGT).map(([month, salesTgt]) => ({
   month, salesTgt, mktTgt: Math.round(salesTgt * MKT_RATIO),
 }));
 
-async function fetchMonthSales(year: number, month: number): Promise<number> {
+// Statuses that count towards the sales "actual" figure.
+const COUNTED = ['processing', 'completed'];
+
+export interface StatusStat { status: string; count: number; total: number }
+
+/** Every order placed in the month, grouped by status. */
+async function fetchMonthOrders(year: number, month: number): Promise<StatusStat[]> {
   const mm = String(month).padStart(2, '0');
   const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0');
   const after  = `${year}-${mm}-01T00:00:00`;
   const before = `${year}-${mm}-${lastDay}T23:59:59`;
   const baseParams = {
     per_page: 100, after, before,
-    status: 'processing,completed',
-    _fields: 'total',
+    status: 'any',
+    _fields: 'total,status',
   };
 
   const first = await wcClient.get('/orders', { params: { ...baseParams, page: 1 } });
@@ -34,8 +40,23 @@ async function fetchMonthSales(year: number, month: number): Promise<number> {
       ))
     : [];
 
-  const all = [first, ...rest].flatMap(r => r.data as { total: string }[]);
-  return Math.round(all.reduce((s, o) => s + (parseFloat(o.total) || 0), 0));
+  const all = [first, ...rest].flatMap(r => r.data as { total: string; status: string }[]);
+
+  const byStatus = new Map<string, StatusStat>();
+  for (const o of all) {
+    const row = byStatus.get(o.status) ?? { status: o.status, count: 0, total: 0 };
+    row.count += 1;
+    row.total += parseFloat(o.total) || 0;
+    byStatus.set(o.status, row);
+  }
+
+  return [...byStatus.values()]
+    .map(r => ({ ...r, total: Math.round(r.total) }))
+    .sort((a, b) => b.total - a.total);
+}
+
+function sumCounted(stats: StatusStat[]): number {
+  return stats.reduce((s, r) => s + (COUNTED.includes(r.status) ? r.total : 0), 0);
 }
 
 async function fetchAccountSpend(accountId: string, timeRange: string): Promise<number> {
@@ -74,15 +95,16 @@ export async function GET() {
   const monthCount = now.getMonth() + 1;
 
   try {
-    const [wcActuals, metaActuals] = await Promise.all([
-      Promise.all(Array.from({ length: monthCount }, (_, i) => fetchMonthSales(curYear, i + 1))),
+    const [wcMonths, metaActuals] = await Promise.all([
+      Promise.all(Array.from({ length: monthCount }, (_, i) => fetchMonthOrders(curYear, i + 1))),
       Promise.all(Array.from({ length: monthCount }, (_, i) => fetchMonthMeta(curYear, i + 1))),
     ]);
 
     const rows = GOALS.map((g, idx) => ({
       ...g,
-      salesAct: idx < monthCount ? wcActuals[idx] : null,
-      mktAct:   idx < monthCount ? metaActuals[idx] : null,
+      salesAct:  idx < monthCount ? sumCounted(wcMonths[idx]) : null,
+      mktAct:    idx < monthCount ? metaActuals[idx] : null,
+      breakdown: idx < monthCount ? wcMonths[idx] : null,
     }));
 
     return NextResponse.json({ rows, year: curYear }, {
