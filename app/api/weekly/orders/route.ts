@@ -38,15 +38,20 @@ async function fetchAll(params: Record<string, string | number>): Promise<WCOrde
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const date   = searchParams.get('date');    // YYYY-MM-DD
-  const metric = searchParams.get('metric');  // created | completed | cancelled
+  const date    = searchParams.get('date');    // YYYY-MM-DD — single day
+  const start   = searchParams.get('start');   // YYYY-MM-DD — range start (alt. to date)
+  const end     = searchParams.get('end');     // YYYY-MM-DD — range end (inclusive)
+  const metric  = searchParams.get('metric');  // created | completed | cancelled
 
-  if (!date || !metric) {
+  const rangeStart = date ?? start;
+  const rangeEnd   = date ?? end;
+
+  if (!rangeStart || !rangeEnd || !metric) {
     return NextResponse.json({ error: 'Missing date or metric' }, { status: 400 });
   }
 
-  const after  = `${date}T00:00:00`;
-  const before = `${date}T23:59:59`;
+  const after  = `${rangeStart}T00:00:00`;
+  const before = `${rangeEnd}T23:59:59`;
 
   try {
     let raw: WCOrder[] = [];
@@ -56,7 +61,10 @@ export async function GET(request: Request) {
       raw = raw.filter(o => ['completed', 'cancelled', 'processing'].includes(o.status));
     } else if (metric === 'completed') {
       raw = await fetchAll({ modified_after: after, modified_before: before, status: 'completed' });
-      raw = raw.filter(o => o.date_completed?.slice(0, 10) === date);
+      raw = raw.filter(o => {
+        const d = o.date_completed?.slice(0, 10) ?? '';
+        return d >= rangeStart && d <= rangeEnd;
+      });
     } else if (metric === 'cancelled') {
       raw = await fetchAll({ modified_after: after, modified_before: before, status: 'cancelled' });
     } else {
