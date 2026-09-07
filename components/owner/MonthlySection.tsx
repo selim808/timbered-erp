@@ -6,6 +6,8 @@ import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { MonthEntry, WeekInMonth } from '@/app/api/monthly/route';
+import type { OrderRow } from '@/app/api/monthly/orders/route';
+import type { OrderDetail } from '@/app/api/weekly/order/[id]/route';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -79,6 +81,44 @@ const STYLES = `
 .mo-yr-btn.active { background:#B86E1A; color:#fff; border-color:#B86E1A; }
 .mo-prog-bar { height:6px; background:#f0ebe3; border-radius:3px; overflow:hidden; margin-top:4px; }
 .mo-prog-fill { height:100%; background:#B86E1A; border-radius:3px; transition:width 0.6s ease-in-out; }
+.mo-kpi-btn { display:block; width:100%; background:none; border:none; padding:0; cursor:pointer; font-family:inherit; text-align:center; }
+.mo-kpi-btn:hover .mo-kpi { text-decoration:underline; }
+.mo-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
+.mo-modal { background:#fff; border-radius:16px; width:100%; max-width:580px; max-height:82vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); }
+.mo-modal-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #E8D9C4; flex-shrink:0; }
+.mo-modal-title { font-size:14px; font-weight:700; color:#2c3e50; }
+.mo-modal-sub { font-size:11px; color:#9e9087; margin-top:2px; }
+.mo-modal-close { border:none; background:none; font-size:22px; line-height:1; cursor:pointer; color:#aaa; padding:0 2px; }
+.mo-modal-close:hover { color:#555; }
+.mo-modal-body { overflow-y:auto; padding:10px 14px 14px; }
+.mo-ord-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.mo-ord-tbl th { font-size:10px; font-weight:700; color:#9e9087; text-transform:uppercase; letter-spacing:0.6px; padding:6px 8px; border-bottom:1px solid #E8D9C4; text-align:left; white-space:nowrap; }
+.mo-ord-tbl th.right { text-align:right; }
+.mo-ord-tbl td { padding:7px 8px; border-bottom:1px solid #f5f0ea; }
+.mo-ord-tbl tr:last-child td { border-bottom:none; }
+.mo-ord-tbl tr:hover td { background:#faf7f3; }
+.mo-ord-tbl .right { text-align:right; }
+.mo-ord-num-btn { background:none; border:none; padding:0; cursor:pointer; font-weight:700; color:#7A4610; font-size:12px; font-family:inherit; }
+.mo-ord-num-btn:hover { text-decoration:underline; color:#B86E1A; }
+.mo-detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1010; display:flex; align-items:center; justify-content:center; padding:16px; }
+.mo-detail-modal { background:#fff; border-radius:16px; width:100%; max-width:520px; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,0.22); }
+.mo-detail-hdr { display:flex; align-items:flex-start; justify-content:space-between; padding:14px 16px 12px; border-bottom:1px solid #E8D9C4; flex-shrink:0; }
+.mo-detail-body { overflow-y:auto; padding:12px 16px 16px; display:flex; flex-direction:column; gap:12px; }
+.mo-status { display:inline-block; padding:2px 9px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-left:8px; vertical-align:middle; }
+.mo-section-lbl { font-size:10px; color:#9e9087; text-transform:uppercase; font-weight:700; letter-spacing:0.6px; margin-bottom:5px; }
+.mo-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:12px; color:#444; }
+.mo-info-grid span { color:#888; font-size:11px; display:block; }
+.mo-items-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.mo-items-tbl th { font-size:10px; font-weight:700; color:#9e9087; text-transform:uppercase; padding:4px 0; border-bottom:1px solid #E8D9C4; text-align:left; }
+.mo-items-tbl th.r { text-align:right; }
+.mo-items-tbl td { padding:6px 0; border-bottom:1px solid #f5f0ea; vertical-align:top; }
+.mo-items-tbl tr:last-child td { border-bottom:none; }
+.mo-items-tbl .r { text-align:right; }
+.mo-totals { border-top:1px solid #E8D9C4; padding-top:8px; display:flex; flex-direction:column; gap:3px; font-size:12px; }
+.mo-totals-row { display:flex; justify-content:space-between; color:#666; }
+.mo-totals-grand { display:flex; justify-content:space-between; font-size:14px; font-weight:700; color:#2c3e50; border-top:1px solid #E8D9C4; padding-top:6px; margin-top:4px; }
+.mo-detail-back { background:none; border:none; font-size:13px; color:#7A4610; cursor:pointer; padding:0; font-family:inherit; display:flex; align-items:center; gap:4px; }
+.mo-detail-back:hover { text-decoration:underline; }
 `;
 
 // ─── Component ───────────────────────────────────────────────────
@@ -90,6 +130,13 @@ export default function MonthlySection() {
   const [chartEnd, setChartEnd]     = useState('');
   const [loadState, setLoad]    = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErr]        = useState('');
+  const [modal, setModal]       = useState<{ metric: string; label: string } | null>(null);
+  const [modalOrders, setModalOrders] = useState<OrderRow[]>([]);
+  const [modalLoad, setModalLoad]     = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [modalErr, setModalErr]       = useState('');
+  const [selOrder, setSelOrder]       = useState<OrderDetail | null>(null);
+  const [selOrderLoad, setSelOrderLoad] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [selOrderErr, setSelOrderErr] = useState('');
 
   useEffect(() => {
     fetch('/api/monthly')
@@ -200,6 +247,45 @@ export default function MonthlySection() {
     setSelYears(prev => prev.size === allYears.length ? new Set([allYears[0]]) : new Set(allYears));
   }
 
+  function statusStyle(s: string): { background: string; color: string } {
+    if (s === 'completed')  return { background: '#e8f8f0', color: '#27ae60' };
+    if (s === 'processing') return { background: '#e8f0fb', color: '#2563EB' };
+    if (s === 'cancelled')  return { background: '#fde8e8', color: '#e74c3c' };
+    if (s === 'pending')    return { background: '#fef3e2', color: '#B86E1A' };
+    return { background: '#f0f0f0', color: '#888' };
+  }
+
+  function openOrderDetail(id: number) {
+    setSelOrder(null);
+    setSelOrderLoad('loading');
+    setSelOrderErr('');
+    fetch(`/api/weekly/order/${id}`)
+      .then(r => r.json())
+      .then((data: OrderDetail | { error: string }) => {
+        if ('error' in data) throw new Error((data as { error: string }).error);
+        setSelOrder(data as OrderDetail);
+        setSelOrderLoad('done');
+      })
+      .catch((e: Error) => { setSelOrderErr(e.message); setSelOrderLoad('error'); });
+  }
+
+  function openModal(metric: string, val: number) {
+    if (val <= 0) return;
+    const m = metric.toLowerCase();
+    setModal({ metric: m, label: `${metric} — ${MONTH_FULL[selMonth!.month - 1]} ${selMonth!.year}` });
+    setModalLoad('loading');
+    setModalOrders([]);
+    setModalErr('');
+    fetch(`/api/monthly/orders?month=${selMonth!.key}&metric=${m}`)
+      .then(r => r.json())
+      .then((data: OrderRow[] | { error: string }) => {
+        if (!Array.isArray(data)) throw new Error((data as { error: string }).error);
+        setModalOrders(data);
+        setModalLoad('done');
+      })
+      .catch((e: Error) => { setModalErr(e.message); setModalLoad('error'); });
+  }
+
   const ROW_COLORS = { Completed: '#27ae60', Cancelled: '#e74c3c', Created: '#2563EB' };
 
   const chartData = {
@@ -277,13 +363,19 @@ export default function MonthlySection() {
         {/* KPI cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Completed', val: fmt(selMonth.completed), color: '#27ae60' },
-            { label: 'Cancelled', val: fmt(selMonth.cancelled), color: '#e74c3c' },
-            { label: 'Created',   val: fmt(selMonth.created),   color: '#2563EB' },
-          ].map(({ label, val, color }) => (
+            { label: 'Completed', num: selMonth.completed, val: fmt(selMonth.completed), color: '#27ae60' },
+            { label: 'Cancelled', num: selMonth.cancelled, val: fmt(selMonth.cancelled), color: '#e74c3c' },
+            { label: 'Created',   num: selMonth.created,   val: fmt(selMonth.created),   color: '#2563EB' },
+          ].map(({ label, num, val, color }) => (
             <div key={label} className="mo-card" style={{ textAlign: 'center' }}>
               <span className="mo-label">{label}</span>
-              <div className="mo-kpi" style={{ color }}>{val}</div>
+              {num > 0 ? (
+                <button className="mo-kpi-btn" onClick={() => openModal(label, num)}>
+                  <span className="mo-kpi" style={{ color }}>{val}</span>
+                </button>
+              ) : (
+                <div className="mo-kpi" style={{ color }}>{val}</div>
+              )}
             </div>
           ))}
         </div>
@@ -355,6 +447,166 @@ export default function MonthlySection() {
         </div>
 
       </div>
+
+      {/* Orders list modal */}
+      {modal && (
+        <div className="mo-modal-overlay" onClick={() => setModal(null)}>
+          <div className="mo-modal" onClick={e => e.stopPropagation()}>
+            <div className="mo-modal-hdr">
+              <div>
+                <div className="mo-modal-title">{modal.label}</div>
+                {modalLoad === 'done' && (
+                  <div className="mo-modal-sub">
+                    {modalOrders.length} order{modalOrders.length !== 1 ? 's' : ''} &nbsp;·&nbsp; Total: {Math.round(modalOrders.reduce((s, o) => s + o.total, 0)).toLocaleString('en-GB')} EGP
+                  </div>
+                )}
+              </div>
+              <button className="mo-modal-close" onClick={() => setModal(null)}>×</button>
+            </div>
+            <div className="mo-modal-body">
+              {modalLoad === 'loading' && (
+                <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>Loading orders…</div>
+              )}
+              {modalLoad === 'error' && (
+                <div style={{ padding: '16px 0', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>{modalErr}</div>
+              )}
+              {modalLoad === 'done' && modalOrders.length === 0 && (
+                <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>No orders found</div>
+              )}
+              {modalLoad === 'done' && modalOrders.length > 0 && (
+                <table className="mo-ord-tbl">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Customer</th>
+                      <th className="right">Items</th>
+                      <th className="right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modalOrders.map(o => (
+                      <tr key={o.id}>
+                        <td><button className="mo-ord-num-btn" onClick={() => openOrderDetail(o.id)}>{o.number}</button></td>
+                        <td style={{ color: '#555' }}>{o.customer || '—'}</td>
+                        <td className="right" style={{ color: '#888' }}>{o.items}</td>
+                        <td className="right" style={{ fontWeight: 600 }}>{Math.round(o.total).toLocaleString('en-GB')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order detail modal */}
+      {(selOrderLoad === 'loading' || selOrderLoad === 'done' || selOrderLoad === 'error') && (
+        <div className="mo-detail-overlay" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); }}>
+          <div className="mo-detail-modal" onClick={e => e.stopPropagation()}>
+            <div className="mo-detail-hdr">
+              <div>
+                {selOrderLoad === 'loading' && <div style={{ fontSize: 14, fontWeight: 700, color: '#2c3e50' }}>Loading order…</div>}
+                {selOrderLoad === 'error'   && <div style={{ fontSize: 14, fontWeight: 700, color: '#b0341e' }}>Error</div>}
+                {selOrderLoad === 'done' && selOrder && (
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#2c3e50', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                      Order {selOrder.number}
+                      <span className="mo-status" style={statusStyle(selOrder.status)}>{selOrder.status}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9e9087', marginTop: 3 }}>{selOrder.dateCreated}{selOrder.dateCompleted && selOrder.dateCompleted !== selOrder.dateCreated ? ` · completed ${selOrder.dateCompleted}` : ''}</div>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button className="mo-detail-back" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); }}>← Back</button>
+                <button className="mo-modal-close" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); setModal(null); }}>×</button>
+              </div>
+            </div>
+
+            <div className="mo-detail-body">
+              {selOrderLoad === 'loading' && (
+                <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>Loading…</div>
+              )}
+              {selOrderLoad === 'error' && (
+                <div style={{ padding: '16px 0', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>{selOrderErr}</div>
+              )}
+
+              {selOrderLoad === 'done' && selOrder && (<>
+
+                {/* Customer */}
+                <div>
+                  <div className="mo-section-lbl">Customer</div>
+                  <div className="mo-info-grid">
+                    <div><span>Name</span>{selOrder.customer.name || '—'}</div>
+                    <div><span>Phone</span>{selOrder.customer.phone || '—'}</div>
+                    <div style={{ gridColumn: '1 / -1' }}><span>Address</span>{selOrder.customer.address || '—'}</div>
+                    {selOrder.customer.email && <div style={{ gridColumn: '1 / -1' }}><span>Email</span>{selOrder.customer.email}</div>}
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div>
+                  <div className="mo-section-lbl">Items</div>
+                  <table className="mo-items-tbl">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th className="r" style={{ width: 36 }}>Qty</th>
+                        <th className="r" style={{ width: 80 }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selOrder.items.map((item, i) => (
+                        <tr key={i}>
+                          <td style={{ color: '#333' }}>{item.name}</td>
+                          <td className="r" style={{ color: '#888' }}>{item.quantity}</td>
+                          <td className="r" style={{ fontWeight: 600 }}>{Math.round(item.total).toLocaleString('en-GB')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals */}
+                <div className="mo-totals">
+                  {selOrder.shippingTotal > 0 && (
+                    <div className="mo-totals-row">
+                      <span>{selOrder.shippingMethod || 'Shipping'}</span>
+                      <span>{Math.round(selOrder.shippingTotal).toLocaleString('en-GB')}</span>
+                    </div>
+                  )}
+                  {selOrder.discountTotal > 0 && (
+                    <div className="mo-totals-row" style={{ color: '#27ae60' }}>
+                      <span>Discount</span>
+                      <span>− {Math.round(selOrder.discountTotal).toLocaleString('en-GB')}</span>
+                    </div>
+                  )}
+                  {selOrder.fees.map((f, i) => (
+                    <div key={i} className="mo-totals-row">
+                      <span>{f.name}</span>
+                      <span>{Math.round(f.total).toLocaleString('en-GB')}</span>
+                    </div>
+                  ))}
+                  <div className="mo-totals-grand">
+                    <span>Total</span>
+                    <span>{Math.round(selOrder.total).toLocaleString('en-GB')} EGP</span>
+                  </div>
+                </div>
+
+                {/* Payment + note */}
+                {(selOrder.paymentMethod || selOrder.customerNote) && (
+                  <div className="mo-info-grid">
+                    {selOrder.paymentMethod && <div><span>Payment</span>{selOrder.paymentMethod}</div>}
+                    {selOrder.customerNote  && <div style={{ gridColumn: '1 / -1' }}><span>Note</span>{selOrder.customerNote}</div>}
+                  </div>
+                )}
+
+              </>)}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
