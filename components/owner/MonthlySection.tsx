@@ -82,7 +82,8 @@ const STYLES = `
 .mo-prog-bar { height:6px; background:#f0ebe3; border-radius:3px; overflow:hidden; margin-top:4px; }
 .mo-prog-fill { height:100%; background:#B86E1A; border-radius:3px; transition:width 0.6s ease-in-out; }
 .mo-kpi-btn { display:block; width:100%; background:none; border:none; padding:0; cursor:pointer; font-family:inherit; text-align:center; }
-.mo-kpi-btn:hover .mo-kpi { text-decoration:underline; }
+.mo-kpi-btn .mo-kpi { text-decoration:underline; text-underline-offset:3px; }
+.mo-kpi-btn:hover .mo-kpi { opacity:0.75; }
 .mo-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
 .mo-modal { background:#fff; border-radius:16px; width:100%; max-width:580px; max-height:82vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); }
 .mo-modal-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #E8D9C4; flex-shrink:0; }
