@@ -19,6 +19,11 @@ function fmt(val: number | null): string {
   return Math.round(val / 1000).toLocaleString('en-GB');
 }
 
+function withK(s: string): React.ReactNode {
+  if (!s) return s;
+  return <>{s}<span style={{ fontSize: 9, opacity: 0.6 }}> (K)</span></>;
+}
+
 function fmtFull(val: number): string {
   return Math.round(val).toLocaleString('en-GB');
 }
@@ -38,16 +43,49 @@ const STATUS_LABEL: Record<string, string> = {
   'checkout-draft': 'Draft (abandoned checkout)',
 };
 
+const MONTH_NUM: Record<string, number> = {
+  Jan: 1, Feb: 2, Mar: 3, Apr: 4, May: 5, Jun: 6,
+  Jul: 7, Aug: 8, Sep: 9, Oct: 10, Nov: 11, Dec: 12,
+};
+
 function statusLabel(s: string): string {
   return STATUS_LABEL[s] ?? s.replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
 }
 
-/** Cancelled value ÷ value of every order placed that month. */
-function cancelShare(stats: StatusStat[] | null): number | null {
+interface StatusShares { comp: number; proc: number; other: number }
+
+/** Completed / processing / everything-else (cancelled, on-hold, draft, etc.) as whole-number % of value placed. */
+function statusShares(stats: StatusStat[] | null): StatusShares | null {
   if (!stats?.length) return null;
   const placed = stats.reduce((s, r) => s + r.total, 0);
   if (!placed) return null;
-  return ((stats.find(r => r.status === 'cancelled')?.total ?? 0) / placed) * 100;
+  const comp = Math.round(((stats.find(r => r.status === 'completed')?.total ?? 0) / placed) * 100);
+  const proc = Math.round(((stats.find(r => r.status === 'processing')?.total ?? 0) / placed) * 100);
+  return { comp, proc, other: 100 - comp - proc };
+}
+
+function StatusBar({ shares }: { shares: StatusShares }) {
+  const segs = [
+    { pct: shares.comp,  bg: '#2ecc71' },
+    { pct: shares.proc,  bg: '#2980b9' },
+    { pct: shares.other, bg: '#e74c3c' },
+  ].filter(s => s.pct > 0);
+  return (
+    <div style={{ display: 'flex', width: '100%', minWidth: 84, height: 16, borderRadius: 8, overflow: 'hidden' }}>
+      {segs.map((s, i) => (
+        <div
+          key={i}
+          style={{
+            width: `${s.pct}%`, background: s.bg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 9, fontWeight: 700, lineHeight: 1,
+          }}
+        >
+          {s.pct}%
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function salesClass(act: number | null, tgt: number) {
@@ -68,16 +106,16 @@ const STYLES = `
     text-align: center; border: 1px solid #C8AA88;
     white-space: nowrap; padding: 8px 14px; font-size: 13px;
   }
-  .goals-month-col { position: sticky; left: 0; z-index: 1; }
+  .goals-month-col { position: sticky; left: 0; z-index: 1; width: 34px; padding: 8px 6px !important; text-align: center; }
   @media (max-width: 600px) {
     .goals-tbl th, .goals-tbl td { padding: 5px 6px; font-size: 11px; }
     .goals-sub-th { font-size: 10px !important; letter-spacing: 0 !important; }
   }
 `;
 
-function Th({ children, span, rowSpan, muted, small, sticky }: {
+function Th({ children, span, rowSpan, muted, small, sticky, narrow }: {
   children: React.ReactNode; span?: number; rowSpan?: number;
-  muted?: boolean; small?: boolean; sticky?: boolean;
+  muted?: boolean; small?: boolean; sticky?: boolean; narrow?: boolean;
 }) {
   return (
     <th
@@ -89,6 +127,7 @@ function Th({ children, span, rowSpan, muted, small, sticky }: {
         color: muted ? '#7A6F65' : '#fff',
         letterSpacing: small ? '0.6px' : undefined,
         textTransform: small ? 'uppercase' : undefined,
+        padding: narrow ? '8px 6px' : undefined,
       }}
     >
       {children}
@@ -240,7 +279,7 @@ export default function GoalsSection() {
   );
 
   let tSalesTgt = 0, tSalesAct = 0, tMktTgt = 0, tMktAct = 0;
-  let tPlaced = 0, tCancelled = 0;
+  let tPlaced = 0, tComp = 0, tProc = 0;
   rows.forEach(r => {
     tSalesTgt += r.salesTgt;
     tSalesAct += r.salesAct ?? 0;
@@ -248,12 +287,20 @@ export default function GoalsSection() {
     tMktAct   += r.mktAct ?? 0;
     (r.breakdown ?? []).forEach(s => {
       tPlaced += s.total;
-      if (s.status === 'cancelled') tCancelled += s.total;
+      if (s.status === 'completed')  tComp += s.total;
+      if (s.status === 'processing') tProc += s.total;
     });
   });
-  const tCancelPct = tPlaced ? `${((tCancelled / tPlaced) * 100).toFixed(1)}%` : '—';
+  const tShares: StatusShares | null = (() => {
+    if (!tPlaced) return null;
+    const comp = Math.round((tComp / tPlaced) * 100);
+    const proc = Math.round((tProc / tPlaced) * 100);
+    return { comp, proc, other: 100 - comp - proc };
+  })();
+  const tRoas = tMktAct && tSalesAct ? Math.round(tSalesAct / tMktAct) : null;
 
   const tdBase: React.CSSProperties = { color: '#1C1A17' };
+  const tdNarrow: React.CSSProperties = { ...tdBase, padding: '8px 6px' };
   const tdMonth: React.CSSProperties = { ...tdBase, background: '#FBF5EC', color: '#7A6F65', fontWeight: 500 };
 
   return (
@@ -263,16 +310,16 @@ export default function GoalsSection() {
         <table className="goals-tbl">
           <thead>
             <tr>
-              <Th muted sticky rowSpan={2}>Month</Th>
+              <Th muted sticky rowSpan={2}>Mon</Th>
               <Th span={3}>Sales</Th>
               <Th span={2}>Marketing</Th>
             </tr>
             <tr>
-              <Th muted small>Target</Th>
-              <Th muted small>Actual *</Th>
-              <Th muted small>Cancel %</Th>
-              <Th muted small>Target</Th>
-              <Th muted small>Actual</Th>
+              <Th muted small narrow>Target</Th>
+              <Th muted small narrow>Actual *</Th>
+              <Th muted small>%</Th>
+              <Th muted small narrow>Target</Th>
+              <Th muted small narrow>Actual</Th>
             </tr>
           </thead>
           <tbody>
@@ -282,29 +329,29 @@ export default function GoalsSection() {
               const roas = r.mktAct && r.salesAct ? Math.round(r.salesAct / r.mktAct) : null;
               const rowBg = i % 2 === 0 ? '#fff' : '#fdf9f4';
               const hasBreakdown = !!r.breakdown?.length;
-              const cancelPct = cancelShare(r.breakdown);
+              const shares = statusShares(r.breakdown);
               return (
                 <tr key={r.month} style={{ background: rowBg }}>
-                  <td className="goals-month-col" style={{ ...tdMonth, background: rowBg }}>{r.month}</td>
-                  <td style={tdBase}>{fmt(r.salesTgt)}</td>
+                  <td className="goals-month-col" style={{ ...tdMonth, background: rowBg }}>{MONTH_NUM[r.month] ?? r.month}</td>
+                  <td style={tdNarrow}>{withK(fmt(r.salesTgt))}</td>
                   <td
                     onClick={() => hasBreakdown && setOpenRow(r)}
                     title={hasBreakdown ? 'Show status breakdown' : undefined}
                     style={{
-                      ...tdBase, color: COLOR[sc],
+                      ...tdNarrow, color: COLOR[sc],
                       fontWeight: sc !== 'empty' ? 500 : undefined,
                       cursor: hasBreakdown ? 'pointer' : undefined,
                       textDecoration: hasBreakdown ? 'underline dotted' : undefined,
                       textUnderlineOffset: 3,
                     }}
                   >
-                    {fmt(r.salesAct)}
+                    {withK(fmt(r.salesAct))}
                   </td>
-                  <td style={{ ...tdBase, color: cancelPct === null ? undefined : '#b0341e' }}>
-                    {cancelPct === null ? '' : `${cancelPct.toFixed(1)}%`}
+                  <td style={tdBase}>
+                    {shares && <StatusBar shares={shares} />}
                   </td>
-                  <td style={tdBase}>{fmt(r.mktTgt)}</td>
-                  <td style={{ ...tdBase, color: COLOR[mc], fontWeight: mc !== 'empty' ? 500 : undefined }}>
+                  <td style={tdNarrow}>{fmt(r.mktTgt)}</td>
+                  <td style={{ ...tdNarrow, color: COLOR[mc], fontWeight: mc !== 'empty' ? 500 : undefined }}>
                     {fmt(r.mktAct)}
                     {roas && <span style={{ fontSize: 10, opacity: 0.7 }}> ({roas}x)</span>}
                   </td>
@@ -312,11 +359,23 @@ export default function GoalsSection() {
               );
             })}
             <tr>
-              {(['Total', fmt(tSalesTgt), fmt(tSalesAct) || '—', tCancelPct, fmt(tMktTgt), fmt(tMktAct) || '—'] as string[]).map((v, i) => (
-                <td key={i} style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>
-                  {v}
-                </td>
-              ))}
+              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>Total</td>
+              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
+                {withK(fmt(tSalesTgt))}
+              </td>
+              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
+                {withK(fmt(tSalesAct)) || '—'}
+              </td>
+              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>
+                {tShares && <StatusBar shares={tShares} />}
+              </td>
+              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
+                {fmt(tMktTgt)}
+              </td>
+              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
+                {fmt(tMktAct) || '—'}
+                {tRoas && <span style={{ fontSize: 10, opacity: 0.7 }}> ({tRoas}x)</span>}
+              </td>
             </tr>
           </tbody>
         </table>
