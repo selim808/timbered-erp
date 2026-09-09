@@ -19,11 +19,6 @@ function fmt(val: number | null): string {
   return Math.round(val / 1000).toLocaleString('en-GB');
 }
 
-function withK(s: string): React.ReactNode {
-  if (!s) return s;
-  return <>{s}<span style={{ fontSize: 9, opacity: 0.6 }}> (K)</span></>;
-}
-
 function fmtFull(val: number): string {
   return Math.round(val).toLocaleString('en-GB');
 }
@@ -71,7 +66,7 @@ function StatusBar({ shares }: { shares: StatusShares }) {
     { pct: shares.other, bg: '#e74c3c' },
   ].filter(s => s.pct > 0);
   return (
-    <div style={{ display: 'flex', width: '100%', minWidth: 84, height: 16, borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', width: '100%', height: '100%', minHeight: 24, overflow: 'hidden' }}>
       {segs.map((s, i) => (
         <div
           key={i}
@@ -81,7 +76,7 @@ function StatusBar({ shares }: { shares: StatusShares }) {
             color: '#fff', fontSize: 9, fontWeight: 700, lineHeight: 1,
           }}
         >
-          {s.pct}%
+          {s.pct}
         </div>
       ))}
     </div>
@@ -101,12 +96,13 @@ function mktClass(act: number | null, tgt: number) {
 const COLOR: Record<string, string> = { good: '#2a7a3b', bad: '#b0341e', empty: '#9e9087' };
 
 const STYLES = `
-  .goals-tbl { width: 100%; border-collapse: collapse; table-layout: auto; }
+  .goals-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .goals-tbl th, .goals-tbl td {
     text-align: center; border: 1px solid #C8AA88;
     white-space: nowrap; padding: 8px 14px; font-size: 13px;
   }
-  .goals-month-col { position: sticky; left: 0; z-index: 1; width: 34px; padding: 8px 6px !important; text-align: center; }
+  .goals-tbl td { overflow: hidden; }
+  .goals-month-col { position: sticky; left: 0; z-index: 1; padding: 8px 2px !important; text-align: center; }
   @media (max-width: 600px) {
     .goals-tbl th, .goals-tbl td { padding: 5px 6px; font-size: 11px; }
     .goals-sub-th { font-size: 10px !important; letter-spacing: 0 !important; }
@@ -130,7 +126,11 @@ function Th({ children, span, rowSpan, muted, small, sticky, narrow }: {
         padding: narrow ? '8px 6px' : undefined,
       }}
     >
-      {children}
+      {sticky ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+          {children}
+        </div>
+      ) : children}
     </th>
   );
 }
@@ -308,17 +308,28 @@ export default function GoalsSection() {
       <style>{STYLES}</style>
       <div style={{ padding: '10px 12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table className="goals-tbl">
+          <colgroup>
+            <col style={{ width: '2ch' }} />
+            <col style={{ width: '5ch' }} />
+            <col style={{ width: '9ch' }} />
+            <col />
+            <col style={{ width: '5ch' }} />
+            <col style={{ width: '9ch' }} />
+          </colgroup>
           <thead>
             <tr>
-              <Th muted sticky rowSpan={2}>Mon</Th>
-              <Th span={3}>Sales</Th>
+              <Th muted sticky rowSpan={2}>
+                <span style={{ display: 'inline-block', transform: 'rotate(-90deg)', whiteSpace: 'nowrap' }}>Month</span>
+              </Th>
+              <Th span={2}>Sales</Th>
+              <Th span={1}>Operations</Th>
               <Th span={2}>Marketing</Th>
             </tr>
             <tr>
-              <Th muted small narrow>Target</Th>
+              <Th muted small narrow>Plan</Th>
               <Th muted small narrow>Actual *</Th>
-              <Th muted small>%</Th>
-              <Th muted small narrow>Target</Th>
+              <Th muted small>com | pro | can</Th>
+              <Th muted small narrow>Plan</Th>
               <Th muted small narrow>Actual</Th>
             </tr>
           </thead>
@@ -333,7 +344,7 @@ export default function GoalsSection() {
               return (
                 <tr key={r.month} style={{ background: rowBg }}>
                   <td className="goals-month-col" style={{ ...tdMonth, background: rowBg }}>{MONTH_NUM[r.month] ?? r.month}</td>
-                  <td style={tdNarrow}>{withK(fmt(r.salesTgt))}</td>
+                  <td style={tdNarrow}>{fmt(r.salesTgt)}</td>
                   <td
                     onClick={() => hasBreakdown && setOpenRow(r)}
                     title={hasBreakdown ? 'Show status breakdown' : undefined}
@@ -345,9 +356,9 @@ export default function GoalsSection() {
                       textUnderlineOffset: 3,
                     }}
                   >
-                    {withK(fmt(r.salesAct))}
+                    {fmt(r.salesAct)}
                   </td>
-                  <td style={tdBase}>
+                  <td style={{ padding: 0 }}>
                     {shares && <StatusBar shares={shares} />}
                   </td>
                   <td style={tdNarrow}>{fmt(r.mktTgt)}</td>
@@ -359,14 +370,14 @@ export default function GoalsSection() {
               );
             })}
             <tr>
-              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>Total</td>
+              <td className="goals-month-col" style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>Σ</td>
               <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
-                {withK(fmt(tSalesTgt))}
+                {fmt(tSalesTgt)}
               </td>
               <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
-                {withK(fmt(tSalesAct)) || '—'}
+                {fmt(tSalesAct) || '—'}
               </td>
-              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>
+              <td style={{ background: '#7A4610', border: '1px solid #7A4610', padding: 0 }}>
                 {tShares && <StatusBar shares={tShares} />}
               </td>
               <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
