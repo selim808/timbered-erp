@@ -6,7 +6,9 @@ import type { CompletedOrdersResponse } from '@/app/api/wc/completed-orders/rout
 // older than 5 hours. The refresh button forces a live fetch regardless.
 
 const TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
-const keyFor = (page: number) => `tg_completed_orders_p${page}_v1`;
+// Bump the version whenever the feed's shape or ordering changes, so existing
+// browsers drop their cached copy instead of serving it for up to 5 hours.
+const keyFor = (page: number) => `tg_completed_orders_p${page}_v3`;
 
 interface Cached {
   ts: number;

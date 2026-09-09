@@ -19,6 +19,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
 
+    // Most recently touched first, so orders just flipped to completed surface at
+    // the top. WooCommerce has no date_completed sort, so date_modified stands in.
     const { data, headers } = await wc.get('/orders', {
       params: { status: 'completed', orderby: 'modified', order: 'desc', per_page: PER_PAGE, page },
     });
