@@ -22,6 +22,10 @@ export interface OrderRow {
   items: number;
 }
 
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
 async function fetchAll(params: Record<string, string | number>): Promise<WCOrder[]> {
   const results: WCOrder[] = [];
   let page = 1;
@@ -38,20 +42,23 @@ async function fetchAll(params: Record<string, string | number>): Promise<WCOrde
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const date    = searchParams.get('date');    // YYYY-MM-DD — single day
-  const start   = searchParams.get('start');   // YYYY-MM-DD — range start (alt. to date)
-  const end     = searchParams.get('end');     // YYYY-MM-DD — range end (inclusive)
-  const metric  = searchParams.get('metric');  // created | completed | cancelled
+  const month  = searchParams.get('month');   // YYYY-MM
+  const metric = searchParams.get('metric');  // created | completed | cancelled
 
-  const rangeStart = date ?? start;
-  const rangeEnd   = date ?? end;
-
-  if (!rangeStart || !rangeEnd || !metric) {
-    return NextResponse.json({ error: 'Missing date or metric' }, { status: 400 });
+  if (!month || !metric) {
+    return NextResponse.json({ error: 'Missing month or metric' }, { status: 400 });
   }
 
-  const after  = `${rangeStart}T00:00:00`;
-  const before = `${rangeEnd}T23:59:59`;
+  const [year, mo] = month.split('-').map(Number);
+  if (!year || !mo) {
+    return NextResponse.json({ error: 'Invalid month' }, { status: 400 });
+  }
+
+  const lastDay = daysInMonth(year, mo);
+  const monthStart = `${year}-${String(mo).padStart(2, '0')}-01`;
+  const monthEnd   = `${year}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  const after  = `${monthStart}T00:00:00`;
+  const before = `${monthEnd}T23:59:59`;
 
   try {
     let raw: WCOrder[] = [];
@@ -61,12 +68,10 @@ export async function GET(request: Request) {
       raw = raw.filter(o => ['completed', 'cancelled', 'processing'].includes(o.status));
     } else if (metric === 'completed') {
       raw = await fetchAll({ modified_after: after, modified_before: before, status: 'completed' });
-      raw = raw.filter(o => {
-        const d = o.date_completed?.slice(0, 10) ?? '';
-        return d >= rangeStart && d <= rangeEnd;
-      });
+      raw = raw.filter(o => o.date_completed?.slice(0, 7) === month);
     } else if (metric === 'cancelled') {
       raw = await fetchAll({ modified_after: after, modified_before: before, status: 'cancelled' });
+      raw = raw.filter(o => o.date_modified?.slice(0, 7) === month);
     } else {
       return NextResponse.json({ error: 'Invalid metric' }, { status: 400 });
     }

@@ -44,6 +44,9 @@ const STYLES = `
 .wk-tbl td { text-align:center; padding:4px 6px; }
 .wk-yr-btn { padding:5px 10px; border-radius:6px; border:1.5px solid #C8AA88; background:#fff; color:#7A4610; font-size:12px; font-weight:600; cursor:pointer; }
 .wk-yr-btn.active { background:#B86E1A; color:#fff; border-color:#B86E1A; }
+.wk-kpi-btn { display:block; width:100%; background:none; border:none; padding:0; cursor:pointer; font-family:inherit; text-align:center; }
+.wk-kpi-btn .wk-kpi { text-decoration:underline; text-underline-offset:3px; }
+.wk-kpi-btn:hover .wk-kpi { opacity:0.75; }
 .wk-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; display:flex; align-items:center; justify-content:center; padding:16px; }
 .wk-modal { background:#fff; border-radius:16px; width:100%; max-width:580px; max-height:82vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); }
 .wk-modal-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #E8D9C4; flex-shrink:0; }
@@ -238,6 +241,23 @@ export default function WeeklySection() {
       .catch((e: Error) => { setModalErr(e.message); setModalLoad('error'); });
   }
 
+  function openWeekModal(metric: string, val: number) {
+    if (val <= 0 || !selWeek) return;
+    const m = metric.toLowerCase();
+    setModal({ date: '', metric: m, label: `${metric} — W${String(selWeek.weekNo).padStart(2, '0')} (${fmtDay(selWeek.startDate, { day: '2-digit', month: 'short' })} – ${fmtDay(selWeek.endDate, { day: '2-digit', month: 'short' })})` });
+    setModalLoad('loading');
+    setModalOrders([]);
+    setModalErr('');
+    fetch(`/api/weekly/orders?start=${selWeek.startDate}&end=${selWeek.endDate}&metric=${m}`)
+      .then(r => r.json())
+      .then((data: OrderRow[] | { error: string }) => {
+        if (!Array.isArray(data)) throw new Error((data as { error: string }).error);
+        setModalOrders(data);
+        setModalLoad('done');
+      })
+      .catch((e: Error) => { setModalErr(e.message); setModalLoad('error'); });
+  }
+
   const chartData = {
     labels: visibleLabels,
     datasets: [
@@ -303,13 +323,19 @@ export default function WeeklySection() {
         {/* KPI cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[
-            { label: 'Completed', val: fmt(selWeek.completed), color: '#27ae60' },
-            { label: 'Cancelled', val: fmt(selWeek.cancelled), color: '#e74c3c' },
-            { label: 'Created',   val: fmt(selWeek.created),   color: '#2563EB' },
-          ].map(({ label, val, color }) => (
+            { label: 'Completed', num: selWeek.completed, val: fmt(selWeek.completed), color: '#27ae60' },
+            { label: 'Cancelled', num: selWeek.cancelled, val: fmt(selWeek.cancelled), color: '#e74c3c' },
+            { label: 'Created',   num: selWeek.created,   val: fmt(selWeek.created),   color: '#2563EB' },
+          ].map(({ label, num, val, color }) => (
             <div key={label} className="wk-card" style={{ textAlign: 'center' }}>
               <span className="wk-label">{label}</span>
-              <div className="wk-kpi" style={{ color }}>{val}</div>
+              {num > 0 ? (
+                <button className="wk-kpi-btn" onClick={() => openWeekModal(label, num)}>
+                  <span className="wk-kpi" style={{ color }}>{val}</span>
+                </button>
+              ) : (
+                <div className="wk-kpi" style={{ color }}>{val}</div>
+              )}
             </div>
           ))}
         </div>
