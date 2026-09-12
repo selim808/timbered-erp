@@ -9,7 +9,11 @@ interface RawWcOrder {
   id: number; number: string; status: string;
   date_created: string; date_modified: string; date_completed: string | null;
   total: string; payment_method_title?: string; customer_note?: string;
+  shipping_total?: string; discount_total?: string;
+  shipping_lines?: { method_title: string }[];
+  fee_lines?: { name: string; total: string }[];
   billing?: {
+    email?: string;
     first_name?: string; last_name?: string; address_1?: string;
     address_2?: string; city?: string; state?: string; phone?: string;
   };
@@ -35,6 +39,11 @@ function normalize(o: RawWcOrder): CommerceOrder {
     total: o.total ?? '0',
     payment_method: o.payment_method_title ?? '',
     customer_note: o.customer_note ?? '',
+    email: o.billing?.email ?? '',
+    shipping_method: o.shipping_lines?.[0]?.method_title ?? '',
+    shipping_total: o.shipping_total ?? '0',
+    discount_total: o.discount_total ?? '0',
+    fee_lines: (o.fee_lines ?? []).map(f => ({ name: f.name, total: f.total })),
     billing: {
       first_name: o.billing?.first_name ?? '',
       last_name: o.billing?.last_name ?? '',

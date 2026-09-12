@@ -34,6 +34,9 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
       id name createdAt updatedAt cancelledAt closed closedAt note email phone
       paymentGatewayNames
       currentTotalPriceSet { shopMoney { amount } }
+      currentShippingPriceSet { shopMoney { amount } }
+      currentTotalDiscountsSet { shopMoney { amount } }
+      shippingLine { title }
       customer { firstName lastName phone }
       billingAddress { firstName lastName phone }
       shippingAddress { firstName lastName name phone address1 address2 city province }${lite ? '' : LINE_ITEMS_FRAGMENT}
@@ -69,6 +72,9 @@ interface RawOrder {
   note: string | null; email: string | null; phone: string | null;
   paymentGatewayNames: string[];
   currentTotalPriceSet: RawMoney;
+  currentShippingPriceSet: RawMoney | null;
+  currentTotalDiscountsSet: RawMoney | null;
+  shippingLine: { title: string | null } | null;
   customer: { firstName: string | null; lastName: string | null; phone: string | null } | null;
   billingAddress: RawAddress | null;
   shippingAddress: RawAddress | null;
@@ -159,6 +165,12 @@ function normalize(o: RawOrder): CommerceOrder {
     total: String(o.currentTotalPriceSet.shopMoney.amount),
     payment_method: (o.paymentGatewayNames ?? []).join(', '),
     customer_note: o.note ?? '',
+    email: o.email ?? '',
+    shipping_method: o.shippingLine?.title ?? '',
+    shipping_total: o.currentShippingPriceSet?.shopMoney.amount ?? '0',
+    discount_total: o.currentTotalDiscountsSet?.shopMoney.amount ?? '0',
+    // Shopify models custom charges as line items, not separate fee lines.
+    fee_lines: [],
     billing: {
       first_name: first ?? '',
       last_name: rest.join(' '),

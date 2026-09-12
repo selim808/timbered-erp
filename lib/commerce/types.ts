@@ -41,6 +41,12 @@ export interface CommerceOrder {
   total: string;
   payment_method: string;
   customer_note: string;
+  email: string;
+  shipping_method: string;
+  shipping_total: string;
+  discount_total: string;
+  /** Woo fee lines. Shopify has no equivalent, so it's always empty there. */
+  fee_lines: { name: string; total: string }[];
   billing: CommerceAddress;
   line_items: CommerceLineItem[];
 }
