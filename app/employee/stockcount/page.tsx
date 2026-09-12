@@ -148,7 +148,7 @@ export default function StockcountPage() {
       <div ref={topRef} style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', borderBottom: `1px solid ${BORDER}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${BORDER}` }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="https://timberedgroup.com/wp-content/uploads/2024/04/Asset-14.png" alt="Timbered" style={{ height: 26 }} />
+          <img src="https://timbered.me/wp-content/uploads/2024/04/Asset-14.png" alt="Timbered" style={{ height: 26 }} />
           <span style={{ fontSize: 14, fontWeight: 700, color: BROWN }}>Stockcount</span>
           <a href="/employee" style={{ marginLeft: 'auto', fontSize: 12, color: BROWN, textDecoration: 'none', border: `1px solid ${BROWN}`, borderRadius: 20, padding: '4px 12px' }}>← Back</a>
         </div>

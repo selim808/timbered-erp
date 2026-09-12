@@ -15,7 +15,7 @@ export default function EmployeePage() {
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e8ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="https://timberedgroup.com/wp-content/uploads/2024/04/Asset-14.png" alt="Timbered" style={{ height: 26 }} />
+        <img src="https://timbered.me/wp-content/uploads/2024/04/Asset-14.png" alt="Timbered" style={{ height: 26 }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: '#7A4610' }}>Employee Portal</span>
       </div>
 

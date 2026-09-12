@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'timberedgroup.com' },
+      { protocol: 'https', hostname: 'timbered.me' },
     ],
   },
   // Allow phones/tablets on the LAN to load dev assets (/_next/*, HMR socket).

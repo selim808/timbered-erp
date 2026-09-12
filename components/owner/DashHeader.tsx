@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { ownerLogout } from '@/app/actions/auth';
 
-const LOGO = 'https://timberedgroup.com/wp-content/uploads/2024/04/Asset-14.png';
+const LOGO = 'https://timbered.me/wp-content/uploads/2024/04/Asset-14.png';
 
 export default function DashHeader() {
   const [date, setDate] = useState('');
