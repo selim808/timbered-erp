@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import wc from '@/lib/woocommerce/client';
+import { fetchOrders } from '@/lib/commerce/orders';
 
 const PER_PAGE = 20;
 
@@ -42,14 +42,16 @@ function reasonFrom(o: any): string {
 export async function GET(req: Request) {
   const page = Math.max(1, Number(new URL(req.url).searchParams.get('page')) || 1);
   try {
-    const res = await wc.get('/orders', {
-      params: { status: 'cancelled', orderby: 'modified', order: 'desc', per_page: PER_PAGE, page },
-    });
+    // Merged across storefronts, so paging happens in memory rather than on a
+    // single platform's cursor.
+    const all = await fetchOrders({ status: 'cancelled' });
+    all.sort((a, b) => b.date_modified.localeCompare(a.date_modified));
 
-    const totalPages = Number(res.headers['x-wp-totalpages'] ?? 1);
-    const total = Number(res.headers['x-wp-total'] ?? res.data.length);
+    const total = all.length;
+    const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+    const pageRows = all.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-    const orders: CancelledOrder[] = (res.data ?? []).map((o: any) => ({
+    const orders: CancelledOrder[] = pageRows.map((o: any) => ({
       id: o.id,
       number: o.number,
       dateCancelled: o.date_modified,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import wc from '@/lib/woocommerce/client';
+import { fetchOrderById } from '@/lib/commerce/orders';
 
 interface StoredJOItem {
   product_id: number;
@@ -10,12 +10,6 @@ interface StoredJOItem {
   mts: { qty: number };
 }
 
-interface WcLineItem {
-  id: number;
-  product_id: number;
-  name: string;
-  quantity: number;
-}
 
 export async function POST(req: Request) {
   const { jo_plan_id, start_phase } = await req.json() as {
@@ -46,19 +40,18 @@ export async function POST(req: Request) {
     items.flatMap(i => i.mto.orders.map(o => o.order_id)).filter(Boolean)
   )];
 
-  // Fetch WC orders in parallel to build a product_id → line_item_id map per order
+  // Fetch orders in parallel to build a product_id → line_item_id map per order
   // Map: order_id → Map<product_id, line_item_id>
   const lineItemMap = new Map<number, Map<number, number>>();
   await Promise.all(orderIds.map(async orderId => {
     try {
-      const { data } = await wc.get(`/orders/${orderId}`);
+      const order = await fetchOrderById(String(orderId));
+      if (!order) return;
       const byProduct = new Map<number, number>();
-      (data.line_items ?? []).forEach((li: WcLineItem) => {
-        byProduct.set(li.product_id, li.id);
-      });
+      order.line_items.forEach(li => { byProduct.set(li.product_id, li.id); });
       lineItemMap.set(orderId, byProduct);
     } catch {
-      // If a WC fetch fails, we still proceed — line_item_id stays blank for that order
+      // If a fetch fails, we still proceed — line_item_id stays blank for that order
     }
   }));
 

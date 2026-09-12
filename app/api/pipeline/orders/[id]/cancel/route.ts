@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import wc from '@/lib/woocommerce/client';
+import { cancelOrder } from '@/lib/commerce/write';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(
@@ -16,24 +16,10 @@ export async function POST(
   }
 
   try {
-    const payload: Record<string, unknown> = { status: 'cancelled' };
+    await cancelOrder(id, reason);
 
-    if (reason) {
-      payload.meta_data = [{ key: 'cancellation_reason', value: reason }];
-
-      // Append "__<reason>" to the customer's last name so the reason is
-      // visible alongside the name. Skip if a marker is already present.
-      const { data: order } = await wc.get(`/orders/${id}`);
-      const lastName = String(order?.billing?.last_name ?? '');
-      if (!lastName.includes('__')) {
-        payload.billing = { last_name: `${lastName}__${reason}` };
-      }
-    }
-
-    await wc.put(`/orders/${id}`, payload);
-
-    // Durable CS-facing record — the WC meta_data/last-name marker above is
-    // the source of truth for WC itself, but doesn't give CS a queryable log.
+    // Durable CS-facing record — the storefront's own marker is the source of
+    // truth for the storefront, but doesn't give CS a queryable log.
     const db = createAdminClient();
     if (reason) {
       await db.from('cs_cancellations').insert({ wc_order_id: id, reason });

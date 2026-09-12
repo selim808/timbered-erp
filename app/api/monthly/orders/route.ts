@@ -1,17 +1,6 @@
 import { NextResponse } from 'next/server';
-import wcClient from '@/lib/woocommerce/client';
-
-interface WCOrder {
-  id: number;
-  number: string;
-  status: string;
-  total: string;
-  date_created: string;
-  date_completed: string | null;
-  date_modified: string;
-  billing: { first_name: string; last_name: string };
-  line_items: { quantity: number }[];
-}
+import { fetchOrders } from '@/lib/commerce/orders';
+import type { CommerceOrder } from '@/lib/commerce/types';
 
 export interface OrderRow {
   id: number;
@@ -24,20 +13,6 @@ export interface OrderRow {
 
 function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
-}
-
-async function fetchAll(params: Record<string, string | number>): Promise<WCOrder[]> {
-  const results: WCOrder[] = [];
-  let page = 1;
-  while (true) {
-    const res = await wcClient.get('/orders', { params: { ...params, per_page: 100, page } });
-    const batch = res.data as WCOrder[];
-    if (!batch.length) break;
-    results.push(...batch);
-    if (batch.length < 100) break;
-    page++;
-  }
-  return results;
 }
 
 export async function GET(request: Request) {
@@ -61,16 +36,16 @@ export async function GET(request: Request) {
   const before = `${monthEnd}T23:59:59`;
 
   try {
-    let raw: WCOrder[] = [];
+    let raw: CommerceOrder[] = [];
 
     if (metric === 'created') {
-      raw = await fetchAll({ after, before, status: 'any', orderby: 'date', order: 'desc' });
+      raw = await fetchOrders({ after, before });
       raw = raw.filter(o => ['completed', 'cancelled', 'processing'].includes(o.status));
     } else if (metric === 'completed') {
-      raw = await fetchAll({ modified_after: after, modified_before: before, status: 'completed' });
+      raw = await fetchOrders({ status: 'completed', modifiedAfter: after, modifiedBefore: before });
       raw = raw.filter(o => o.date_completed?.slice(0, 7) === month);
     } else if (metric === 'cancelled') {
-      raw = await fetchAll({ modified_after: after, modified_before: before, status: 'cancelled' });
+      raw = await fetchOrders({ status: 'cancelled', modifiedAfter: after, modifiedBefore: before });
       raw = raw.filter(o => o.date_modified?.slice(0, 7) === month);
     } else {
       return NextResponse.json({ error: 'Invalid metric' }, { status: 400 });

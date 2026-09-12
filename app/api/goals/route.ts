@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import wcClient from '@/lib/woocommerce/client';
+import { fetchOrders } from '@/lib/commerce/orders';
 
 // Aug–Dec ramps linearly from 700K to 1M (+75K/month).
 const SALES_TGT: Record<string, number> = {
@@ -25,22 +25,8 @@ async function fetchMonthOrders(year: number, month: number): Promise<StatusStat
   const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, '0');
   const after  = `${year}-${mm}-01T00:00:00`;
   const before = `${year}-${mm}-${lastDay}T23:59:59`;
-  const baseParams = {
-    per_page: 100, after, before,
-    status: 'any',
-    _fields: 'total,status',
-  };
 
-  const first = await wcClient.get('/orders', { params: { ...baseParams, page: 1 } });
-  const pages = parseInt(first.headers['x-wp-totalpages'] ?? '1', 10);
-
-  const rest = pages > 1
-    ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) =>
-        wcClient.get('/orders', { params: { ...baseParams, page: i + 2 } })
-      ))
-    : [];
-
-  const all = [first, ...rest].flatMap(r => r.data as { total: string; status: string }[]);
+  const all = await fetchOrders({ after, before, lite: true });
 
   const byStatus = new Map<string, StatusStat>();
   for (const o of all) {

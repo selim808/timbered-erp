@@ -1,26 +1,15 @@
 import { NextResponse } from 'next/server';
-import wc from '@/lib/woocommerce/client';
+import { reactivateOrder } from '@/lib/commerce/write';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-// POST: move a cancelled order back to processing. Reverts the "__<reason>"
-// suffix on the customer's last name and clears the cancellation_reason meta,
-// so reactivating fully undoes the cancel.
+// POST: move a cancelled order back to processing.
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   try {
-    const { data: order } = await wc.get(`/orders/${id}`);
-    const lastName = String(order?.billing?.last_name ?? '');
-    const idx = lastName.indexOf('__');
-    const cleanLast = idx === -1 ? lastName : lastName.slice(0, idx);
-
-    await wc.put(`/orders/${id}`, {
-      status: 'processing',
-      ...(idx === -1 ? {} : { billing: { last_name: cleanLast } }),
-      meta_data: [{ key: 'cancellation_reason', value: '' }],
-    });
+    await reactivateOrder(id);
 
     await createAdminClient().rpc('cs_set_order_status', {
       p_wc_order_id: id,

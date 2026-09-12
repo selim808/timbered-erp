@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import wc from '@/lib/woocommerce/client';
+import { completeOrder } from '@/lib/commerce/write';
 
 export async function POST(
   _req: Request,
@@ -7,7 +7,7 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
-    await wc.put(`/orders/${id}`, { status: 'completed' });
+    await completeOrder(id);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

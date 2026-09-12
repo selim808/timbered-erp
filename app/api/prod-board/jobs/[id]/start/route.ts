@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import wc from '@/lib/woocommerce/client';
+import { fetchOrderById } from '@/lib/commerce/orders';
 
 export async function POST(
   req: Request,
@@ -18,13 +18,14 @@ export async function POST(
     .from('job_orders').select('*').eq('id', id).single();
   if (joErr || !jo) return NextResponse.json({ error: 'Job order not found' }, { status: 404 });
 
-  // Fetch WC order to get line items
+  // Fetch the order to get line items
   let lineItems: any[] = [];
   try {
-    const { data: wcOrder } = await wc.get(`/orders/${jo.wc_order_id}`);
-    lineItems = wcOrder.line_items ?? [];
+    const order = await fetchOrderById(String(jo.wc_order_id));
+    if (!order) return NextResponse.json({ error: `Order ${jo.wc_order_id} not found` }, { status: 404 });
+    lineItems = order.line_items;
   } catch {
-    return NextResponse.json({ error: `Failed to fetch WC order ${jo.wc_order_id}` }, { status: 502 });
+    return NextResponse.json({ error: `Failed to fetch order ${jo.wc_order_id}` }, { status: 502 });
   }
 
   // Create production card (card_number = 1 since it's the first)

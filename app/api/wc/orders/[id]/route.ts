@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import wc from '@/lib/woocommerce/client';
+import { fetchOrderById } from '@/lib/commerce/orders';
 
 export async function GET(
   _req: Request,
@@ -7,26 +7,29 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const { data } = await wc.get(`/orders/${id}`);
-    const b = data.billing ?? {};
+    const order = await fetchOrderById(id);
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+
+    const b = order.billing;
     return NextResponse.json({
-      id: data.id,
-      status: data.status,
-      dateCreated: (data.date_created ?? '').replace('T', ' ').slice(0, 16),
+      id: order.id,
+      source: order.source,
+      status: order.status,
+      dateCreated: (order.date_created ?? '').replace('T', ' ').slice(0, 16),
       customer: {
         name:    [b.first_name, b.last_name].filter(Boolean).join(' '),
-        phone:   b.phone ?? '',
+        phone:   b.phone,
         address: [b.address_1, b.address_2, b.city].filter(Boolean).join(', '),
       },
-      lineItems: (data.line_items ?? []).map((li: { id: number; name: string; quantity: number; total: string }) => ({
+      lineItems: order.line_items.map(li => ({
         id:       li.id,
         name:     li.name,
         quantity: li.quantity,
         total:    li.total,
       })),
-      total:    data.total,
-      currency: data.currency ?? 'EGP',
-      note:     data.customer_note ?? '',
+      total:    order.total,
+      currency: 'EGP',
+      note:     order.customer_note,
     });
   } catch (e: unknown) {
     return NextResponse.json(

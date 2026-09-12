@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import wc from '@/lib/woocommerce/client';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { mapOrderBase } from '@/lib/woocommerce/orders';
+import { fetchOrders } from '@/lib/commerce/orders';
+import { mapOrderBase } from '@/lib/commerce/map';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
+
+export const maxDuration = 60;
 
 const PER_PAGE = 50;
 
@@ -19,17 +21,19 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
 
-    // Most recently touched first, so orders just flipped to completed surface at
-    // the top. WooCommerce has no date_completed sort, so date_modified stands in.
-    const { data, headers } = await wc.get('/orders', {
-      params: { status: 'completed', orderby: 'modified', order: 'desc', per_page: PER_PAGE, page },
-    });
+    // Two storefronts can't share one server-side cursor, so the merged feed is
+    // sorted and paged in memory. Most recently touched first, so orders just
+    // flipped to completed surface at the top.
+    const completed = await fetchOrders({ status: 'completed' });
+    completed.sort((a, b) =>
+      (b.date_completed ?? b.date_modified).localeCompare(a.date_completed ?? a.date_modified));
 
-    const total      = parseInt(headers['x-wp-total']      ?? '0', 10) || 0;
-    const totalPages = parseInt(headers['x-wp-totalpages'] ?? '1', 10) || 1;
+    const total      = completed.length;
+    const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+    const data       = completed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
     const db = createAdminClient();
-    const orderIds = data.map((o: any) => String(o.id));
+    const orderIds = data.map(o => String(o.id));
 
     const { data: phaseRows } = await db
       .from('item_phase')

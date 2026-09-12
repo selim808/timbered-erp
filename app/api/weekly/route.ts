@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server';
-import wcClient from '@/lib/woocommerce/client';
+import { fetchOrders } from '@/lib/commerce/orders';
 
 export const maxDuration = 60;
-
-interface WCOrder {
-  status: string;
-  total: string;
-  date_created: string;
-  date_completed: string | null;
-  date_modified: string;
-}
 
 interface DayData { completed: number; cancelled: number; created: number; }
 
@@ -82,22 +74,7 @@ export async function GET() {
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const after = oneYearAgo.toISOString().split('T')[0] + 'T00:00:00';
 
-    const fields = 'status,total,date_created,date_completed,date_modified';
-    const baseParams = { per_page: 100, after, orderby: 'date', order: 'desc', _fields: fields };
-
-    const first = await wcClient.get('/orders', { params: { ...baseParams, page: 1 } });
-    const totalPages = parseInt(first.headers['x-wp-totalpages'] ?? '1', 10);
-
-    const rest = totalPages > 1
-      ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) =>
-          wcClient.get('/orders', { params: { ...baseParams, page: i + 2 } })
-        ))
-      : [];
-
-    const allOrders: WCOrder[] = [
-      ...(first.data as WCOrder[]),
-      ...rest.flatMap(r => r.data as WCOrder[]),
-    ];
+    const allOrders = await fetchOrders({ after, lite: true });
 
     const weekMap: Record<string, WeekEntry> = {};
 

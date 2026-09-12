@@ -1,13 +1,5 @@
 import { NextResponse } from 'next/server';
-import wcClient from '@/lib/woocommerce/client';
-
-interface WCOrder {
-  status: string;
-  total: string;
-  date_created: string;
-  date_completed: string | null;
-  date_modified: string;
-}
+import { fetchOrders } from '@/lib/commerce/orders';
 
 export interface WeekInMonth {
   key: string;       // "2025-W18"
@@ -99,21 +91,7 @@ export async function GET() {
     threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
     const after = threeYearsAgo.toISOString().split('T')[0] + 'T00:00:00';
 
-    const first = await wcClient.get('/orders', {
-      params: { per_page: 100, after, orderby: 'date', order: 'desc', page: 1 },
-    });
-    const totalPages = parseInt(first.headers['x-wp-totalpages'] ?? '1', 10);
-
-    const rest = totalPages > 1
-      ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) =>
-          wcClient.get('/orders', { params: { per_page: 100, after, orderby: 'date', order: 'desc', page: i + 2 } })
-        ))
-      : [];
-
-    const allOrders: WCOrder[] = [
-      ...(first.data as WCOrder[]),
-      ...rest.flatMap(r => r.data as WCOrder[]),
-    ];
+    const allOrders = await fetchOrders({ after, lite: true });
 
     const monthMap: Record<string, MonthEntry> = {};
 

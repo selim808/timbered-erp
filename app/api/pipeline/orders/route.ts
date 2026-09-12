@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { fetchAllOrders, mapOrderBase } from '@/lib/woocommerce/orders';
+import { fetchOrders } from '@/lib/commerce/orders';
+import { mapOrderBase } from '@/lib/commerce/map';
+import type { CommerceSource } from '@/lib/commerce/types';
 
 export interface PipelineLineItem {
   id: number;
@@ -18,6 +20,7 @@ export interface PipelineLineItem {
 export interface PipelineOrder {
   id: number;
   number: string;
+  source: CommerceSource;
   dateCreated: string;
   customerName: string;
   customerPhone: string;
@@ -36,10 +39,10 @@ export interface PipelineOrder {
 
 export async function GET() {
   try {
-    const wcOrders = await fetchAllOrders({ status: 'processing', orderby: 'date', order: 'desc' });
+    const wcOrders = await fetchOrders({ status: 'processing' });
     const db = createAdminClient();
 
-    const orderIds = wcOrders.map((o: any) => String(o.id));
+    const orderIds = wcOrders.map(o => String(o.id));
 
     const { data: phaseRows } = await db
       .from('item_phase')

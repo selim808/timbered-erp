@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { fetchAllOrders, mapOrderBase } from '@/lib/woocommerce/orders';
+import { fetchOrders } from '@/lib/commerce/orders';
+import { mapOrderBase } from '@/lib/commerce/map';
 import type { PipelineLineItem } from '@/app/api/pipeline/orders/route';
 
 export interface CsLineItem extends PipelineLineItem {
@@ -41,7 +42,7 @@ export interface CsOrder {
 // mirroring item_phase's auto-seed in app/api/pipeline/orders/route.ts.
 export async function GET() {
   try {
-    const wcOrders = await fetchAllOrders({ status: 'processing', orderby: 'date', order: 'desc' });
+    const wcOrders = await fetchOrders({ status: 'processing' });
     const db = createAdminClient();
     const orderIds = wcOrders.map((o: any) => String(o.id));
 
