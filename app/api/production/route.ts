@@ -7,13 +7,13 @@ interface Phase {
 }
 
 // ── WIP breakdown source ────────────────────────────────────────────
-// The WIP phases/values live in a Google Sheet, range A2:B32
+// The WIP phases/values live in a Google Sheet, range A2:B35
 // (col A = phase name, col B = value). We read it via the gviz endpoint so we
 // get the raw cell values and the exact range. Sheet id/gid are overridable via
 // env but default to the production sheet so no extra Vercel config is needed.
 const SHEET_ID    = process.env.PROD_SHEET_ID  ?? '1nWXrJVPPjGtq7Om4c1FDlKw8vDJ_IGsE76avg2V0c-o';
 const SHEET_GID   = process.env.PROD_SHEET_GID ?? '810319678';
-const SHEET_RANGE = 'A2:B32';
+const SHEET_RANGE = 'A2:B35';
 
 async function fetchPhases(): Promise<Phase[]> {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}&range=${SHEET_RANGE}`;
