@@ -115,8 +115,8 @@ const STYLES = `
 .fin-exp-name { font-size:13px; font-weight:600; color:#555; }
 .fin-exp-name b { color:#333; font-weight:800; }
 .fin-exp-pcts { display:flex; flex-shrink:0; }
-.fin-exp-pcts span { width:52px; text-align:right; font-size:13px; font-weight:700; color:#333; }
-.fin-exp-head span { width:52px; text-align:right; font-size:9px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.3px; }
+.fin-exp-pcts span { width:46px; text-align:right; font-size:13px; font-weight:700; color:#333; }
+.fin-exp-head span { width:46px; text-align:right; font-size:9px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.3px; }
 .fin-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .fin-tbl th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.8px; color:#9e9087; font-weight:700; padding:0 8px 10px; }
 .fin-tbl th:not(:first-child) { text-align:right; }
@@ -193,7 +193,9 @@ export default function FinanceSection() {
   const opmNo   = Math.round((d.Total_Orders_No    || 0) / dur);
   const opmVal  = Math.round((d.Total_Orders_Value || 0) / dur);
 
-  const ordersVal = d.Total_Orders_Value || 0;
+  // Gross = all orders placed in the round; Net = processing + completed only.
+  const grossOrders = d.Total_Orders_Value || 0;
+  const netOrders   = (d.Processing_Value || 0) + (d.Completed_Value || 0);
   const expRows = [
     { label: 'COGS',      color: C.cogs,      val: d.COGS_Value      || 0 },
     { label: 'Marketing', color: C.marketing, val: d.MRK_Value        || 0 },
@@ -204,20 +206,25 @@ export default function FinanceSection() {
     ...r,
     pctCash:  pct(r.val, cashIn),
     pctExp:   pct(r.val, exp),
-    pctOrder: pct(r.val, ordersVal),
+    pctGross: pct(r.val, grossOrders),
+    pctNet:   pct(r.val, netOrders),
   }));
+  // Profit = what's left of net orders after all expense categories above.
+  const profitVal = netOrders - expRows.reduce((acc, r) => acc + r.val, 0);
+  const profitPct = 100 - expRows.reduce((acc, r) => acc + r.pctNet, 0);
 
   const startDateStr = d.Start_Date
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'N/A';
 
-  // Three stacked bars — one per base (Cash In, Expenses, Orders). Each bar is
-  // stacked by category, so a segment is that category's % of the base.
+  // Four stacked bars — one per base (Cash In, Expenses, Gross Orders, Net
+  // Orders). Each bar is stacked by category, so a segment is that category's
+  // % of the base.
   const chartData = {
-    labels: ['% Cash In', '% Expenses', '% Orders'],
+    labels: ['% Cash In', '% Expenses', '% Gross Orders', '% Net Orders'],
     datasets: expRows.map(e => ({
       label: e.label,
-      data: [e.pctCash, e.pctExp, e.pctOrder],
+      data: [e.pctCash, e.pctExp, e.pctGross, e.pctNet],
       backgroundColor: e.color,
       borderWidth: 1, borderColor: '#fff',
     })),
@@ -348,7 +355,8 @@ export default function FinanceSection() {
             <div className="fin-exp-pcts">
               <span>% Cash</span>
               <span>% Exp</span>
-              <span>% Order</span>
+              <span>% Gross</span>
+              <span>% Net</span>
             </div>
           </div>
           <ul className="fin-exp-list">
@@ -361,12 +369,25 @@ export default function FinanceSection() {
                 <div className="fin-exp-pcts">
                   <span>{e.pctCash}%</span>
                   <span>{e.pctExp}%</span>
-                  <span>{e.pctOrder}%</span>
+                  <span>{e.pctGross}%</span>
+                  <span>{e.pctNet}%</span>
                 </div>
               </li>
             ))}
+            <li className="fin-exp-item" style={{ borderTop: '1px solid #eee' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: profitVal >= 0 ? C.good : C.bad, flexShrink: 0 }} />
+                <span className="fin-exp-name">Profit: <b style={{ color: profitVal >= 0 ? C.good : C.bad }}>{fmtK(profitVal)}</b></span>
+              </div>
+              <div className="fin-exp-pcts">
+                <span style={{ color: '#ccc' }}>–</span>
+                <span style={{ color: '#ccc' }}>–</span>
+                <span style={{ color: '#ccc' }}>–</span>
+                <span style={{ color: profitPct >= 0 ? C.good : C.bad }}>{profitPct}%</span>
+              </div>
+            </li>
           </ul>
-          <div style={{ position: 'relative', height: 200, width: '100%', marginTop: 16 }}>
+          <div style={{ position: 'relative', height: 240, width: '100%', marginTop: 16 }}>
             <Bar data={chartData} options={chartOptions} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11, color: '#888', fontWeight: 600 }}>
