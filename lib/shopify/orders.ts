@@ -31,7 +31,8 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
   orders(first: $first, after: $cursor, query: $q, sortKey: CREATED_AT, reverse: true) {
     pageInfo { hasNextPage endCursor }
     nodes {
-      id name createdAt updatedAt cancelledAt closed closedAt note email phone
+      id name createdAt updatedAt cancelledAt cancelReason closed closedAt note email phone
+      cancellation { staffNote }
       paymentGatewayNames
       currentTotalPriceSet { shopMoney { amount } }
       currentShippingPriceSet { shopMoney { amount } }
@@ -68,7 +69,9 @@ interface RawAddress {
 }
 interface RawOrder {
   id: string; name: string; createdAt: string; updatedAt: string;
-  cancelledAt: string | null; closed: boolean; closedAt: string | null;
+  cancelledAt: string | null; cancelReason: string | null;
+  cancellation: { staffNote: string | null } | null;
+  closed: boolean; closedAt: string | null;
   note: string | null; email: string | null; phone: string | null;
   paymentGatewayNames: string[];
   currentTotalPriceSet: RawMoney;
@@ -85,6 +88,21 @@ interface RawOrder {
 function gidNumber(gid: string | null | undefined): number {
   if (!gid) return 0;
   return Number(gid.split('/').pop()) || 0;
+}
+
+/** Shopify's cancellation buckets, as the ERP shows them. */
+const CANCEL_REASONS: Record<string, string> = {
+  CUSTOMER: 'Customer', DECLINED: 'Declined', FRAUD: 'Fraud',
+  INVENTORY: 'Inventory', STAFF: 'Staff error', OTHER: 'Other',
+};
+
+/** The staff note is the specific reason; the enum is the bucket it fell into. */
+function cancelReasonOf(o: RawOrder): string | null {
+  if (!o.cancelledAt) return null;
+  const note  = (o.cancellation?.staffNote ?? '').trim();
+  const label = o.cancelReason ? (CANCEL_REASONS[o.cancelReason] ?? o.cancelReason) : '';
+  if (note && label) return `${label} — ${note}`;
+  return note || label || null;
 }
 
 function statusFilter(status: CommerceStatus | undefined): string | null {
@@ -162,6 +180,8 @@ function normalize(o: RawOrder): CommerceOrder {
     date_created: o.createdAt,
     date_modified: o.updatedAt,
     date_completed: o.closedAt,
+    date_cancelled: o.cancelledAt,
+    cancel_reason: cancelReasonOf(o),
     total: String(o.currentTotalPriceSet.shopMoney.amount),
     payment_method: (o.paymentGatewayNames ?? []).join(', '),
     customer_note: o.note ?? '',

@@ -38,6 +38,10 @@ export interface CommerceOrder {
   date_created: string;
   date_modified: string;
   date_completed: string | null;
+  /** Shopify cancellation time. Woo has no such field, so it falls back to date_modified. */
+  date_cancelled: string | null;
+  /** Why the order was cancelled. Shopify only — Woo records no reason. */
+  cancel_reason: string | null;
   total: string;
   payment_method: string;
   customer_note: string;

@@ -36,6 +36,11 @@ function normalize(o: RawWcOrder): CommerceOrder {
     date_created: o.date_created,
     date_modified: o.date_modified,
     date_completed: o.date_completed,
+    // Woo records no cancellation timestamp; the last edit is the closest proxy.
+    date_cancelled: o.status === 'cancelled' ? o.date_modified : null,
+    // Woo keeps no cancellation reason on the order; it only ever lives in the
+    // per-order notes endpoint, which is a request each.
+    cancel_reason: null,
     total: o.total ?? '0',
     payment_method: o.payment_method_title ?? '',
     customer_note: o.customer_note ?? '',

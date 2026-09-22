@@ -34,6 +34,10 @@ export interface PipelineOrder {
   // Set only for the After-Sales / Follow-up (completed orders) feed:
   completedDaysAgo?: number; // days since the order was completed
   leadTimeDays?: number;     // days from order creation to completion
+  // Set only for the After-Sales / Cancelled feed:
+  cancelledDaysAgo?: number; // days since the order was cancelled
+  daysToCancel?: number;     // days from order creation to cancellation
+  cancelReason?: string;     // Shopify only; Woo records no reason
   lineItems: PipelineLineItem[];
 }
 

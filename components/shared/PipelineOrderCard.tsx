@@ -139,7 +139,12 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
         {bulkMode && (
           <GroupCheckbox keys={groupKeys} selectedItems={selectedItems} onToggleGroup={onToggleGroup} />
         )}
-        {o.completedDaysAgo != null && o.leadTimeDays != null ? (
+        {o.cancelledDaysAgo != null && o.daysToCancel != null ? (
+          <span className="poc-days poc-cancelled"
+            title={`Cancelled ${o.cancelledDaysAgo} day(s) ago · placed → cancelled in ${o.daysToCancel} day(s)`}>
+            {o.cancelledDaysAgo}C,{o.daysToCancel}TC
+          </span>
+        ) : o.completedDaysAgo != null && o.leadTimeDays != null ? (
           <span className="poc-days poc-done"
             title={`Completed ${o.completedDaysAgo} day(s) ago · Lead time ${o.leadTimeDays} day(s)`}>
             {o.completedDaysAgo}C,{o.leadTimeDays}LT
@@ -150,7 +155,10 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
         <span className="poc-num" onClick={e => { e.stopPropagation(); onOpenDetail(); }}>
           {o.number}
         </span>
-        <span className="poc-name">{o.customerName}</span>
+        <span className="poc-name" title={o.cancelReason ? `${o.customerName} | ${o.cancelReason}` : undefined}>
+          {o.customerName}
+          {o.cancelReason && <span className="poc-reason"> | {o.cancelReason}</span>}
+        </span>
         <span className="poc-total">{fmtPrice(o.total)}</span>
         {wp && (
           <>
@@ -218,9 +226,11 @@ export const PIPELINE_ORDER_CARD_STYLES = `
   .poc-days.warn { background:#e67e22; }
   .poc-days.urgent { background:#e74c3c; }
   .poc-days.poc-done { background:#16A34A; }
+  .poc-days.poc-cancelled { background:#e74c3c; }
   .poc-num { font-size:11px; font-weight:700; color:#7A4610; flex-shrink:0; cursor:pointer; }
   .poc-num:hover { text-decoration:underline; }
   .poc-name { font-size:13px; font-weight:700; color:#222; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .poc-reason { font-weight:600; color:#c0392b; }
   .poc-total { font-size:13px; font-weight:700; color:#7A4610; flex-shrink:0; white-space:nowrap; }
   .poc-wa { display:flex; align-items:center; flex-shrink:0; background:none; border:none; padding:0; cursor:pointer; }
   .poc-wa:hover { opacity:.8; }

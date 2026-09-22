@@ -8,31 +8,56 @@ import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
 import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
-import { readCompletedCache, writeCompletedCache, fetchCompletedOrders } from '@/lib/completedOrdersCache';
-import type { CompletedOrdersResponse } from '@/app/api/wc/completed-orders/route';
+import {
+  readFeedCache, writeFeedCache, fetchFeedOrders,
+  type OrdersFeed, type OrdersFeedResponse,
+} from '@/lib/ordersFeedCache';
 
 const AFTER_SALES_GROUP = 'After-Sales';
 const FOLLOWUP_PHASE    = 'Follow-up';
+// Cancelled orders are a read-only feed, not a phase items get moved into, so
+// the tab sits beside Follow-up without a row in the phases table.
+const CANCELLED_TAB     = 'Cancelled';
 
 // Short divider that fits a phone screen (box-drawing line)
 const WA_SEPARATOR = '─────────';
 
-function arabicBlock(): string {
+// Follow-up asks a delivered customer for feedback; Cancelled tries to win the
+// customer back, so each tab sends its own message.
+type WaTemplate = 'feedback' | 'retention';
+
+function arabicBlock(template: WaTemplate): string {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير يا فندم' : 'مساء الخير يا فندم';
+  const body = template === 'feedback'
+    ? 'حابين نعرف رأى حضرتك فى المنتج و الخدمة'
+    : `لاحظنا إن طلب حضرتك اتلغى، و حابين نعرف السبب عشان نقدر نخدم حضرتك بشكل أفضل
+
+لو حضرتك حابب نساعدك تختار قطعة تانية أو نظبط معاد تسليم يناسب حضرتك، إحنا تحت أمرك
+
+و عندنا عرض خاص لحضرتك لو حبيت تكمل طلبك معانا`;
   return `${greeting}
 
-حابين نعرف رأى حضرتك فى المنتج و الخدمة`;
+${body}`;
 }
 
-const ENGLISH_BLOCK = `Hello,
+const ENGLISH_BLOCKS: Record<WaTemplate, string> = {
+  feedback: `Hello,
 
-we would like to know your feedback on product and service`;
+we would like to know your feedback on product and service`,
+  retention: `Hello,
 
-function buildWaMessage(arabic: boolean, english: boolean): string {
+we noticed that your order was cancelled, and we would like to know the reason so we can serve you better.
+
+If you would like us to help you pick another piece, or arrange a delivery date that suits you, we are here for you.
+
+We also have a special offer for you if you would like to place your order again.`,
+};
+
+function buildWaMessage(template: WaTemplate, arabic: boolean, english: boolean): string {
   const parts: string[] = [];
-  if (arabic) parts.push(arabicBlock());
-  if (english) parts.push(ENGLISH_BLOCK);
+  if (arabic) parts.push(arabicBlock(template));
+  if (english) parts.push(ENGLISH_BLOCKS[template]);
   return parts.join(`\n${WA_SEPARATOR}\n`);
 }
 
@@ -58,16 +83,21 @@ export default function PhaseGroupPage() {
   const [toast, setToast]             = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Completed-orders feed (After-Sales → Follow-up tab)
-  const [completedOrders, setCompletedOrders]         = useState<PipelineOrder[]>([]);
-  const [completedPage, setCompletedPage]             = useState(1);
-  const [completedTotalPages, setCompletedTotalPages] = useState(1);
-  const [completedTotal, setCompletedTotal]           = useState(0);
-  const [completedLoading, setCompletedLoading]       = useState(false);
-  const [completedError, setCompletedError]           = useState('');
+  // Closed-order feeds (After-Sales → Follow-up = completed, Cancelled = cancelled)
+  const [feedOrders, setFeedOrders]         = useState<PipelineOrder[]>([]);
+  const [feedPage, setFeedPage]             = useState(1);
+  const [feedTotalPages, setFeedTotalPages] = useState(1);
+  const [feedTotals, setFeedTotals]         = useState<Partial<Record<OrdersFeed, number>>>({});
+  const [feedLoading, setFeedLoading]       = useState(false);
+  const [feedError, setFeedError]           = useState('');
 
-  const isFollowupTab =
-    group?.name === AFTER_SALES_GROUP && activePhase === FOLLOWUP_PHASE;
+  const isAfterSales = group?.name === AFTER_SALES_GROUP;
+  const feed: OrdersFeed | null =
+    !isAfterSales                    ? null
+      : activePhase === FOLLOWUP_PHASE ? 'completed'
+      : activePhase === CANCELLED_TAB  ? 'cancelled'
+      : null;
+  const waTemplate: WaTemplate = feed === 'cancelled' ? 'retention' : 'feedback';
 
   function showToast(msg: string) {
     setToast(msg);
@@ -75,7 +105,7 @@ export default function PhaseGroupPage() {
     toastTimer.current = setTimeout(() => setToast(''), 2500);
   }
 
-  // WA button on a Follow-up order. Ar/En go straight to WhatsApp; Other opens
+  // WA button on a feed order. Ar/En go straight to WhatsApp; Other opens
   // the popup so the languages can be combined/customised.
   function handleWaClick(o: PipelineOrder) {
     if (waMode === 'other') {
@@ -85,7 +115,7 @@ export default function PhaseGroupPage() {
       return;
     }
     if (!o.customerPhone) { showToast('No phone number'); return; }
-    const msg = buildWaMessage(waMode === 'ar', waMode === 'en');
+    const msg = buildWaMessage(waTemplate, waMode === 'ar', waMode === 'en');
     const href = `https://wa.me/${waPhone(o.customerPhone)}?text=${encodeURIComponent(msg)}`;
     window.open(href, '_blank', 'noopener,noreferrer');
   }
@@ -113,51 +143,66 @@ export default function PhaseGroupPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Reset to page 1 whenever the user switches into the Follow-up tab
+  // Tab badges for both feeds come from whatever is already cached, so the tab
+  // the user hasn't opened yet still shows its count.
   useEffect(() => {
-    if (isFollowupTab) setCompletedPage(1);
-  }, [isFollowupTab]);
+    if (!isAfterSales) return;
+    const seeded: Partial<Record<OrdersFeed, number>> = {};
+    (['completed', 'cancelled'] as OrdersFeed[]).forEach(f => {
+      const c = readFeedCache(f, 1);
+      if (c) seeded[f] = Number(c.data.total) || 0;
+    });
+    setFeedTotals(t => ({ ...seeded, ...t }));
+  }, [isAfterSales]);
 
-  const applyCompleted = useCallback((d: CompletedOrdersResponse) => {
-    setCompletedOrders(Array.isArray(d.orders) ? d.orders : []);
-    setCompletedTotalPages(Number(d.totalPages) || 1);
-    setCompletedTotal(Number(d.total) || 0);
+  // Reset to page 1 whenever the user switches feeds
+  useEffect(() => {
+    if (feed) setFeedPage(1);
+  }, [feed]);
+
+  const applyFeed = useCallback((f: OrdersFeed, d: OrdersFeedResponse) => {
+    setFeedOrders(Array.isArray(d.orders) ? d.orders : []);
+    setFeedTotalPages(Number(d.totalPages) || 1);
+    setFeedTotals(t => ({ ...t, [f]: Number(d.total) || 0 }));
   }, []);
 
-  // Load completed orders for a page. Serves the cached copy instantly and only
-  // hits the network when the cache is missing/stale (>5h) or a refresh is forced.
-  const loadCompleted = useCallback((page: number, opts?: { force?: boolean }) => {
+  // Load one page of a feed. Serves the cached copy instantly and only hits the
+  // network when the cache is missing/stale (>5h) or a refresh is forced.
+  const loadFeed = useCallback((f: OrdersFeed, page: number, opts?: { force?: boolean }) => {
     const force = opts?.force ?? false;
-    setCompletedError('');
+    setFeedError('');
 
-    const cached = force ? null : readCompletedCache(page);
+    const cached = force ? null : readFeedCache(f, page);
     if (cached) {
-      applyCompleted(cached.data);
-      setCompletedLoading(false);
+      applyFeed(f, cached.data);
+      setFeedLoading(false);
       if (!cached.stale) return;            // fresh enough — no network
       // Stale: quietly refresh in the background, keep showing cache.
-      fetchCompletedOrders(page)
-        .then(d => { writeCompletedCache(page, d); applyCompleted(d); })
+      fetchFeedOrders(f, page)
+        .then(d => { writeFeedCache(f, page, d); applyFeed(f, d); })
         .catch(() => {});
       return;
     }
 
     // No cache (or forced refresh): live fetch with the loading state.
-    setCompletedLoading(true);
-    fetchCompletedOrders(page)
-      .then(d => { writeCompletedCache(page, d); applyCompleted(d); })
-      .catch((e: Error) => setCompletedError(e.message))
-      .finally(() => setCompletedLoading(false));
-  }, [applyCompleted]);
+    setFeedLoading(true);
+    fetchFeedOrders(f, page)
+      .then(d => { writeFeedCache(f, page, d); applyFeed(f, d); })
+      .catch((e: Error) => setFeedError(e.message))
+      .finally(() => setFeedLoading(false));
+  }, [applyFeed]);
 
-  function handleRefreshCompleted() {
-    loadCompleted(completedPage, { force: true });
+  function handleRefreshFeed() {
+    if (feed) loadFeed(feed, feedPage, { force: true });
   }
 
   useEffect(() => {
-    if (!isFollowupTab) return;
-    loadCompleted(completedPage);
-  }, [isFollowupTab, completedPage, loadCompleted]);
+    if (!feed) return;
+    // Switching feeds leaves the previous feed's orders on screen for a beat;
+    // clearing them keeps the two lists from bleeding into each other.
+    setFeedOrders([]);
+    loadFeed(feed, feedPage);
+  }, [feed, feedPage, loadFeed]);
 
   async function handlePhaseChange(orderId: number, liId: number, phase: string) {
     const prev = orders.find(o => o.id === orderId)?.lineItems.find(li => li.id === liId)?.phase ?? '';
@@ -184,6 +229,16 @@ export default function PhaseGroupPage() {
 
   const groupPhaseNames = useMemo(() => new Set(groupPhases.map(p => p.name)), [groupPhases]);
 
+  // Tab strip: the group's own phases, plus the synthetic Cancelled tab right
+  // after Follow-up on After-Sales.
+  const tabs = useMemo(() => {
+    const list = groupPhases.map(p => ({ key: p.id, name: p.name }));
+    if (!isAfterSales) return list;
+    const i = list.findIndex(t => t.name === FOLLOWUP_PHASE);
+    list.splice(i < 0 ? list.length : i + 1, 0, { key: 'tab-cancelled', name: CANCELLED_TAB });
+    return list;
+  }, [groupPhases, isAfterSales]);
+
   // Count of line items per phase (for tab badges)
   const phaseItemCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -194,6 +249,12 @@ export default function PhaseGroupPage() {
           map.set(li.phase, (map.get(li.phase) ?? 0) + 1);
     return map;
   }, [orders, group, groupPhaseNames]);
+
+  function tabCount(name: string): number {
+    if (isAfterSales && name === FOLLOWUP_PHASE) return feedTotals.completed ?? 0;
+    if (isAfterSales && name === CANCELLED_TAB)  return feedTotals.cancelled ?? 0;
+    return phaseItemCounts.get(name) ?? 0;
+  }
 
   async function handleBulkApply() {
     if (!bulkPhase || selectedItems.size === 0) return;
@@ -220,33 +281,33 @@ export default function PhaseGroupPage() {
 
   // Orders that have at least one item in the active phase
   const visibleOrders = useMemo(() => {
-    if (isFollowupTab) {
-      return completedOrders.filter(o => !noteFilter || !!o.customerNote);
+    if (feed) {
+      return feedOrders.filter(o => !noteFilter || !!o.customerNote);
     }
     return orders
       .filter(o => o.lineItems.some(li => li.phase === activePhase))
       .filter(o => !noteFilter || !!o.customerNote);
-  }, [isFollowupTab, completedOrders, orders, activePhase, noteFilter]);
+  }, [feed, feedOrders, orders, activePhase, noteFilter]);
 
   const filterLineItems = useMemo(
-    () => isFollowupTab
+    () => feed
       ? undefined
       : (_o: PipelineOrder, li: PipelineLineItem) => li.phase === activePhase,
-    [isFollowupTab, activePhase]
+    [feed, activePhase]
   );
 
   const totalItems = useMemo(() => {
-    if (isFollowupTab) return visibleOrders.reduce((s, o) => s + o.lineItems.length, 0);
+    if (feed) return visibleOrders.reduce((s, o) => s + o.lineItems.length, 0);
     return visibleOrders.reduce((s, o) => s + o.lineItems.filter(li => li.phase === activePhase).length, 0);
-  }, [isFollowupTab, visibleOrders, activePhase]);
+  }, [feed, visibleOrders, activePhase]);
 
   const totalValue = useMemo(() => {
-    if (isFollowupTab) return visibleOrders.reduce((s, o) => s + o.total, 0);
+    if (feed) return visibleOrders.reduce((s, o) => s + o.total, 0);
     return visibleOrders.reduce(
       (s, o) => s + o.lineItems.filter(li => li.phase === activePhase).reduce((si, li) => si + li.total, 0),
       0
     );
-  }, [isFollowupTab, visibleOrders, activePhase]);
+  }, [feed, visibleOrders, activePhase]);
 
   if (loading) return <div className="pg-state">Loading…</div>;
   if (error)   return <div className="pg-state" style={{ color: '#e74c3c' }}>{error}</div>;
@@ -310,17 +371,16 @@ export default function PhaseGroupPage() {
 
       {/* Phase tabs */}
       <div className="pg-sub-nav">
-        {groupPhases.map(p => {
-          const isFollowupBtn = group.name === AFTER_SALES_GROUP && p.name === FOLLOWUP_PHASE;
-          const count = isFollowupBtn ? completedTotal : (phaseItemCounts.get(p.name) ?? 0);
-          const active = activePhase === p.name;
+        {tabs.map(t => {
+          const count  = tabCount(t.name);
+          const active = activePhase === t.name;
           return (
             <button
-              key={p.id}
+              key={t.key}
               className={`pg-sub-btn${active ? ' active' : ''}`}
-              onClick={() => setActivePhase(p.name)}
+              onClick={() => setActivePhase(t.name)}
             >
-              {p.name}
+              {t.name}
               {count > 0 && (
                 <span
                   className="pg-tab-cnt"
@@ -332,14 +392,14 @@ export default function PhaseGroupPage() {
             </button>
           );
         })}
-        {isFollowupTab && (
+        {feed && (
           <button
             className="pg-sub-refresh"
-            onClick={handleRefreshCompleted}
-            disabled={completedLoading}
-            title="Fetch latest completed orders"
+            onClick={handleRefreshFeed}
+            disabled={feedLoading}
+            title={`Fetch latest ${feed} orders`}
           >
-            {completedLoading ? '⏳' : '↻'} Refresh
+            {feedLoading ? '⏳' : '↻'} Refresh
           </button>
         )}
       </div>
@@ -374,7 +434,7 @@ export default function PhaseGroupPage() {
             </button>
           </>
         )}
-        {isFollowupTab && (
+        {feed && (
           <div className="pg-wa-mode">
             <span className="pg-tb-label">WA</span>
             {([['ar', 'Ar'], ['en', 'En'], ['other', 'Other']] as const).map(([m, label]) => (
@@ -392,13 +452,13 @@ export default function PhaseGroupPage() {
 
       {/* Order list */}
       <div className="pg-content">
-        {isFollowupTab && completedError ? (
-          <div className="pg-empty" style={{ color: '#e74c3c' }}>{completedError}</div>
-        ) : isFollowupTab && completedLoading ? (
-          <div className="pg-empty">Loading completed orders…</div>
+        {feed && feedError ? (
+          <div className="pg-empty" style={{ color: '#e74c3c' }}>{feedError}</div>
+        ) : feed && feedLoading ? (
+          <div className="pg-empty">Loading {feed} orders…</div>
         ) : visibleOrders.length === 0 ? (
           <div className="pg-empty">
-            {isFollowupTab ? 'No completed orders' : 'No orders in this phase'}
+            {feed ? `No ${feed} orders` : 'No orders in this phase'}
           </div>
         ) : (
           <>
@@ -414,24 +474,24 @@ export default function PhaseGroupPage() {
               onPhaseChange={handlePhaseChange}
               onOpenDetail={o => setDetailOrder(o)}
               onImageClick={li => setProductPopup(li)}
-              onWaClick={isFollowupTab ? handleWaClick : undefined}
+              onWaClick={feed ? handleWaClick : undefined}
             />
-            {isFollowupTab && completedTotalPages > 1 && (
+            {feed && feedTotalPages > 1 && (
               <div className="pg-pager">
                 <button
                   className="pg-pager-btn"
-                  disabled={completedPage <= 1 || completedLoading}
-                  onClick={() => setCompletedPage(p => Math.max(1, p - 1))}
+                  disabled={feedPage <= 1 || feedLoading}
+                  onClick={() => setFeedPage(p => Math.max(1, p - 1))}
                 >
                   ← Newer
                 </button>
                 <span className="pg-pager-info">
-                  Page {completedPage} of {completedTotalPages} · {completedTotal} orders
+                  Page {feedPage} of {feedTotalPages} · {feedTotals[feed] ?? 0} orders
                 </span>
                 <button
                   className="pg-pager-btn"
-                  disabled={completedPage >= completedTotalPages || completedLoading}
-                  onClick={() => setCompletedPage(p => Math.min(completedTotalPages, p + 1))}
+                  disabled={feedPage >= feedTotalPages || feedLoading}
+                  onClick={() => setFeedPage(p => Math.min(feedTotalPages, p + 1))}
                 >
                   Older →
                 </button>
@@ -449,7 +509,7 @@ export default function PhaseGroupPage() {
       )}
 
       {waOrder && (() => {
-        const msg = buildWaMessage(waArabic, waEnglish);
+        const msg = buildWaMessage(waTemplate, waArabic, waEnglish);
         const canSend = msg.length > 0 && !!waOrder.customerPhone;
         const href = canSend
           ? `https://wa.me/${waPhone(waOrder.customerPhone!)}?text=${encodeURIComponent(msg)}`
@@ -458,7 +518,9 @@ export default function PhaseGroupPage() {
           <div className="wa-overlay" onClick={() => setWaOrder(null)}>
             <div className="wa-modal" onClick={e => e.stopPropagation()}>
               <div className="wa-head">
-                <span className="wa-title">WhatsApp message</span>
+                <span className="wa-title">
+                  {waTemplate === 'retention' ? 'Retention message' : 'WhatsApp message'}
+                </span>
                 <span className="wa-cust">{waOrder.customerName}</span>
               </div>
 
