@@ -64,13 +64,20 @@ export async function reactivateOrder(id: string): Promise<void> {
 
   // Shopify can reopen an archived order but has no un-cancel; a cancelled
   // order has to be recreated by hand, so say so rather than failing opaquely.
-  const state = await shopifyGql<{ order: { cancelledAt: string | null } | null }>(
-    'query($id: ID!) { order(id: $id) { cancelledAt } }',
+  const state = await shopifyGql<{ order: { cancelledAt: string | null; displayFulfillmentStatus: string | null } | null }>(
+    'query($id: ID!) { order(id: $id) { cancelledAt displayFulfillmentStatus } }',
     { id: gid },
   );
   if (state.order?.cancelledAt) {
     throw new Error(
       `Shopify order ${id} was cancelled and cannot be reactivated — Shopify has no un-cancel. Duplicate it into a new order instead.`,
+    );
+  }
+  // The ERP reads fulfilled as completed, so unarchiving alone would leave the
+  // order looking completed anyway. Say so instead of appearing to work.
+  if (state.order?.displayFulfillmentStatus === 'FULFILLED') {
+    throw new Error(
+      `Shopify order ${id} is fulfilled, which the ERP counts as completed. Cancel the fulfilment in Shopify first to move it back into the pipeline.`,
     );
   }
 

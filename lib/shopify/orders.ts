@@ -32,6 +32,8 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
     pageInfo { hasNextPage endCursor }
     nodes {
       id name createdAt updatedAt cancelledAt cancelReason closed closedAt note email phone
+      displayFulfillmentStatus
+      fulfillments(first: 1) { createdAt }
       cancellation { staffNote }
       paymentGatewayNames
       currentTotalPriceSet { shopMoney { amount } }
@@ -72,6 +74,8 @@ interface RawOrder {
   cancelledAt: string | null; cancelReason: string | null;
   cancellation: { staffNote: string | null } | null;
   closed: boolean; closedAt: string | null;
+  displayFulfillmentStatus: string | null;
+  fulfillments: { createdAt: string }[] | null;
   note: string | null; email: string | null; phone: string | null;
   paymentGatewayNames: string[];
   currentTotalPriceSet: RawMoney;
@@ -107,9 +111,11 @@ function cancelReasonOf(o: RawOrder): string | null {
 
 function statusFilter(status: CommerceStatus | undefined): string | null {
   switch (status) {
-    // "closed" is Shopify's archive flag — archiving is the Woo "completed" equivalent.
-    case 'completed':  return 'status:closed';
-    case 'processing': return 'status:open';
+    // A fulfilled order is done as far as the ERP is concerned, whether or not
+    // it was archived afterwards. "closed" is Shopify's archive flag — the
+    // other way an order reaches the Woo "completed" equivalent.
+    case 'completed':  return '(status:closed OR fulfillment_status:fulfilled) AND -status:cancelled';
+    case 'processing': return 'status:open AND -fulfillment_status:fulfilled';
     case 'cancelled':  return 'status:cancelled';
     case 'on-hold':
     case 'pending':    return 'financial_status:pending';
@@ -166,6 +172,17 @@ function mapLineItem(li: RawLineItem, idx: number): CommerceLineItem {
   };
 }
 
+/** A fulfilled order counts as completed everywhere, archived or not. */
+function isFulfilled(o: RawOrder): boolean {
+  return o.displayFulfillmentStatus === 'FULFILLED';
+}
+
+/** When the order became completed: the fulfilment, else the archive. */
+function completedAt(o: RawOrder): string | null {
+  const fulfilledAt = isFulfilled(o) ? (o.fulfillments?.[0]?.createdAt ?? null) : null;
+  return fulfilledAt ?? o.closedAt;
+}
+
 function normalize(o: RawOrder): CommerceOrder {
   const ship = o.shippingAddress ?? {};
   const name = fullName(o);
@@ -176,10 +193,10 @@ function normalize(o: RawOrder): CommerceOrder {
     gid: o.id,
     id: Number(String(o.name).replace('#', '')) || 0,
     number: String(o.name).replace('#', ''),
-    status: o.cancelledAt ? 'cancelled' : o.closed ? 'completed' : 'processing',
+    status: o.cancelledAt ? 'cancelled' : (isFulfilled(o) || o.closed) ? 'completed' : 'processing',
     date_created: o.createdAt,
     date_modified: o.updatedAt,
-    date_completed: o.closedAt,
+    date_completed: completedAt(o),
     date_cancelled: o.cancelledAt,
     cancel_reason: cancelReasonOf(o),
     total: String(o.currentTotalPriceSet.shopMoney.amount),

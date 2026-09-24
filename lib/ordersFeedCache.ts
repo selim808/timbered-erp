@@ -20,7 +20,7 @@ const TTL_MS = 5 * 60 * 60 * 1000; // 5 hours
 // Bump a feed's version whenever its shape or ordering changes, so existing
 // browsers drop their cached copy instead of serving it for up to 5 hours.
 // Versioned per feed so one feed's change doesn't throw away the other's cache.
-const FEED_VERSION: Record<OrdersFeed, string> = { completed: 'v3', cancelled: 'v5' };
+const FEED_VERSION: Record<OrdersFeed, string> = { completed: 'v4', cancelled: 'v5' };
 const keyFor = (feed: OrdersFeed, page: number) =>
   `tg_${feed}_orders_p${page}_${FEED_VERSION[feed]}`;
 
