@@ -212,6 +212,13 @@ export default function FinanceSection() {
   // Profit = what's left of net orders after all expense categories above.
   const profitVal = netOrders - expRows.reduce((acc, r) => acc + r.val, 0);
   const profitPct = 100 - expRows.reduce((acc, r) => acc + r.pctNet, 0);
+  // Profit against the same bases as the expense rows above it.
+  const profitPcts = [
+    pct(profitVal, cashIn),
+    pct(profitVal, exp),
+    pct(profitVal, grossOrders),
+    profitPct,
+  ];
 
   const startDateStr = d.Start_Date
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -380,10 +387,9 @@ export default function FinanceSection() {
                 <span className="fin-exp-name">Profit: <b style={{ color: profitVal >= 0 ? C.good : C.bad }}>{fmtK(profitVal)}</b></span>
               </div>
               <div className="fin-exp-pcts">
-                <span style={{ color: '#ccc' }}>–</span>
-                <span style={{ color: '#ccc' }}>–</span>
-                <span style={{ color: '#ccc' }}>–</span>
-                <span style={{ color: profitPct >= 0 ? C.good : C.bad }}>{profitPct}%</span>
+                {profitPcts.map((v, i) => (
+                  <span key={i} style={{ color: v >= 0 ? C.good : C.bad }}>{v}%</span>
+                ))}
               </div>
             </li>
           </ul>
