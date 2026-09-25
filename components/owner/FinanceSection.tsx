@@ -43,6 +43,13 @@ const fmt = (n: number) => Math.round(num(n)).toLocaleString('en-GB');
 const fmtK = (n: number) => `${Math.round(num(n) / 1000)}K`;
 const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
 
+/** The four bases every breakdown row is expressed against, in column order. */
+type PctBase = 'cash' | 'exp' | 'gross' | 'net';
+
+/** The row's four percentages as (base, value) pairs, in column order. */
+const pctPairs = (r: { pctCash: number; pctExp: number; pctGross: number; pctNet: number }) =>
+  [['cash', r.pctCash], ['net', r.pctNet], ['gross', r.pctGross], ['exp', r.pctExp]] as [PctBase, number][];
+
 function sumKey(data: Round[], key: keyof Round): number {
   return data.reduce((acc, d) => acc + ((d[key] as number) || 0), 0);
 }
@@ -85,9 +92,64 @@ function aggregateAll(data: Round[]): Round {
 // ─── Colors ──────────────────────────────────────────────────────
 const C = {
   good: '#27ae60', bad: '#e74c3c', neutral: '#2980b9',
+  // A negative percentage still reads red when the column is only context.
+  badMuted: '#eeb3ac',
   cogs: '#e67e22', marketing: '#3498db', fixed: '#9b59b6',
   logistics: '#f1c40f', others: '#95a5a6',
 };
+
+/**
+ * Planned percentage per category, per column. Same idea as SALES_TGT in
+ * /api/goals: edit here, no data source involved. A column left out has no
+ * plan and shows a dash under its actual.
+ */
+const EXPENSE_PLANS: Record<string, Partial<Record<PctBase, number>>> = {
+  COGS:      { net: 45 },
+  Marketing: { net: 15 },
+  Fixed:     { net: 10 },
+  Logistics: { cash: 10 },
+  Others:    { net: 4 },
+};
+
+/**
+ * What's left for profit once every category sits exactly on its net plan.
+ * Undefined while any category has no net plan — the sum would otherwise leave
+ * that category's spend out and overstate the floor.
+ */
+const PROFIT_FLOOR = Object.values(EXPENSE_PLANS).every(p => p.net != null)
+  ? 100 - Object.values(EXPENSE_PLANS).reduce((acc, p) => acc + (p.net ?? 0), 0)
+  : undefined;
+
+/** Profit is judged against the same columns, as a floor rather than a cap. */
+const PROFIT_PLANS: Partial<Record<PctBase, number>> = { net: PROFIT_FLOOR };
+
+/** Columns other than the row's own base are context, not the number to read. */
+const MUTED_PCT = { color: '#cfc9c4', fontWeight: 600 } as const;
+
+/**
+ * One breakdown cell: actual on top, plan underneath (a dash when the column
+ * has no plan). 'cap' means lower is better, 'floor' means higher is.
+ */
+function PctCell({ value, plan, muted, goal }: {
+  value: number;
+  plan?: number;
+  muted: boolean;
+  goal: 'cap' | 'floor';
+}) {
+  const ok = plan == null ? null : goal === 'cap' ? value <= plan : value >= plan;
+  const color =
+    ok != null ? (ok ? C.good : C.bad)
+    : value < 0 ? (muted ? C.badMuted : C.bad)
+    : muted     ? MUTED_PCT.color
+    :             '#333';
+
+  return (
+    <span className="fin-pct-cell" style={{ color, fontWeight: muted && ok == null ? 600 : 700 }}>
+      {value}
+      <i className="fin-pct-plan">{plan ?? '–'}</i>
+    </span>
+  );
+}
 
 // ─── CSS ─────────────────────────────────────────────────────────
 const STYLES = `
@@ -116,6 +178,8 @@ const STYLES = `
 .fin-exp-name b { color:#333; font-weight:800; }
 .fin-exp-pcts { display:flex; flex-shrink:0; }
 .fin-exp-pcts span { width:46px; text-align:right; font-size:13px; font-weight:700; color:#333; }
+.fin-exp-pcts span.fin-pct-cell { display:flex; flex-direction:column; align-items:flex-end; line-height:1.2; }
+.fin-pct-plan { font-style:normal; font-size:10px; font-weight:600; color:#b9b2ac; }
 .fin-exp-head span { width:46px; text-align:right; font-size:9px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.3px; }
 .fin-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .fin-tbl th { text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.8px; color:#9e9087; font-weight:700; padding:0 8px 10px; }
@@ -196,42 +260,46 @@ export default function FinanceSection() {
   // Gross = all orders placed in the round; Net = processing + completed only.
   const grossOrders = d.Total_Orders_Value || 0;
   const netOrders   = (d.Processing_Value || 0) + (d.Completed_Value || 0);
-  const expRows = [
-    { label: 'COGS',      color: C.cogs,      val: d.COGS_Value      || 0 },
-    { label: 'Marketing', color: C.marketing, val: d.MRK_Value        || 0 },
-    { label: 'Fixed',     color: C.fixed,     val: d.FixedCost_Value  || 0 },
-    { label: 'Logistics', color: C.logistics, val: d.Logistics_Value  || 0 },
-    { label: 'Others',    color: C.others,    val: d.Others_Value     || 0 },
-  ].map(r => ({
+  const expRows = ([
+    // base = the percentage that actually means something for this row; the
+    // other three are shown greyed, for context only.
+    { label: 'COGS',      color: C.cogs,      val: d.COGS_Value      || 0, base: 'cash'  },
+    { label: 'Marketing', color: C.marketing, val: d.MRK_Value        || 0, base: 'gross' },
+    { label: 'Fixed',     color: C.fixed,     val: d.FixedCost_Value  || 0, base: 'net'   },
+    { label: 'Logistics', color: C.logistics, val: d.Logistics_Value  || 0, base: 'cash'  },
+    { label: 'Others',    color: C.others,    val: d.Others_Value     || 0, base: 'net'   },
+  ] as { label: string; color: string; val: number; base: PctBase }[]).map(r => ({
     ...r,
     pctCash:  pct(r.val, cashIn),
     pctExp:   pct(r.val, exp),
     pctGross: pct(r.val, grossOrders),
     pctNet:   pct(r.val, netOrders),
+    plans:    EXPENSE_PLANS[r.label] ?? {},
   }));
   // Profit = what's left of net orders after all expense categories above.
   const profitVal = netOrders - expRows.reduce((acc, r) => acc + r.val, 0);
   const profitPct = 100 - expRows.reduce((acc, r) => acc + r.pctNet, 0);
-  // Profit against the same bases as the expense rows above it.
-  const profitPcts = [
-    pct(profitVal, cashIn),
-    pct(profitVal, exp),
-    pct(profitVal, grossOrders),
-    profitPct,
+  // Profit against the same bases as the expense rows above it; net is the
+  // one that matters.
+  const profitPcts: [PctBase, number][] = [
+    ['cash',  pct(profitVal, cashIn)],
+    ['net',   profitPct],
+    ['gross', pct(profitVal, grossOrders)],
+    ['exp',   pct(profitVal, exp)],
   ];
 
   const startDateStr = d.Start_Date
     ? new Date(d.Start_Date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     : 'N/A';
 
-  // Four stacked bars — one per base (Cash In, Expenses, Gross Orders, Net
-  // Orders). Each bar is stacked by category, so a segment is that category's
-  // % of the base.
+  // Four stacked bars — one per base, in the same order as the columns above.
+  // Each bar is stacked by category, so a segment is that category's % of the
+  // base.
   const chartData = {
-    labels: ['% Cash In', '% Expenses', '% Gross Orders', '% Net Orders'],
+    labels: ['% Cash In', '% Net Orders', '% Gross Orders', '% Expenses'],
     datasets: expRows.map(e => ({
       label: e.label,
-      data: [e.pctCash, e.pctExp, e.pctGross, e.pctNet],
+      data: [e.pctCash, e.pctNet, e.pctGross, e.pctExp],
       backgroundColor: e.color,
       borderWidth: 1, borderColor: '#fff',
     })),
@@ -358,12 +426,12 @@ export default function FinanceSection() {
         <p className="fin-sec-title">Expense breakdown</p>
         <div className="fin-card">
           <div className="fin-exp-item fin-exp-head" style={{ padding: '0 0 6px', borderBottom: '1px solid #eee' }}>
-            <span style={{ flex: 1 }} />
+            <span style={{ flex: 1, width: 'auto', textAlign: 'left' }}>actual / plan</span>
             <div className="fin-exp-pcts">
-              <span>% Cash</span>
-              <span>% Exp</span>
-              <span>% Gross</span>
-              <span>% Net</span>
+              <span>Cash</span>
+              <span>Net</span>
+              <span>Gross</span>
+              <span>Exp</span>
             </div>
           </div>
           <ul className="fin-exp-list">
@@ -374,10 +442,9 @@ export default function FinanceSection() {
                   <span className="fin-exp-name">{e.label}: <b>{fmtK(e.val)}</b></span>
                 </div>
                 <div className="fin-exp-pcts">
-                  <span>{e.pctCash}%</span>
-                  <span>{e.pctExp}%</span>
-                  <span>{e.pctGross}%</span>
-                  <span>{e.pctNet}%</span>
+                  {pctPairs(e).map(([base, v]) => (
+                    <PctCell key={base} value={v} plan={e.plans[base]} muted={base !== e.base} goal="cap" />
+                  ))}
                 </div>
               </li>
             ))}
@@ -387,8 +454,8 @@ export default function FinanceSection() {
                 <span className="fin-exp-name">Profit: <b style={{ color: profitVal >= 0 ? C.good : C.bad }}>{fmtK(profitVal)}</b></span>
               </div>
               <div className="fin-exp-pcts">
-                {profitPcts.map((v, i) => (
-                  <span key={i} style={{ color: v >= 0 ? C.good : C.bad }}>{v}%</span>
+                {profitPcts.map(([base, v]) => (
+                  <PctCell key={base} value={v} plan={PROFIT_PLANS[base]} muted={base !== 'net'} goal="floor" />
                 ))}
               </div>
             </li>
