@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
+import { warrantyCode } from '@/lib/warrantyLink';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 
 export const maxDuration = 60;
@@ -74,7 +75,13 @@ export async function GET(req: Request) {
         orderedQty: li.quantity ?? 0,
       }));
 
-      return { ...mapOrderBase(o, completedAt), completedDaysAgo, leadTimeDays, lineItems };
+      return {
+        ...mapOrderBase(o, completedAt),
+        completedDaysAgo,
+        leadTimeDays,
+        warrantyCode: warrantyCode(String(o.number || o.id)),
+        lineItems,
+      };
     });
 
     const body: CompletedOrdersResponse = { orders, page, totalPages, total, perPage: PER_PAGE };

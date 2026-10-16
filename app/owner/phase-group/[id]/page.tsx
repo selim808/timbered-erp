@@ -54,11 +54,34 @@ If you would like us to help you pick another piece, or arrange a delivery date 
 We also have a special offer for you if you would like to place your order again.`,
 };
 
-function buildWaMessage(template: WaTemplate, arabic: boolean, english: boolean): string {
+// Optional guarantee-certificate line appended to the Follow-up message.
+const CERT_LINES = {
+  ar: 'و دى شهادة ضمان المنتج لمدة 3 سنين:',
+  en: 'Here is your 3-year guarantee certificate:',
+};
+
+function buildWaMessage(
+  template: WaTemplate, arabic: boolean, english: boolean, certUrl?: string,
+): string {
   const parts: string[] = [];
   if (arabic) parts.push(arabicBlock(template));
   if (english) parts.push(ENGLISH_BLOCKS[template]);
+  if (certUrl && parts.length) {
+    const lines: string[] = [];
+    if (arabic) lines.push(CERT_LINES.ar);
+    if (english) lines.push(CERT_LINES.en);
+    parts.push([...lines, certUrl].join('\n'));
+  }
   return parts.join(`\n${WA_SEPARATOR}\n`);
+}
+
+const WA_CERT_KEY = 'tg_wa_cert';
+
+/** Public link to an order's guarantee certificate (see app/g/[code]). */
+function certUrlFor(o: PipelineOrder): string | undefined {
+  if (!o.warrantyCode) return undefined;
+  const base = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+  return `${base}/g/${o.warrantyCode}`;
 }
 
 export default function PhaseGroupPage() {
@@ -76,6 +99,10 @@ export default function PhaseGroupPage() {
   const [waArabic, setWaArabic]       = useState(true);
   const [waEnglish, setWaEnglish]     = useState(false);
   const [waMode, setWaMode]           = useState<'ar' | 'en' | 'other'>('ar');
+  // Remembered per browser; the toggle only renders after mount, so no hydration mismatch.
+  const [waCert, setWaCert]           = useState(() => {
+    try { return typeof window === 'undefined' || localStorage.getItem(WA_CERT_KEY) !== '0'; } catch { return true; }
+  });
   const [bulkMode, setBulkMode]       = useState(false);
   const [bulkPhase, setBulkPhase]     = useState('');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -98,6 +125,13 @@ export default function PhaseGroupPage() {
       : activePhase === CANCELLED_TAB  ? 'cancelled'
       : null;
   const waTemplate: WaTemplate = feed === 'cancelled' ? 'retention' : 'feedback';
+  // The certificate link only belongs on the Follow-up (completed orders) message.
+  const certFor = (o: PipelineOrder) => (feed === 'completed' && waCert ? certUrlFor(o) : undefined);
+
+  function toggleWaCert(on: boolean) {
+    setWaCert(on);
+    try { localStorage.setItem(WA_CERT_KEY, on ? '1' : '0'); } catch { /* storage blocked */ }
+  }
 
   function showToast(msg: string) {
     setToast(msg);
@@ -115,7 +149,7 @@ export default function PhaseGroupPage() {
       return;
     }
     if (!o.customerPhone) { showToast('No phone number'); return; }
-    const msg = buildWaMessage(waTemplate, waMode === 'ar', waMode === 'en');
+    const msg = buildWaMessage(waTemplate, waMode === 'ar', waMode === 'en', certFor(o));
     const href = `https://wa.me/${waPhone(o.customerPhone)}?text=${encodeURIComponent(msg)}`;
     window.open(href, '_blank', 'noopener,noreferrer');
   }
@@ -443,6 +477,12 @@ export default function PhaseGroupPage() {
                 <span>{label}</span>
               </label>
             ))}
+            {feed === 'completed' && (
+              <label className="pg-wa-radio" title="Add the guarantee certificate link to the message">
+                <input type="checkbox" checked={waCert} onChange={e => toggleWaCert(e.target.checked)} />
+                <span>Certificate</span>
+              </label>
+            )}
           </div>
         )}
         <button className={`pg-filter-btn${noteFilter ? ' active' : ''}`} onClick={() => setNoteFilter(f => !f)}>
@@ -509,7 +549,7 @@ export default function PhaseGroupPage() {
       )}
 
       {waOrder && (() => {
-        const msg = buildWaMessage(waTemplate, waArabic, waEnglish);
+        const msg = buildWaMessage(waTemplate, waArabic, waEnglish, certFor(waOrder));
         const canSend = msg.length > 0 && !!waOrder.customerPhone;
         const href = canSend
           ? `https://wa.me/${waPhone(waOrder.customerPhone!)}?text=${encodeURIComponent(msg)}`
@@ -532,6 +572,12 @@ export default function PhaseGroupPage() {
                 <input type="checkbox" checked={waEnglish} onChange={e => setWaEnglish(e.target.checked)} />
                 <span>English</span>
               </label>
+              {feed === 'completed' && (
+                <label className="wa-opt">
+                  <input type="checkbox" checked={waCert} onChange={e => toggleWaCert(e.target.checked)} />
+                  <span>Guarantee certificate <span className="wa-opt-sub">link</span></span>
+                </label>
+              )}
 
               <div className="wa-preview">
                 {msg

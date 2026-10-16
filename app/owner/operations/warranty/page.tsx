@@ -2,84 +2,15 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { WarrantyOrder } from '@/lib/warranty';
+import {
+  FULFILMENT_TOLERANCE_MONTHS, GUARANTEE_YEARS, certFromOrder, fmtCertDate, toYmd, validUntil,
+  type Cert, type WarrantyOrder,
+} from '@/lib/warranty';
 import type { WarrantyOrdersResponse } from '@/app/api/warranty/route';
+import { CERT_CSS, Certificate, downloadCertsPdf, usePdfLibs } from '@/components/warranty/Certificate';
 
-// html2canvas + jsPDF load from the CDN at runtime (same as the Cut List page).
-interface PdfWindow {
-  html2canvas: (el: HTMLElement, opts?: Record<string, unknown>) => Promise<HTMLCanvasElement>;
-  jspdf: { jsPDF: new (opts: Record<string, unknown>) => {
-    addImage: (data: string, fmt: string, x: number, y: number, w: number, h: number) => void;
-    addPage: () => void;
-    save: (name: string) => void;
-  } };
-}
-
-const GUARANTEE_YEARS = 3;
-/** Extra cover on top of the guarantee, since it starts at order date, not delivery. */
-const FULFILMENT_TOLERANCE_MONTHS = 3;
-const WHATSAPP = '01003332255';
 /** Parallel order lookups when adding a pasted list of numbers. */
 const FETCH_CONCURRENCY = 4;
-
-const COVERED = [
-  'Structural defects in wood, joints, and frames under normal use',
-  'Faulty hardware, hinges, drawer slides, and fittings we installed',
-  'Finish defects present at delivery (peeling, uneven coating)',
-];
-const NOT_COVERED = [
-  'Normal wear, scratches, or fading from sunlight and daily use',
-  'Damage from misuse, moisture, pests, or accidents',
-  'Unauthorized repairs, modifications, or disassembly',
-];
-
-/** One certificate in the print list. Every field stays editable before printing. */
-interface Cert {
-  orderNumber: string;
-  status: string;
-  customer: string;
-  product: string;
-  qty: string;
-  startDate: string;
-}
-
-/** yyyy-mm-dd → 03-Sep-2026 (matches the Word template). */
-function fmtCertDate(ymd: string) {
-  if (!ymd) return '';
-  const [y, m, d] = ymd.split('-').map(Number);
-  const mon = new Date(Date.UTC(y, m - 1, 1)).toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' });
-  return `${String(d).padStart(2, '0')}-${mon}-${y}`;
-}
-
-function addMonths(ymd: string, months: number) {
-  if (!ymd) return '';
-  const [y, m, d] = ymd.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1 + months, d));
-  // 31-May + 1 month would roll into July; clamp to the last day of the target month.
-  if (dt.getUTCDate() !== d) dt.setUTCDate(0);
-  return dt.toISOString().slice(0, 10);
-}
-
-function validUntil(startDate: string) {
-  return addMonths(startDate, GUARANTEE_YEARS * 12 + FULFILMENT_TOLERANCE_MONTHS);
-}
-
-/** ISO timestamp → yyyy-mm-dd in Cairo time. */
-function toYmd(iso: string | null) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
-}
-
-function certFromOrder(o: WarrantyOrder): Cert {
-  return {
-    orderNumber: o.orderNumber,
-    status:      o.status,
-    customer:    o.customerName,
-    product:     o.lineItems.map(li => li.name).join('\n'),
-    qty:         o.lineItems.map(li => li.quantity).join('\n'),
-    startDate:   toYmd(o.dateCreated),
-  };
-}
 
 function isComplete(c: Cert) {
   return Boolean(c.customer && c.orderNumber && c.product && c.startDate);
@@ -88,47 +19,6 @@ function isComplete(c: Cert) {
 /** "21205, 21206 #21207" → ['21205', '21206', '21207'], deduped. */
 function parseNumbers(text: string) {
   return [...new Set(text.split(/[\s,;]+/).map(s => s.replace(/^#/, '').trim()).filter(Boolean))];
-}
-
-function Certificate({ c }: { c: Cert }) {
-  return (
-    <div className="wr-cert">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="wr-logo" src="/warranty/logo.png" alt="Timbered" />
-      <hr className="wr-rule" />
-      <h1 className="wr-title">{GUARANTEE_YEARS}-YEAR GUARANTEE</h1>
-      <p className="wr-sub">
-        Every piece we build is covered against manufacturing defects for three full years from the date of delivery.
-      </p>
-
-      <p className="wr-h">WHAT&apos;S COVERED</p>
-      <ul className="wr-list">{COVERED.map(t => <li key={t}>{t}</li>)}</ul>
-
-      <p className="wr-h">WHAT&apos;S NOT COVERED</p>
-      <ul className="wr-list">{NOT_COVERED.map(t => <li key={t}>{t}</li>)}</ul>
-
-      <p className="wr-h">HOW TO CLAIM</p>
-      <p className="wr-claim">
-        Message us on WhatsApp at <b>{WHATSAPP}</b> with your order number and photos of the issue. We&apos;ll take it from there.
-      </p>
-      <hr className="wr-rule-light" />
-
-      <table className="wr-table">
-        <tbody>
-          <tr><th>CUSTOMER NAME</th><td>{c.customer}</td></tr>
-          <tr><th>ORDER #</th><td>{c.orderNumber}</td></tr>
-          <tr><th>PRODUCT</th><td>{c.product}</td></tr>
-          <tr><th>QTY</th><td>{c.qty}</td></tr>
-          <tr><th>ORDER DATE</th><td>{fmtCertDate(c.startDate)}</td></tr>
-          <tr><th>VALID UNTIL</th><td>{fmtCertDate(validUntil(c.startDate))}</td></tr>
-        </tbody>
-      </table>
-
-      <p className="wr-site">timberedgroup.com</p>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="wr-seal" src="/warranty/seal.png" alt="" />
-    </div>
-  );
 }
 
 function WarrantyInner() {
@@ -149,22 +39,11 @@ function WarrantyInner() {
   const [browseError, setBrowseError] = useState('');
   const [picked, setPicked] = useState<Map<string, WarrantyOrder>>(new Map());
 
-  const [scriptsLoaded, setScriptsLoaded] = useState(0);
   const [progress, setProgress] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  const scriptsReady = scriptsLoaded >= 2;
+  const scriptsReady = usePdfLibs();
 
   useEffect(() => {
-    const load = (src: string) => {
-      if (document.querySelector(`script[src="${src}"]`)) { setScriptsLoaded(n => n + 1); return; }
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = () => setScriptsLoaded(n => n + 1);
-      document.body.appendChild(s);
-    };
-    load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-
     if (initialNumbers) void addNumbers(initialNumbers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -266,18 +145,13 @@ function WarrantyInner() {
     const nodes = previewRef.current?.querySelectorAll<HTMLElement>('.wr-cert');
     if (!nodes?.length || !scriptsReady) return;
     try {
-      const w = window as unknown as PdfWindow;
-      const { jsPDF } = w.jspdf;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      for (let i = 0; i < nodes.length; i++) {
-        setProgress(nodes.length > 1 ? `Generating ${i + 1}/${nodes.length}…` : 'Generating…');
-        const canvas = await w.html2canvas(nodes[i], { scale: 3, backgroundColor: '#ffffff', useCORS: true });
-        if (i > 0) pdf.addPage();
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
-      }
-      pdf.save(certs.length === 1
-        ? `Timbered_Guarantee_Order-${certs[0].orderNumber}.pdf`
-        : `Timbered_Guarantees_${certs.length}-orders.pdf`);
+      await downloadCertsPdf(
+        nodes,
+        certs.length === 1
+          ? `Timbered_Guarantee_Order-${certs[0].orderNumber}.pdf`
+          : `Timbered_Guarantees_${certs.length}-orders.pdf`,
+        (done, total) => setProgress(total > 1 ? `Generating ${done}/${total}…` : 'Generating…'),
+      );
     } catch (e: unknown) {
       alert('PDF error: ' + (e instanceof Error ? e.message : String(e)));
     }
@@ -331,25 +205,7 @@ function WarrantyInner() {
         .wr-empty { font-size:12px; color:#7A6F65; text-align:center; padding:16px; }
 
         .wr-preview { overflow-x:auto; display:flex; flex-direction:column; gap:16px; }
-        /* A4 sheet: 210mm x 297mm */
-        .wr-cert { width:794px; height:1123px; margin:0 auto; background:#fff; box-shadow:0 4px 16px rgba(122,70,16,.12); flex-shrink:0;
-          font-family: Georgia, 'Times New Roman', serif; color:#2B2620; padding:56px 72px 48px; position:relative; box-sizing:border-box; }
-        .wr-logo { display:block; margin:0 auto 18px; width:260px; }
-        .wr-rule { border:none; border-top:1.5px solid #9C7A45; margin:0 0 18px; }
-        .wr-title { text-align:center; font-size:28px; font-weight:700; letter-spacing:.5px; margin:0 0 8px; }
-        .wr-sub { text-align:center; font-size:12.5px; color:#6B6660; margin:0 0 26px; }
-        .wr-h { font-size:13px; font-weight:700; color:#9C7A45; letter-spacing:1.5px; margin:0 0 8px; }
-        .wr-list { list-style:none; padding:0; margin:0 0 26px; font-size:12.5px; }
-        .wr-list li { margin:0 0 6px; }
-        .wr-list li::before { content:'—'; color:#9C7A45; margin-right:8px; }
-        .wr-claim { font-size:12.5px; color:#6B6660; margin:0 0 20px; }
-        .wr-claim b { color:#2B2620; margin:0 3px 0 1px; }
-        .wr-rule-light { border:none; border-top:1px solid #E3D6C2; margin:0 0 26px; }
-        .wr-table { width:100%; border-collapse:collapse; font-size:12.5px; }
-        .wr-table th { text-align:left; font-size:11px; font-weight:700; color:#6B6660; letter-spacing:.5px; padding:9px 8px; width:150px; vertical-align:top; }
-        .wr-table td { padding:9px 8px; border-bottom:1px solid #E3D6C2; white-space:pre-line; }
-        .wr-site { text-align:center; font-size:12px; color:#9C7A45; margin-top:22px; }
-        .wr-seal { position:absolute; right:40px; bottom:36px; width:150px; }
+        ${CERT_CSS}
 
         @media print {
           @page { size:A4 portrait; margin:0; }
