@@ -166,7 +166,7 @@ const sections: Section[] = [
       },
       {
         label: 'Guarantee Certificate',
-        description: 'Print the 3-year guarantee PDF for an order',
+        description: 'Print 3-year guarantee PDFs for one or many orders',
         href: '/owner/operations/warranty',
         ready: true,
         icon: (
