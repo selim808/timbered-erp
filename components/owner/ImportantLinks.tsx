@@ -19,6 +19,18 @@ const CloudIcon = () => (
   </svg>
 );
 
+const GlobeIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B86E1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+  </svg>
+);
+
+const BoxIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B86E1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/>
+  </svg>
+);
+
 const AppIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B86E1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h6M7 16h4"/>
@@ -71,6 +83,12 @@ export default function ImportantLinks() {
   return (
     <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <Banner
+        icon={<GlobeIcon />}
+        title="Website"
+        sub="timberedgroup.com"
+        buttons={[{ label: 'Open', href: 'https://timberedgroup.com' }]}
+      />
+      <Banner
         icon={<SheetIcon />}
         title="Google Spreadsheet"
         sub="All sheets & data sources"
@@ -90,6 +108,12 @@ export default function ImportantLinks() {
           { label: 'Timbered', href: 'https://www.appsheet.com/start/831bfa0c-8b33-419d-9c73-8d17bd1c42f1?platform=mobile#appName=Timbered-230806548&view=Processing%20Orders' },
           { label: 'Finance',  href: 'https://www.appsheet.com/start/25809a9d-557f-43a0-8fac-14a212f85519?platform=mobile#appName=Accounting-Entry-548387873-25-08-20&view=Exp%20Buckets_Detail' },
         ]}
+      />
+      <Banner
+        icon={<BoxIcon />}
+        title="Inventory & Delivery Module"
+        sub="Warehouse, stock & deliveries"
+        buttons={[{ label: 'Open', href: 'https://timbered-wh.vercel.app/owner/dashboard' }]}
       />
     </div>
   );
