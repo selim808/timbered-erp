@@ -177,8 +177,8 @@ const sections: Section[] = [
         ),
       },
       {
-        label: 'Cancellation Reasons',
-        description: 'Manage the reason list used when cancelling orders',
+        label: 'Cancellation Lists',
+        description: 'Manage the reason, timing and impact lists used when cancelling orders',
         href: '/owner/operations/cancellation-reasons',
         ready: true,
         icon: (
