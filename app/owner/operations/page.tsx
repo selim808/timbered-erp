@@ -22,6 +22,23 @@ interface Section {
 
 const sections: Section[] = [
   {
+    title: 'General',
+    tools: [
+      {
+        label: 'Lists',
+        description: 'View the Supabase lists (phases, cancellation lists and more), read-only',
+        href: '/owner/operations/lists',
+        ready: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+              d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
     title: 'Sales',
     tools: [
       {
@@ -177,8 +194,8 @@ const sections: Section[] = [
         ),
       },
       {
-        label: 'Cancellation Reasons',
-        description: 'Manage the reason list used when cancelling orders',
+        label: 'Cancellation Lists',
+        description: 'Manage the reason, timing and impact lists used when cancelling orders',
         href: '/owner/operations/cancellation-reasons',
         ready: true,
         icon: (

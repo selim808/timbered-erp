@@ -2,17 +2,27 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-interface Reason {
+interface Entry {
   id: string;
   label: string;
   sort_order: number;
 }
 
+type ListKey = 'reasons' | 'timing' | 'impact';
+
+const LISTS: { key: ListKey; title: string; placeholder: string }[] = [
+  { key: 'reasons', title: 'Reasons', placeholder: 'New cancellation reason…' },
+  { key: 'timing',  title: 'Timing',  placeholder: 'New cancellation timing…' },
+  { key: 'impact',  title: 'Impact',  placeholder: 'New cancellation impact…' },
+];
+
 const CSS = `
 .cr-bar { background:#7A4610; color:#fff; padding:0 20px; height:52px; display:flex; align-items:center; gap:12px; position:sticky; top:64px; z-index:100; }
 .cr-bar-title { font-size:16px; font-weight:700; flex:1; }
 .cr-bar-sub { font-size:12px; opacity:.6; }
-.cr-body { padding:20px; max-width:560px; }
+.cr-body { padding:20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; max-width:1100px; }
+.cr-sec-title { font-size:13px; font-weight:700; color:#7A4610; margin:0 0 8px 2px; display:flex; justify-content:space-between; }
+.cr-sec-count { font-weight:500; color:#aaa; }
 .cr-state { background:#fff; border-radius:10px; padding:32px; text-align:center; color:#999; font-size:14px; border:1px solid #e8ddd4; }
 .cr-card { background:#fff; border:1px solid #e8ddd4; border-radius:10px; overflow:hidden; }
 .cr-row { display:flex; align-items:center; gap:10px; padding:11px 14px; font-size:13px; border-bottom:1px solid #f0e8e0; transition:background .15s; }
@@ -40,55 +50,49 @@ const CSS = `
 .cr-toast-err { background:#fee2e2; color:#991b1b; }
 `;
 
-export default function CancellationReasonsPage() {
-  const [reasons, setReasons] = useState<Reason[]>([]);
+type Toast = (msg: string, type: 'saving' | 'ok' | 'err') => void;
+
+function ListCard({ list, title, placeholder, toast }: {
+  list: ListKey; title: string; placeholder: string; toast: Toast;
+}) {
+  const api = `/api/cancellation-lists/${list}`;
+  const [items, setItems]     = useState<Entry[]>([]);
   const [loadState, setLoad]  = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErrMsg]   = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [adding, setAdding]   = useState(false);
 
-  const [toastMsg, setToastMsg] = useState('');
-  const [toastType, setToastType] = useState('');
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Drag state
   const dragId = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/cancellation-reasons')
+    fetch(api)
       .then(r => r.json())
       .then(data => {
         if (!Array.isArray(data)) throw new Error(data?.error ?? 'Failed to load');
-        setReasons(data);
+        setItems(data);
         setLoad('done');
       })
       .catch((e: Error) => { setErrMsg(e.message); setLoad('error'); });
-  }, []);
+  }, [api]);
 
-  function showToast(msg: string, type: 'saving' | 'ok' | 'err') {
-    setToastMsg(msg); setToastType(type);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    if (type !== 'saving') toastTimer.current = setTimeout(() => setToastMsg(''), 2200);
-  }
-
-  async function addReason() {
+  async function add() {
     const label = newLabel.trim();
     if (!label || adding) return;
     setAdding(true);
-    showToast('Saving…', 'saving');
-    const res = await fetch('/api/cancellation-reasons', {
+    toast('Saving…', 'saving');
+    const res = await fetch(api, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label }),
     });
-    if (!res.ok) { showToast('Save failed', 'err'); setAdding(false); return; }
-    const created: Reason = await res.json();
-    setReasons(prev => [...prev, created]);
+    if (!res.ok) { toast('Save failed', 'err'); setAdding(false); return; }
+    const created: Entry = await res.json();
+    setItems(prev => [...prev, created]);
     setNewLabel('');
     setAdding(false);
-    showToast('Added', 'ok');
+    toast('Added', 'ok');
   }
 
   function onDragStart(e: React.DragEvent, id: string) {
@@ -119,76 +123,100 @@ export default function CancellationReasonsPage() {
     setDraggingId(null);
     if (!fromId || fromId === toId) return;
 
-    const fromIdx = reasons.findIndex(r => r.id === fromId);
-    const toIdx = reasons.findIndex(r => r.id === toId);
+    const fromIdx = items.findIndex(r => r.id === fromId);
+    const toIdx = items.findIndex(r => r.id === toId);
     if (fromIdx === -1 || toIdx === -1) return;
 
-    const reordered = [...reasons];
+    const reordered = [...items];
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, moved);
-    setReasons(reordered.map((r, i) => ({ ...r, sort_order: (i + 1) * 10 })));
+    setItems(reordered.map((r, i) => ({ ...r, sort_order: (i + 1) * 10 })));
 
-    showToast('Saving order…', 'saving');
-    const res = await fetch('/api/cancellation-reasons/reorder', {
+    toast('Saving order…', 'saving');
+    const res = await fetch(`${api}/reorder`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ordered_ids: reordered.map(r => r.id) }),
     });
-    showToast(res.ok ? 'Order saved' : 'Save failed', res.ok ? 'ok' : 'err');
+    toast(res.ok ? 'Order saved' : 'Save failed', res.ok ? 'ok' : 'err');
   }
 
-  async function delReason(r: Reason) {
+  async function del(r: Entry) {
     if (!confirm(`Remove "${r.label}"?`)) return;
-    setReasons(prev => prev.filter(x => x.id !== r.id));
-    showToast('Saving…', 'saving');
-    const res = await fetch(`/api/cancellation-reasons/${r.id}`, { method: 'DELETE' });
-    showToast(res.ok ? 'Removed' : 'Delete failed', res.ok ? 'ok' : 'err');
+    setItems(prev => prev.filter(x => x.id !== r.id));
+    toast('Saving…', 'saving');
+    const res = await fetch(`${api}/${r.id}`, { method: 'DELETE' });
+    toast(res.ok ? 'Removed' : 'Delete failed', res.ok ? 'ok' : 'err');
   }
+
+  return (
+    <section>
+      <h2 className="cr-sec-title">
+        {title}
+        {loadState === 'done' && <span className="cr-sec-count">{items.length}</span>}
+      </h2>
+      {loadState === 'loading' && <div className="cr-state">Loading…</div>}
+      {loadState === 'error'   && <div className="cr-state">Failed to load: {errMsg}</div>}
+      {loadState === 'done' && (
+        <div className="cr-card">
+          {items.length === 0 && <div className="cr-empty">Nothing yet. Add one below.</div>}
+          {items.map((r, idx) => (
+            <div
+              key={r.id}
+              className={`cr-row${draggingId === r.id ? ' cr-dragging' : ''}${overId === r.id ? ' cr-over' : ''}`}
+              draggable
+              onDragStart={e => onDragStart(e, r.id)}
+              onDragEnd={onDragEnd}
+              onDragOver={e => onDragOver(e, r.id)}
+              onDragLeave={() => { if (overId === r.id) setOverId(null); }}
+              onDrop={e => onDrop(e, r.id)}
+            >
+              <span className="cr-drag" title="Drag to reorder" />
+              <span className="cr-idx">{idx + 1}</span>
+              <span className="cr-label">{r.label}</span>
+              <button className="cr-del-btn" title="Remove" onClick={() => del(r)}>×</button>
+            </div>
+          ))}
+          <div className="cr-add-row">
+            <input
+              className="cr-add-input"
+              placeholder={placeholder}
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') add(); }}
+            />
+            <button className="cr-add-btn" disabled={adding || !newLabel.trim()} onClick={add}>Add</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function CancellationListsPage() {
+  const [toastMsg, setToastMsg] = useState('');
+  const [toastType, setToastType] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast: Toast = (msg, type) => {
+    setToastMsg(msg); setToastType(type);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (type !== 'saving') toastTimer.current = setTimeout(() => setToastMsg(''), 2200);
+  };
 
   return (
     <>
       <style>{CSS}</style>
 
       <div className="cr-bar">
-        <span className="cr-bar-title">Cancellation Reasons</span>
-        <span className="cr-bar-sub">{loadState === 'done' ? `${reasons.length} reason${reasons.length === 1 ? '' : 's'}` : 'Supabase'}</span>
+        <span className="cr-bar-title">Cancellation Lists</span>
+        <span className="cr-bar-sub">Reasons · Timing · Impact</span>
       </div>
 
       <div className="cr-body">
-        {loadState === 'loading' && <div className="cr-state">Loading…</div>}
-        {loadState === 'error'   && <div className="cr-state">Failed to load: {errMsg}</div>}
-        {loadState === 'done' && (
-          <div className="cr-card">
-            {reasons.length === 0 && <div className="cr-empty">No reasons yet. Add one below.</div>}
-            {reasons.map((r, idx) => (
-              <div
-                key={r.id}
-                className={`cr-row${draggingId === r.id ? ' cr-dragging' : ''}${overId === r.id ? ' cr-over' : ''}`}
-                draggable
-                onDragStart={e => onDragStart(e, r.id)}
-                onDragEnd={onDragEnd}
-                onDragOver={e => onDragOver(e, r.id)}
-                onDragLeave={() => { if (overId === r.id) setOverId(null); }}
-                onDrop={e => onDrop(e, r.id)}
-              >
-                <span className="cr-drag" title="Drag to reorder" />
-                <span className="cr-idx">{idx + 1}</span>
-                <span className="cr-label">{r.label}</span>
-                <button className="cr-del-btn" title="Remove reason" onClick={() => delReason(r)}>×</button>
-              </div>
-            ))}
-            <div className="cr-add-row">
-              <input
-                className="cr-add-input"
-                placeholder="New cancellation reason…"
-                value={newLabel}
-                onChange={e => setNewLabel(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addReason(); }}
-              />
-              <button className="cr-add-btn" disabled={adding || !newLabel.trim()} onClick={addReason}>Add</button>
-            </div>
-          </div>
-        )}
+        {LISTS.map(l => (
+          <ListCard key={l.key} list={l.key} title={l.title} placeholder={l.placeholder} toast={showToast} />
+        ))}
       </div>
 
       {toastMsg && <div className={`cr-toast cr-toast-${toastType}`}>{toastMsg}</div>}
