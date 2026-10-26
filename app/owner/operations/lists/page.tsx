@@ -173,7 +173,7 @@ export default function ListsPage() {
                 ) : groups ? (
                   <div>
                     {groups.map(g => (
-                      <details key={g.id} open className="border-t border-border first:border-t-0 group">
+                      <details key={g.id} open={!!search} className="border-t border-border first:border-t-0 group">
                         <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none bg-surface-2 hover:bg-cream list-none">
                           <svg className="w-3.5 h-3.5 text-brown transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
