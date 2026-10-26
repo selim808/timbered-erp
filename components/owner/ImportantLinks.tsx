@@ -81,40 +81,46 @@ function Banner({ icon, title, sub, buttons }: {
 
 export default function ImportantLinks() {
   return (
-    <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <Banner
-        icon={<GlobeIcon />}
-        title="Website"
-        sub="timberedgroup.com"
-        buttons={[{ label: 'Open', href: 'https://timberedgroup.com' }]}
-      />
-      <Banner
-        icon={<SheetIcon />}
-        title="Google Spreadsheet"
-        sub="All sheets & data sources"
-        buttons={[{ label: 'Open', href: 'https://docs.google.com/spreadsheets/d/16FRyFmYhnjBXLQNkd4yehiaYfxPC252srClEuEMSlfc/edit' }]}
-      />
-      <Banner
-        icon={<CloudIcon />}
-        title="OneDrive"
-        sub="Drawings & files"
-        buttons={[{ label: 'Open', href: 'https://onedrive.live.com/?redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy8yYTljNmRlZTM2NzMwMTJkL0VpUXI2U2NLN0RKT294cEc0ZUhkaHdJQmVPYjktN0J3b2xKRHU3TU1zM3ByOVE%5FZT14UnpPQ2Q&id=2A9C6DEE3673012D%21s27e92b24ec0a4e32a31a46e1e1dd8702&cid=2A9C6DEE3673012D' }]}
-      />
-      <Banner
-        icon={<AppIcon />}
-        title="AppSheet"
-        sub="Apps & data entry"
-        buttons={[
-          { label: 'Timbered', href: 'https://www.appsheet.com/start/831bfa0c-8b33-419d-9c73-8d17bd1c42f1?platform=mobile#appName=Timbered-230806548&view=Processing%20Orders' },
-          { label: 'Finance',  href: 'https://www.appsheet.com/start/25809a9d-557f-43a0-8fac-14a212f85519?platform=mobile#appName=Accounting-Entry-548387873-25-08-20&view=Exp%20Buckets_Detail' },
-        ]}
-      />
-      <Banner
-        icon={<BoxIcon />}
-        title="Inventory & Delivery Module"
-        sub="Warehouse, stock & deliveries"
-        buttons={[{ label: 'Open', href: 'https://timbered-wh.vercel.app/owner/dashboard' }]}
-      />
+    <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Banner
+            icon={<GlobeIcon />}
+            title="Website"
+            sub="timberedgroup.com"
+            buttons={[{ label: 'Open', href: 'https://timberedgroup.com' }]}
+          />
+          <Banner
+            icon={<BoxIcon />}
+            title="Inventory & Delivery Module"
+            sub="Warehouse, stock & deliveries"
+            buttons={[{ label: 'Open', href: 'https://timbered-wh.vercel.app/owner/dashboard' }]}
+          />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Banner
+            icon={<SheetIcon />}
+            title="Google Spreadsheet"
+            sub="All sheets & data sources"
+            buttons={[{ label: 'Open', href: 'https://docs.google.com/spreadsheets/d/16FRyFmYhnjBXLQNkd4yehiaYfxPC252srClEuEMSlfc/edit' }]}
+          />
+          <Banner
+            icon={<CloudIcon />}
+            title="OneDrive"
+            sub="Drawings & files"
+            buttons={[{ label: 'Open', href: 'https://onedrive.live.com/?redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy8yYTljNmRlZTM2NzMwMTJkL0VpUXI2U2NLN0RKT294cEc0ZUhkaHdJQmVPYjktN0J3b2xKRHU3TU1zM3ByOVE%5FZT14UnpPQ2Q&id=2A9C6DEE3673012D%21s27e92b24ec0a4e32a31a46e1e1dd8702&cid=2A9C6DEE3673012D' }]}
+          />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Banner
+            icon={<AppIcon />}
+            title="AppSheet"
+            sub="Apps & data entry"
+            buttons={[
+              { label: 'Timbered', href: 'https://www.appsheet.com/start/831bfa0c-8b33-419d-9c73-8d17bd1c42f1?platform=mobile#appName=Timbered-230806548&view=Processing%20Orders' },
+              { label: 'Finance',  href: 'https://www.appsheet.com/start/25809a9d-557f-43a0-8fac-14a212f85519?platform=mobile#appName=Accounting-Entry-548387873-25-08-20&view=Exp%20Buckets_Detail' },
+            ]}
+          />
+      </div>
     </div>
   );
 }
