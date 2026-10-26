@@ -29,6 +29,13 @@ function show(v: unknown): string {
   return s;
 }
 
+// Tables shown as collapsible sections, grouped by a parent list.
+const GROUP_BY: Record<string, { column: string; table: string; label: string }> = {
+  phases: { column: 'phase_group_id', table: 'phase_groups', label: 'name' },
+};
+
+interface Group { id: string; name: string; rows: Record<string, unknown>[] }
+
 function readInitialTable(): string | null {
   if (typeof window === 'undefined') return null;
   return new URLSearchParams(window.location.search).get('t');
@@ -42,6 +49,7 @@ export default function ListsPage() {
   const [dataState, setDataState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [parents, setParents] = useState<Record<string, unknown>[]>([]);
 
   // Load one table's rows. Called from event handlers / async callbacks only.
   function openTable(name: string) {
@@ -52,11 +60,19 @@ export default function ListsPage() {
     url.searchParams.set('t', name);
     window.history.replaceState(null, '', url);
 
-    fetch(`/api/lists/${encodeURIComponent(name)}`)
-      .then(r => r.json())
-      .then((d: TableData | { error: string }) => {
-        if (!('rows' in d)) throw new Error(d?.error ?? 'Failed to load');
+    const load = (t: string) =>
+      fetch(`/api/lists/${encodeURIComponent(t)}`)
+        .then(r => r.json())
+        .then((d: TableData | { error: string }) => {
+          if (!('rows' in d)) throw new Error(d?.error ?? 'Failed to load');
+          return d;
+        });
+
+    const group = GROUP_BY[name];
+    Promise.all([load(name), group ? load(group.table) : Promise.resolve(null)])
+      .then(([d, p]) => {
         setData(d);
+        setParents(p?.rows ?? []);
         setDataState('done');
       })
       .catch((e: Error) => { setError(e.message); setDataState('error'); });
@@ -76,14 +92,32 @@ export default function ListsPage() {
       .catch((e: Error) => { setError(e.message); setTablesState('error'); });
   }, []);
 
-  // Hide the internal row id; keep everything else in table order.
-  const columns = useMemo(() => (data?.columns ?? []).filter(c => c !== 'id'), [data]);
+  const group = selected ? GROUP_BY[selected] : undefined;
+
+  // Hide the internal row id (and the grouping column); keep the rest in table order.
+  const columns = useMemo(
+    () => (data?.columns ?? []).filter(c => c !== 'id' && c !== group?.column),
+    [data, group]
+  );
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!data || !q) return data?.rows ?? [];
     return data.rows.filter(r => columns.some(c => show(r[c]).toLowerCase().includes(q)));
   }, [data, search, columns]);
+
+  // For grouped tables: one section per parent, in the parent's sort order.
+  const groups = useMemo<Group[] | null>(() => {
+    if (!group) return null;
+    const list: Group[] = parents.map(p => ({
+      id: String(p.id), name: String(p[group.label] ?? '—'), rows: [],
+    }));
+    const byId = new Map(list.map(g => [g.id, g]));
+    const other: Group = { id: '_other', name: 'Ungrouped', rows: [] };
+    rows.forEach(r => (byId.get(String(r[group.column])) ?? other).rows.push(r));
+    if (other.rows.length) list.push(other);
+    return search ? list.filter(g => g.rows.length) : list;
+  }, [group, parents, rows, search]);
 
   return (
     <div className="min-h-screen bg-background pb-28">
@@ -136,32 +170,26 @@ export default function ListsPage() {
                   <p className="px-4 py-8 text-center text-sm text-text-muted">
                     {data.rows.length === 0 ? 'This list is empty.' : 'No matches.'}
                   </p>
+                ) : groups ? (
+                  <div>
+                    {groups.map(g => (
+                      <details key={g.id} open className="border-t border-border first:border-t-0 group">
+                        <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none bg-surface-2 hover:bg-cream list-none">
+                          <svg className="w-3.5 h-3.5 text-brown transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <span className="text-sm font-bold text-brown flex-1">{g.name}</span>
+                          <span className="text-xs text-text-muted">{g.rows.length}</span>
+                        </summary>
+                        {g.rows.length === 0
+                          ? <p className="px-4 py-3 text-xs text-text-muted italic">Nothing in this group.</p>
+                          : <DataTable columns={columns} rows={g.rows} />}
+                      </details>
+                    ))}
+                  </div>
                 ) : (
                   <div className="overflow-auto max-h-[70vh]">
-                    <table className="w-full text-sm border-collapse">
-                      <thead className="sticky top-0 bg-surface-2">
-                        <tr>
-                          <th className="text-left text-[11px] font-bold text-text-muted uppercase tracking-wide px-3 py-2 w-8">#</th>
-                          {columns.map(c => (
-                            <th key={c} className="text-left text-[11px] font-bold text-text-muted uppercase tracking-wide px-3 py-2 whitespace-nowrap">
-                              {pretty(c)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((r, i) => (
-                          <tr key={String(r.id ?? i)} className="border-t border-border hover:bg-surface-2">
-                            <td className="px-3 py-2 text-xs text-text-muted">{i + 1}</td>
-                            {columns.map(c => (
-                              <td key={c} className="px-3 py-2 text-text whitespace-nowrap max-w-[320px] truncate" title={show(r[c])}>
-                                {show(r[c])}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <DataTable columns={columns} rows={rows} sticky />
                   </div>
                 )}
               </div>
@@ -169,6 +197,39 @@ export default function ListsPage() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function DataTable({ columns, rows, sticky }: {
+  columns: string[]; rows: Record<string, unknown>[]; sticky?: boolean;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead className={sticky ? 'sticky top-0 bg-surface-2' : 'bg-surface'}>
+          <tr>
+            <th className="text-left text-[11px] font-bold text-text-muted uppercase tracking-wide px-3 py-2 w-8">#</th>
+            {columns.map(c => (
+              <th key={c} className="text-left text-[11px] font-bold text-text-muted uppercase tracking-wide px-3 py-2 whitespace-nowrap">
+                {pretty(c)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={String(r.id ?? i)} className="border-t border-border hover:bg-surface-2">
+              <td className="px-3 py-2 text-xs text-text-muted">{i + 1}</td>
+              {columns.map(c => (
+                <td key={c} className="px-3 py-2 text-text whitespace-nowrap max-w-[320px] truncate" title={show(r[c])}>
+                  {show(r[c])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
