@@ -289,12 +289,18 @@ export default function MonthlySection() {
 
   const ROW_COLORS = { Completed: '#27ae60', Cancelled: '#e74c3c', Created: '#2563EB' };
 
+  // The Created bar is stacked: of the orders placed that month, how much is
+  // completed, still open, and cancelled today. Its total sits on top.
+  const CREATED_TOP = 'Created · cancelled';
+  const createdTotal = (i: number) => chartMonthMap[visibleLabels[i]]?.created ?? 0;
   const chartData = {
     labels: visibleLabels,
     datasets: [
-      { label: 'Created',   data: visibleLabels.map(l => chartMonthMap[l]?.created   ?? 0), backgroundColor: '#3498db' },
-      { label: 'Completed', data: visibleLabels.map(l => chartMonthMap[l]?.completed ?? 0), backgroundColor: '#27ae60' },
-      { label: 'Cancelled', data: visibleLabels.map(l => chartMonthMap[l]?.cancelled ?? 0), backgroundColor: '#e74c3c' },
+      { label: 'Created · completed', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCompleted  ?? 0), backgroundColor: '#7dcea0' },
+      { label: 'Created · open',      stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdProcessing ?? 0), backgroundColor: '#3498db' },
+      { label: CREATED_TOP,           stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCancelled  ?? 0), backgroundColor: '#f1948a' },
+      { label: 'Completed',           stack: 'completed', data: visibleLabels.map(l => chartMonthMap[l]?.completed ?? 0), backgroundColor: '#27ae60' },
+      { label: 'Cancelled',           stack: 'cancelled', data: visibleLabels.map(l => chartMonthMap[l]?.cancelled ?? 0), backgroundColor: '#e74c3c' },
     ],
   };
 
@@ -303,12 +309,30 @@ export default function MonthlySection() {
     plugins: {
       legend: { display: true, position: 'top' as const, labels: { boxWidth: 12, boxHeight: 12, padding: 20 } },
       title:  { display: true, text: 'Monthly', font: { size: 14, weight: 'bold' as const } },
+      tooltip: {
+        callbacks: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          label: (ctx: any) => {
+            const v = Number(ctx.raw) || 0;
+            const base = `${ctx.dataset.label}: ${Math.round(v / 1000)}K`;
+            const total = createdTotal(ctx.dataIndex);
+            return ctx.dataset.stack === 'created' && total > 0 ? `${base} (${Math.round(v / total * 100)}%)` : base;
+          },
+        },
+      },
       datalabels: {
         anchor: 'end' as const, align: 'top' as const, rotation: -90,
         font: { size: 8, weight: 'bold' as const },
+        // Only the top of each stack is labelled; the Created stack shows its total.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        color: (ctx: any) => (['#3498db', '#27ae60', '#e74c3c'] as string[])[ctx.datasetIndex],
-        formatter: (v: number) => v > 0 ? Math.round(v / 1000) : '',
+        display: (ctx: any) => ctx.dataset.stack !== 'created' || ctx.dataset.label === CREATED_TOP,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        color: (ctx: any) => ({ created: '#3498db', completed: '#27ae60', cancelled: '#e74c3c' } as Record<string, string>)[ctx.dataset.stack],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        formatter: (v: number, ctx: any) => {
+          const shown = ctx.dataset.stack === 'created' ? createdTotal(ctx.dataIndex) : v;
+          return shown > 0 ? Math.round(shown / 1000) : '';
+        },
       },
     },
     scales: {
@@ -319,8 +343,9 @@ export default function MonthlySection() {
           callback: (_: unknown, index: number) => chartLabelDisplay(visibleLabels[index] ?? ''),
         },
         grid: { display: false },
+        stacked: true,
       },
-      y: { max: yMax, ticks: { callback: (v: number | string) => Number(v) / 1000 + 'K' }, grid: { color: '#f0f0f0' } },
+      y: { stacked: true, max: yMax, ticks: { callback: (v: number | string) => Number(v) / 1000 + 'K' }, grid: { color: '#f0f0f0' } },
     },
   };
 

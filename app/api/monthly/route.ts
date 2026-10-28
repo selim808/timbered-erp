@@ -19,6 +19,10 @@ export interface MonthEntry {
   completed: number;
   cancelled: number;
   created: number;
+  // Orders placed this month, split by where they stand now (sums to `created`).
+  createdCompleted: number;
+  createdProcessing: number;
+  createdCancelled: number;
   weeks: WeekInMonth[];
 }
 
@@ -68,6 +72,7 @@ function ensureMonth(map: Record<string, MonthEntry>, mk: string): MonthEntry {
       chartLabel: `${String(y).slice(-2)}-${String(m).padStart(2, '0')}`,
       year: y, month: m,
       completed: 0, cancelled: 0, created: 0,
+      createdCompleted: 0, createdProcessing: 0, createdCancelled: 0,
       weeks: [],
     };
   }
@@ -109,6 +114,9 @@ export async function GET() {
       if (['completed', 'cancelled', 'processing'].includes(status) && createdDs) {
         const me = ensureMonth(monthMap, monthKey(createdDs));
         me.created += val;
+        if (status === 'completed')       me.createdCompleted  += val;
+        else if (status === 'cancelled')  me.createdCancelled  += val;
+        else                              me.createdProcessing += val;
         getOrAddWeek(me, sundayOf(createdDs)).created += val;
       }
 
