@@ -118,7 +118,7 @@ export default function PhaseGroupPage() {
   const [feedLoading, setFeedLoading]       = useState(false);
   const [feedError, setFeedError]           = useState('');
 
-  const isAfterSales = group?.name === AFTER_SALES_GROUP;
+  const isAfterSales = group?.name.toLowerCase() === AFTER_SALES_GROUP.toLowerCase();
   const feed: OrdersFeed | null =
     !isAfterSales                    ? null
       : activePhase === FOLLOWUP_PHASE ? 'completed'
@@ -263,13 +263,15 @@ export default function PhaseGroupPage() {
 
   const groupPhaseNames = useMemo(() => new Set(groupPhases.map(p => p.name)), [groupPhases]);
 
-  // Tab strip: the group's own phases, plus the synthetic Cancelled tab right
-  // after Follow-up on After-Sales.
+  // Tab strip: the group's own phases, plus the synthetic Follow-up (completed
+  // orders) and Cancelled tabs on After-Sales. Follow-up is added only if the
+  // group has no phase of that name.
   const tabs = useMemo(() => {
     const list = groupPhases.map(p => ({ key: p.id, name: p.name }));
     if (!isAfterSales) return list;
-    const i = list.findIndex(t => t.name === FOLLOWUP_PHASE);
-    list.splice(i < 0 ? list.length : i + 1, 0, { key: 'tab-cancelled', name: CANCELLED_TAB });
+    let i = list.findIndex(t => t.name === FOLLOWUP_PHASE);
+    if (i < 0) { list.push({ key: 'tab-followup', name: FOLLOWUP_PHASE }); i = list.length - 1; }
+    list.splice(i + 1, 0, { key: 'tab-cancelled', name: CANCELLED_TAB });
     return list;
   }, [groupPhases, isAfterSales]);
 
