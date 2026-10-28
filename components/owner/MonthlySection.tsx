@@ -303,11 +303,10 @@ export default function MonthlySection() {
   const DURATIONS: { key: keyof DurationBuckets; text: string }[] = [
     { key: 'm1',   text: 'within 1 month' },
     { key: 'm2',   text: 'within 2 months' },
-    { key: 'm3',   text: 'within 3 months' },
-    { key: 'more', text: 'more than 3 months' },
+    { key: 'more', text: 'more than 2 months' },
   ];
-  const COMPLETED_SHADES = ['#1e8449', '#27ae60', '#82e0aa', '#d5f5e3'];
-  const CANCELLED_SHADES = ['#922b21', '#e74c3c', '#f5a79f', '#fadbd8'];
+  const COMPLETED_SHADES = ['#1e8449', '#27ae60', '#a9dfbf'];
+  const CANCELLED_SHADES = ['#922b21', '#e74c3c', '#f5b7b1'];
 
   type Seg = { label: string; color: string; value: (m: MonthEntry) => number };
   const STACKS: { key: 'created' | 'completed' | 'cancelled'; title: string; labelColor: string; total: (m: MonthEntry) => number; segs: Seg[] }[] = [

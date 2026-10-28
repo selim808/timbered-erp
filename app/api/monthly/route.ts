@@ -11,8 +11,8 @@ export interface WeekInMonth {
   created: number;
 }
 
-/** Value split by time from placing the order: within 1 / 2 / 3 months (30-day blocks) or longer. */
-export interface DurationBuckets { m1: number; m2: number; m3: number; more: number }
+/** Value split by time from placing the order: within 1 / 2 months (30-day blocks) or longer. */
+export interface DurationBuckets { m1: number; m2: number; more: number }
 
 const DAY_MS = 86_400_000;
 
@@ -21,11 +21,10 @@ function durationBucket(fromIso: string, toIso: string | null): keyof DurationBu
   const days = (new Date(toIso).getTime() - new Date(fromIso).getTime()) / DAY_MS;
   if (days <= 30) return 'm1';
   if (days <= 60) return 'm2';
-  if (days <= 90) return 'm3';
   return 'more';
 }
 
-const emptyBuckets = (): DurationBuckets => ({ m1: 0, m2: 0, m3: 0, more: 0 });
+const emptyBuckets = (): DurationBuckets => ({ m1: 0, m2: 0, more: 0 });
 
 export interface MonthEntry {
   key: string;        // "2025-05"
