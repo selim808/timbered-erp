@@ -1,5 +1,6 @@
 import { shopifyGql } from './client';
 import type { CommerceLineItem, CommerceOrder, CommerceStatus, OrderQuery } from '@/lib/commerce/types';
+import { parseKanban } from '@/lib/phases/kanban';
 
 // Page size is bounded by the 1000-point query cost ceiling, which line items
 // dominate; without them a page can be far larger.
@@ -42,7 +43,8 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
       shippingLine { title }
       customer { firstName lastName phone }
       billingAddress { firstName lastName phone }
-      shippingAddress { firstName lastName name phone address1 address2 city province }${lite ? '' : LINE_ITEMS_FRAGMENT}
+      shippingAddress { firstName lastName name phone address1 address2 city province }
+      kanban: metafield(namespace: "timbered", key: "kanban_phase") { value compareDigest }${lite ? '' : LINE_ITEMS_FRAGMENT}
     }
   }
 }`;
@@ -85,6 +87,7 @@ interface RawOrder {
   customer: { firstName: string | null; lastName: string | null; phone: string | null } | null;
   billingAddress: RawAddress | null;
   shippingAddress: RawAddress | null;
+  kanban: { value: string; compareDigest: string } | null;
   lineItems?: { nodes: RawLineItem[] };
 }
 
@@ -219,6 +222,8 @@ function normalize(o: RawOrder): CommerceOrder {
       phone: o.billingAddress?.phone ?? o.customer?.phone ?? ship.phone ?? o.phone ?? '',
     },
     line_items: (o.lineItems?.nodes ?? []).map(mapLineItem),
+    kanban: parseKanban(o.kanban?.value),
+    kanban_digest: o.kanban?.compareDigest ?? null,
   };
 }
 

@@ -10,8 +10,8 @@ import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 // This keeps the pipeline pages instant and working on flaky mobile networks —
 // phases change rarely, so a manual refresh is enough.
 
-const GROUPS_KEY = 'tg_phase_groups_v1';
-const PHASES_KEY = 'tg_phases_v1';
+const GROUPS_KEY = 'tg_phase_groups_v2';
+const PHASES_KEY = 'tg_phases_v2';
 
 function readCache<T>(key: string, fallback: T[]): T[] {
   if (typeof window === 'undefined') return fallback;

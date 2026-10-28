@@ -1,3 +1,4 @@
+import type { KanbanData } from '@/lib/phases/kanban';
 export type CommerceSource = 'wc' | 'shopify';
 
 /** Lifecycle status, normalized across both platforms. */
@@ -53,6 +54,10 @@ export interface CommerceOrder {
   fee_lines: { name: string; total: string }[];
   billing: CommerceAddress;
   line_items: CommerceLineItem[];
+  /** Per-item kanban phase, from the Shopify order metafield timbered.kanban_phase. Null for Woo. */
+  kanban?: KanbanData | null;
+  /** Version token of that metafield, for conflict-safe writes. */
+  kanban_digest?: string | null;
 }
 
 export interface OrderQuery {

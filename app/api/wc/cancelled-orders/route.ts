@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { itemPhaseOf } from '@/lib/phases/kanban';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
@@ -42,17 +43,6 @@ export async function GET(req: Request) {
     const data       = cancelled.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
     const db = createAdminClient();
-    const orderIds = data.map(o => String(o.id));
-
-    const { data: phaseRows } = await db
-      .from('item_phase')
-      .select('order_id, line_item_id, phase')
-      .in('order_id', orderIds);
-
-    const phaseMap = new Map<string, string>();
-    (phaseRows ?? []).forEach((r: any) => {
-      phaseMap.set(`${r.order_id}-${r.line_item_id}`, r.phase);
-    });
 
     const productIds = [...new Set(data.flatMap((o: any) =>
       (o.line_items ?? []).map((li: any) => li.product_id as number)
@@ -78,7 +68,7 @@ export async function GET(req: Request) {
         imageUrl: li.image?.src ?? '',
         // Whatever phase the item reached before it was cancelled; blank when it
         // never entered the pipeline, since "cancelled" is not a phase itself.
-        phase: phaseMap.get(`${o.id}-${li.id}`) ?? '',
+        phase: itemPhaseOf(o, li.id)?.phase ?? '',
         stock: stockMap.get(li.product_id) ?? 0,
         orderedQty: li.quantity ?? 0,
       }));

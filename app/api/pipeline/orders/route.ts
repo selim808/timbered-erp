@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
 import type { CommerceSource } from '@/lib/commerce/types';
+import { getStartPhase, itemPhaseOf, seedMissingPhases } from '@/lib/phases/kanban';
 
 export interface PipelineLineItem {
   id: number;
@@ -48,33 +49,11 @@ export async function GET() {
     const wcOrders = await fetchOrders({ status: 'processing' });
     const db = createAdminClient();
 
-    const orderIds = wcOrders.map(o => String(o.id));
-
-    const { data: phaseRows } = await db
-      .from('item_phase')
-      .select('order_id, line_item_id, phase')
-      .in('order_id', orderIds)
-      .order('updated_at', { ascending: true });
-
-    const phaseMap = new Map<string, string>();
-    (phaseRows ?? []).forEach((r: any) => {
-      phaseMap.set(`${r.order_id}-${r.line_item_id}`, r.phase);
-    });
-
-    // Auto-save 'placed' for any item with no phase yet
-    const toPlace: { order_id: string; line_item_id: string; phase: string }[] = [];
-    wcOrders.forEach((o: any) => {
-      (o.line_items ?? []).forEach((li: any) => {
-        const key = `${o.id}-${li.id}`;
-        if (!phaseMap.get(key)) {
-          phaseMap.set(key, 'Placed');
-          toPlace.push({ order_id: String(o.id), line_item_id: String(li.id), phase: 'Placed' });
-        }
-      });
-    });
-    if (toPlace.length > 0) {
-      await db.from('item_phase').upsert(toPlace, { onConflict: 'order_id,line_item_id' });
-    }
+    // Every Shopify item without a phase starts in the first phase (stored on the order).
+    // A failed seed (e.g. Shopify down) must not hide the pipeline; items just show the start phase.
+    try { await seedMissingPhases(wcOrders); }
+    catch (e) { console.error('Phase seed failed:', (e as Error).message); }
+    const startName = (await getStartPhase())?.name ?? '';
 
     // Stock per product
     const productIds = [...new Set(wcOrders.flatMap((o: any) => (o.line_items ?? []).map((li: any) => li.product_id as number)))];
@@ -99,7 +78,7 @@ export async function GET() {
         price: parseFloat(li.price ?? '0'),
         total: parseFloat(li.total ?? '0'),
         imageUrl: li.image?.src ?? '',
-        phase: phaseMap.get(`${o.id}-${li.id}`) ?? 'Placed',
+        phase: itemPhaseOf(o, li.id)?.phase ?? (o.source === 'shopify' ? startName : ''),
         stock: stockMap.get(li.product_id) ?? 0,
         orderedQty: orderedQtyMap.get(li.product_id) ?? li.quantity,
       }));

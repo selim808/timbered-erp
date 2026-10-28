@@ -58,7 +58,8 @@ interface StoredJO {
 }
 
 const JO_PREPARATION_PHASE = 'JO Preparation';
-const JO_RELEASED_PHASE = 'JO Released';
+// Releasing a JO starts production, so its items move to the first production phase.
+const JO_RELEASED_PHASE = 'Cutting';
 
 function fmtPrice(n: number) {
   return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
@@ -269,7 +270,7 @@ export default function JobOrdersPage() {
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || `HTTP ${res.status}`);
       }
-      // Advance MTO line items to "JO Released"
+      // Advance MTO line items to the first production phase
       const phaseUpdates: Promise<unknown>[] = [];
       joProducts.forEach(prod => prod.orders.forEach(ord => ord.lineItemIds.forEach(liId => {
         phaseUpdates.push(fetch(`/api/pipeline/orders/${ord.orderId}/phase`, {
