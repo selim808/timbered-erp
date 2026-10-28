@@ -70,6 +70,13 @@ function chartLabelDisplay(l: string): string {
 
 // ─── CSS ─────────────────────────────────────────────────────────
 const STYLES = `
+  .mo-chart-title { text-align:center; font-size:14px; font-weight:700; color:#666; margin-bottom:-2px; }
+  .mo-legend { display:grid; grid-template-columns:repeat(3, auto); justify-content:center; gap:4px 28px; font-size:12px; color:#666; }
+  .mo-legend-col { display:flex; flex-direction:column; gap:4px; }
+  .mo-legend-head { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#9e9087; border-bottom:1px solid #eee; padding-bottom:2px; }
+  .mo-legend-item { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .mo-legend-swatch { width:12px; height:12px; flex-shrink:0; }
+  @media (max-width: 420px) { .mo-legend { gap:4px 14px; font-size:11px; } }
 .mo-card { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:10px 12px; }
 .mo-label { display:block; font-size:10px; color:#9e9087; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; margin-bottom:3px; }
 .mo-kpi { font-size:18px; font-weight:700; margin-top:2px; }
@@ -292,7 +299,16 @@ export default function MonthlySection() {
   // The Created bar is stacked: of the orders placed that month, how much is
   // completed, still open, and cancelled today. Its total sits on top.
   const CREATED_TOP = 'Created - cancelled';
-  const LEGEND_ORDER = ['Created - processing', CREATED_TOP, 'Created - completed', 'Completed', 'Cancelled'];
+  // Legend in one column per bar, matching the bars' left-to-right order.
+  const LEGEND_COLS: { title: string; items: { label: string; color: string }[] }[] = [
+    { title: 'Created', items: [
+      { label: 'Created - processing', color: '#3498db' },
+      { label: 'Created - cancelled',  color: '#f1948a' },
+      { label: 'Created - completed',  color: '#7dcea0' },
+    ] },
+    { title: 'Completed', items: [{ label: 'Completed', color: '#27ae60' }] },
+    { title: 'Cancelled', items: [{ label: 'Cancelled', color: '#e74c3c' }] },
+  ];
   const createdTotal = (i: number) => chartMonthMap[visibleLabels[i]]?.created ?? 0;
   const chartData = {
     labels: visibleLabels,
@@ -307,17 +323,11 @@ export default function MonthlySection() {
 
   const chartOptions = {
     responsive: true, maintainAspectRatio: false,
+    // Room for the rotated value labels above the tallest bar.
+    layout: { padding: { top: 24 } },
     plugins: {
-      legend: {
-        display: true, position: 'top' as const,
-        labels: {
-          boxWidth: 12, boxHeight: 12, padding: 20,
-          // Stack is drawn completed → processing → cancelled from the bottom; the legend reads processing, cancelled, completed.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          sort: (a: any, b: any) => LEGEND_ORDER.indexOf(a.text) - LEGEND_ORDER.indexOf(b.text),
-        },
-      },
-      title:  { display: true, text: 'Monthly', font: { size: 14, weight: 'bold' as const } },
+      legend: { display: false },
+      title:  { display: false },
       tooltip: {
         callbacks: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,6 +485,20 @@ export default function MonthlySection() {
         </div>
 
         {/* Monthly chart */}
+        <div className="mo-chart-title">Monthly</div>
+        <div className="mo-legend">
+          {LEGEND_COLS.map(col => (
+            <div key={col.title} className="mo-legend-col">
+              <div className="mo-legend-head">{col.title}</div>
+              {col.items.map(it => (
+                <div key={it.label} className="mo-legend-item">
+                  <span className="mo-legend-swatch" style={{ background: it.color }} />
+                  {it.label}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ height: 320, minWidth: Math.max(visibleLabels.length * 36, 300) }}>
             <Bar data={chartData} options={chartOptions} />
