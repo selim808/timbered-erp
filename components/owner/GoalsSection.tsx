@@ -275,25 +275,14 @@ function LoadError({ msg }: { msg: string }) {
   );
 }
 
-/** A finished year, collapsed until opened; its numbers load on first open. */
-function PastYear({ year }: { year: number }) {
-  const [open, setOpen]     = useState(false);
-  const [data, setData]     = useState<GoalsData | null>(null);
-  const [errMsg, setErrMsg] = useState('');
-
-  function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && !data) {
-      setErrMsg('');
-      fetchGoals(year).then(setData).catch((e: Error) => setErrMsg(e.message));
-    }
-  }
+/** A finished year, collapsed until opened. Its numbers are fetched by the parent. */
+function PastYear({ year, data, errMsg }: { year: number; data?: GoalsData; errMsg?: string }) {
+  const [open, setOpen] = useState(false);
 
   return (
     <div style={{ borderTop: '1px solid #E8D9C4' }}>
       <button
-        onClick={toggle}
+        onClick={() => setOpen(o => !o)}
         aria-expanded={open}
         style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
@@ -316,19 +305,58 @@ function PastYear({ year }: { year: number }) {
   );
 }
 
+/** One Σ bar across every year on record (Oct 2024 → today). Plans only exist for the current year, so they're left out. */
+function OverallTotal({ rows, fromYear }: { rows: GoalRow[]; fromYear: number }) {
+  return (
+    <div style={{ borderTop: '1px solid #E8D9C4' }}>
+      <div style={{ padding: '10px 14px 0', fontSize: 13, fontWeight: 700, color: '#7A4610' }}>
+        All time{' '}
+        <span style={{ fontSize: 11, fontWeight: 500, color: '#7A6F65' }}>
+          (Oct {fromYear} – today)
+        </span>
+      </div>
+      <div style={{ padding: '6px 12px 12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table className="goals-tbl">
+          <GoalsColgroup />
+          <tbody>
+            <TotalRow rows={rows} label="Σ" hidePlan />
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function GoalsSection() {
   const [data, setData]     = useState<GoalsData | null>(null);
   const [errMsg, setErrMsg] = useState('');
+  const [past, setPast]     = useState<Record<number, GoalsData>>({});
+  const [pastErr, setPastErr] = useState<Record<number, string>>({});
 
   useEffect(() => {
     fetchGoals().then(setData).catch((e: Error) => setErrMsg(e.message));
   }, []);
 
+  const pastYears: number[] = [];
+  if (data) for (let y = data.year - 1; y >= HISTORY_START_YEAR; y--) pastYears.push(y);
+
+  // Once this year is on screen, fetch earlier years in the background for the
+  // all-time bar; opening a year then shows it instantly.
+  useEffect(() => {
+    if (!data) return;
+    for (let y = data.year - 1; y >= HISTORY_START_YEAR; y--) {
+      const year = y;
+      fetchGoals(year)
+        .then(d => setPast(p => ({ ...p, [year]: d })))
+        .catch((e: Error) => setPastErr(p => ({ ...p, [year]: e.message })));
+    }
+  }, [data]);
+
   if (errMsg) return <LoadError msg={errMsg} />;
   if (!data) return <LoadingDots label="Loading goals" />;
 
-  const pastYears: number[] = [];
-  for (let y = data.year - 1; y >= HISTORY_START_YEAR; y--) pastYears.push(y);
+  const allLoaded = pastYears.every(y => past[y]);
+  const failed = pastYears.filter(y => pastErr[y]);
 
   return (
     <>
@@ -338,14 +366,38 @@ export default function GoalsSection() {
         <b>completed</b>. Gross order total (incl. shipping &amp; tax); refunds are not deducted.
         Click a figure for the full status breakdown.
       </div>
-      {pastYears.map(y => <PastYear key={y} year={y} />)}
+      {pastYears.map(y => <PastYear key={y} year={y} data={past[y]} errMsg={pastErr[y]} />)}
+      {pastYears.length > 0 && (
+        failed.length ? (
+          <LoadError msg={`all-time total needs ${failed.join(', ')}: ${pastErr[failed[0]]}`} />
+        ) : !allLoaded ? (
+          <LoadingDots label="Loading all-time total" />
+        ) : (
+          <OverallTotal
+            rows={[...pastYears.flatMap(y => past[y].rows), ...data.rows]}
+            fromYear={HISTORY_START_YEAR}
+          />
+        )
+      )}
     </>
   );
 }
 
-function GoalsTable({ rows, year }: GoalsData) {
-  const [openRow, setOpenRow] = useState<GoalRow | null>(null);
+function GoalsColgroup() {
+  return (
+    <colgroup>
+      <col style={{ width: '2ch' }} />
+      <col style={{ width: '5ch' }} />
+      <col style={{ width: '9ch' }} />
+      <col />
+      <col style={{ width: '5ch' }} />
+      <col style={{ width: '9ch' }} />
+    </colgroup>
+  );
+}
 
+/** The brown Σ row: totals of every row passed in. */
+function TotalRow({ rows, label, hidePlan }: { rows: GoalRow[]; label: string; hidePlan?: boolean }) {
   let tSalesTgt = 0, tSalesAct = 0, tMktTgt = 0, tMktAct = 0;
   let tPlaced = 0, tComp = 0, tProc = 0;
   rows.forEach(r => {
@@ -367,6 +419,28 @@ function GoalsTable({ rows, year }: GoalsData) {
   })();
   const tRoas = tMktAct && tSalesAct ? Math.round(tSalesAct / tMktAct) : null;
 
+  const cell: React.CSSProperties = { background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' };
+
+  return (
+    <tr>
+      <td className="goals-month-col" style={{ ...cell, padding: undefined }}>{label}</td>
+      <td style={cell}>{hidePlan ? '' : fmt(tSalesTgt)}</td>
+      <td style={cell}>{fmt(tSalesAct) || '—'}</td>
+      <td style={{ ...cell, padding: 0 }}>
+        {tShares && <StatusBar shares={tShares} />}
+      </td>
+      <td style={cell}>{hidePlan ? '' : fmt(tMktTgt)}</td>
+      <td style={cell}>
+        {fmt(tMktAct) || '—'}
+        {tRoas && <span style={{ fontSize: 10, opacity: 0.7 }}> ({tRoas}x)</span>}
+      </td>
+    </tr>
+  );
+}
+
+function GoalsTable({ rows, year }: GoalsData) {
+  const [openRow, setOpenRow] = useState<GoalRow | null>(null);
+
   const tdBase: React.CSSProperties = { color: '#1C1A17' };
   const tdNarrow: React.CSSProperties = { ...tdBase, padding: '8px 6px' };
   const tdMonth: React.CSSProperties = { ...tdBase, background: '#FBF5EC', color: '#7A6F65', fontWeight: 500 };
@@ -376,14 +450,7 @@ function GoalsTable({ rows, year }: GoalsData) {
       <style>{STYLES}</style>
       <div style={{ padding: '10px 12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table className="goals-tbl">
-          <colgroup>
-            <col style={{ width: '2ch' }} />
-            <col style={{ width: '5ch' }} />
-            <col style={{ width: '9ch' }} />
-            <col />
-            <col style={{ width: '5ch' }} />
-            <col style={{ width: '9ch' }} />
-          </colgroup>
+          <GoalsColgroup />
           <thead>
             <tr>
               <Th muted sticky rowSpan={2}>
@@ -437,25 +504,7 @@ function GoalsTable({ rows, year }: GoalsData) {
                 </tr>
               );
             })}
-            <tr>
-              <td className="goals-month-col" style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610' }}>Σ</td>
-              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
-                {fmt(tSalesTgt)}
-              </td>
-              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
-                {fmt(tSalesAct) || '—'}
-              </td>
-              <td style={{ background: '#7A4610', border: '1px solid #7A4610', padding: 0 }}>
-                {tShares && <StatusBar shares={tShares} />}
-              </td>
-              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
-                {fmt(tMktTgt)}
-              </td>
-              <td style={{ background: '#7A4610', color: '#fff', fontWeight: 600, border: '1px solid #7A4610', padding: '8px 6px' }}>
-                {fmt(tMktAct) || '—'}
-                {tRoas && <span style={{ fontSize: 10, opacity: 0.7 }}> ({tRoas}x)</span>}
-              </td>
-            </tr>
+            <TotalRow rows={rows} label="Σ" />
           </tbody>
         </table>
       </div>
