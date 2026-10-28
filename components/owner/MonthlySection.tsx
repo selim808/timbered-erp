@@ -291,13 +291,14 @@ export default function MonthlySection() {
 
   // The Created bar is stacked: of the orders placed that month, how much is
   // completed, still open, and cancelled today. Its total sits on top.
-  const CREATED_TOP = 'Created · cancelled';
+  const CREATED_TOP = 'Created - cancelled';
+  const LEGEND_ORDER = ['Created - processing', CREATED_TOP, 'Created - completed', 'Completed', 'Cancelled'];
   const createdTotal = (i: number) => chartMonthMap[visibleLabels[i]]?.created ?? 0;
   const chartData = {
     labels: visibleLabels,
     datasets: [
-      { label: 'Created · completed', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCompleted  ?? 0), backgroundColor: '#7dcea0' },
-      { label: 'Created · open',      stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdProcessing ?? 0), backgroundColor: '#3498db' },
+      { label: 'Created - completed', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCompleted  ?? 0), backgroundColor: '#7dcea0' },
+      { label: 'Created - processing', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdProcessing ?? 0), backgroundColor: '#3498db' },
       { label: CREATED_TOP,           stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCancelled  ?? 0), backgroundColor: '#f1948a' },
       { label: 'Completed',           stack: 'completed', data: visibleLabels.map(l => chartMonthMap[l]?.completed ?? 0), backgroundColor: '#27ae60' },
       { label: 'Cancelled',           stack: 'cancelled', data: visibleLabels.map(l => chartMonthMap[l]?.cancelled ?? 0), backgroundColor: '#e74c3c' },
@@ -307,7 +308,15 @@ export default function MonthlySection() {
   const chartOptions = {
     responsive: true, maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'top' as const, labels: { boxWidth: 12, boxHeight: 12, padding: 20 } },
+      legend: {
+        display: true, position: 'top' as const,
+        labels: {
+          boxWidth: 12, boxHeight: 12, padding: 20,
+          // Stack is drawn completed → processing → cancelled from the bottom; the legend reads processing, cancelled, completed.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          sort: (a: any, b: any) => LEGEND_ORDER.indexOf(a.text) - LEGEND_ORDER.indexOf(b.text),
+        },
+      },
       title:  { display: true, text: 'Monthly', font: { size: 14, weight: 'bold' as const } },
       tooltip: {
         callbacks: {
