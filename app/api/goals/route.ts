@@ -10,6 +10,12 @@ const SALES_TGT: Record<string, number> = {
 
 const MKT_RATIO = 0.15;
 
+const MONTHS = Object.keys(SALES_TGT);
+
+// Past years have no plan; they show actuals only, starting from the first
+// month the business wants on record.
+const HISTORY_START = { year: 2024, month: 10 };
+
 const GOALS = Object.entries(SALES_TGT).map(([month, salesTgt]) => ({
   month, salesTgt, mktTgt: Math.round(salesTgt * MKT_RATIO),
 }));
@@ -75,10 +81,47 @@ async function fetchMonthMeta(year: number, month: number): Promise<number> {
   return Math.round(spends.reduce((a, b) => a + b, 0) * 1.14);
 }
 
-export async function GET() {
+/** Actuals for a finished year (no targets). Past months never change, so cache for a day. */
+async function pastYear(year: number) {
+  const first = year === HISTORY_START.year ? HISTORY_START.month : 1;
+  const months = Array.from({ length: 13 - first }, (_, i) => first + i);
+
+  const [orders, meta] = await Promise.all([
+    Promise.all(months.map(m => fetchMonthOrders(year, m))),
+    Promise.all(months.map(m => fetchMonthMeta(year, m))),
+  ]);
+
+  const rows = months.map((m, i) => ({
+    month:     MONTHS[m - 1],
+    salesTgt:  null,
+    mktTgt:    null,
+    salesAct:  sumCounted(orders[i]),
+    mktAct:    meta[i],
+    breakdown: orders[i],
+  }));
+
+  return NextResponse.json({ rows, year }, {
+    headers: { 'Cache-Control': 's-maxage=86400, stale-while-revalidate=604800' },
+  });
+}
+
+export async function GET(req: Request) {
   const now        = new Date();
   const curYear    = now.getFullYear();
   const monthCount = now.getMonth() + 1;
+
+  const yearParam = new URL(req.url).searchParams.get('year');
+  if (yearParam && Number(yearParam) !== curYear) {
+    const year = Number(yearParam);
+    if (!Number.isInteger(year) || year < HISTORY_START.year || year > curYear) {
+      return NextResponse.json({ error: `No goals data for ${yearParam}` }, { status: 400 });
+    }
+    try {
+      return await pastYear(year);
+    } catch (err) {
+      return NextResponse.json({ error: String(err) }, { status: 500 });
+    }
+  }
 
   try {
     const [wcMonths, metaActuals] = await Promise.all([

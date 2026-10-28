@@ -7,9 +7,10 @@ interface StatusStat { status: string; count: number; total: number }
 
 interface GoalRow {
   month: string;
-  salesTgt: number;
+  /** null for past years, which have no plan. */
+  salesTgt: number | null;
   salesAct: number | null;
-  mktTgt: number;
+  mktTgt: number | null;
   mktAct: number | null;
   breakdown: StatusStat[] | null;
 }
@@ -83,17 +84,23 @@ function StatusBar({ shares }: { shares: StatusShares }) {
   );
 }
 
-function salesClass(act: number | null, tgt: number) {
+function salesClass(act: number | null, tgt: number | null) {
   if (act === null) return 'empty';
+  if (tgt === null) return 'plain';
   return act >= tgt ? 'good' : 'bad';
 }
 
-function mktClass(act: number | null, tgt: number) {
+function mktClass(act: number | null, tgt: number | null) {
   if (act === null) return 'empty';
+  if (tgt === null) return 'plain';
   return act <= tgt ? 'good' : 'bad';
 }
 
-const COLOR: Record<string, string> = { good: '#2a7a3b', bad: '#b0341e', empty: '#9e9087' };
+const COLOR: Record<string, string> = { good: '#2a7a3b', bad: '#b0341e', empty: '#9e9087', plain: '#1C1A17' };
+
+/** First year shown under "previous years"; it starts in October. */
+const HISTORY_START_YEAR = 2024;
+const HISTORY_START_LABEL = 'from Oct';
 
 const STYLES = `
   .goals-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -251,39 +258,100 @@ function BreakdownModal({ row, year, onClose }: { row: GoalRow; year: number; on
   );
 }
 
-export default function GoalsSection() {
-  const [rows, setRows]     = useState<GoalRow[]>([]);
-  const [year, setYear]     = useState(new Date().getFullYear());
-  const [state, setState]   = useState<'loading' | 'done' | 'error'>('loading');
-  const [errMsg, setErrMsg] = useState('');
-  const [openRow, setOpenRow] = useState<GoalRow | null>(null);
+type GoalsData = { rows: GoalRow[]; year: number };
 
-  useEffect(() => {
-    fetch('/api/goals')
-      .then(r => r.json())
-      .then((data: { rows: GoalRow[]; year: number; error?: string }) => {
-        if (data.error) throw new Error(data.error);
-        setRows(data.rows);
-        setYear(data.year);
-        setState('done');
-      })
-      .catch((e: Error) => { setErrMsg(e.message); setState('error'); });
-  }, []);
+async function fetchGoals(year?: number): Promise<GoalsData> {
+  const r = await fetch(year ? `/api/goals?year=${year}` : '/api/goals');
+  const data = await r.json() as GoalsData & { error?: string };
+  if (data.error) throw new Error(data.error);
+  return data;
+}
 
-  if (state === 'loading') return <LoadingDots label="Loading goals" />;
-
-  if (state === 'error') return (
+function LoadError({ msg }: { msg: string }) {
+  return (
     <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>
-      Could not load goals — {errMsg}
+      Could not load goals — {msg}
     </div>
   );
+}
+
+/** A finished year, collapsed until opened; its numbers load on first open. */
+function PastYear({ year }: { year: number }) {
+  const [open, setOpen]     = useState(false);
+  const [data, setData]     = useState<GoalsData | null>(null);
+  const [errMsg, setErrMsg] = useState('');
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !data) {
+      setErrMsg('');
+      fetchGoals(year).then(setData).catch((e: Error) => setErrMsg(e.message));
+    }
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid #E8D9C4' }}>
+      <button
+        onClick={toggle}
+        aria-expanded={open}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+          background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          fontSize: 13, fontWeight: 700, color: '#7A4610',
+        }}
+      >
+        <span style={{ display: 'inline-block', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' }}>▸</span>
+        {year}
+        {year === HISTORY_START_YEAR && (
+          <span style={{ fontSize: 11, fontWeight: 500, color: '#7A6F65' }}>({HISTORY_START_LABEL})</span>
+        )}
+      </button>
+      {open && (
+        errMsg ? <LoadError msg={errMsg} />
+          : !data ? <LoadingDots label={`Loading ${year}`} />
+          : <GoalsTable rows={data.rows} year={data.year} />
+      )}
+    </div>
+  );
+}
+
+export default function GoalsSection() {
+  const [data, setData]     = useState<GoalsData | null>(null);
+  const [errMsg, setErrMsg] = useState('');
+
+  useEffect(() => {
+    fetchGoals().then(setData).catch((e: Error) => setErrMsg(e.message));
+  }, []);
+
+  if (errMsg) return <LoadError msg={errMsg} />;
+  if (!data) return <LoadingDots label="Loading goals" />;
+
+  const pastYears: number[] = [];
+  for (let y = data.year - 1; y >= HISTORY_START_YEAR; y--) pastYears.push(y);
+
+  return (
+    <>
+      <GoalsTable rows={data.rows} year={data.year} />
+      <div style={{ padding: '0 12px 12px', fontSize: 11, lineHeight: 1.5, color: '#7A6F65' }}>
+        * Sales actual = orders <b>placed</b> in that month with status <b>processing</b> or{' '}
+        <b>completed</b>. Gross order total (incl. shipping &amp; tax); refunds are not deducted.
+        Click a figure for the full status breakdown.
+      </div>
+      {pastYears.map(y => <PastYear key={y} year={y} />)}
+    </>
+  );
+}
+
+function GoalsTable({ rows, year }: GoalsData) {
+  const [openRow, setOpenRow] = useState<GoalRow | null>(null);
 
   let tSalesTgt = 0, tSalesAct = 0, tMktTgt = 0, tMktAct = 0;
   let tPlaced = 0, tComp = 0, tProc = 0;
   rows.forEach(r => {
-    tSalesTgt += r.salesTgt;
+    tSalesTgt += r.salesTgt ?? 0;
     tSalesAct += r.salesAct ?? 0;
-    tMktTgt   += r.mktTgt;
+    tMktTgt   += r.mktTgt ?? 0;
     tMktAct   += r.mktAct ?? 0;
     (r.breakdown ?? []).forEach(s => {
       tPlaced += s.total;
@@ -390,11 +458,6 @@ export default function GoalsSection() {
             </tr>
           </tbody>
         </table>
-      </div>
-      <div style={{ padding: '0 12px 12px', fontSize: 11, lineHeight: 1.5, color: '#7A6F65' }}>
-        * Sales actual = orders <b>placed</b> in that month with status <b>processing</b> or{' '}
-        <b>completed</b>. Gross order total (incl. shipping &amp; tax); refunds are not deducted.
-        Click a figure for the full status breakdown.
       </div>
       {openRow && <BreakdownModal row={openRow} year={year} onClose={() => setOpenRow(null)} />}
     </>
