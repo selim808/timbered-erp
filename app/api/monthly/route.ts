@@ -11,6 +11,20 @@ export interface WeekInMonth {
   created: number;
 }
 
+/** Value completed within 1 / 2 / 3 / more than 3 months (30-day blocks) of being placed. */
+export interface CompletionBuckets { m1: number; m2: number; m3: number; m3plus: number }
+
+const DAY_MS = 86_400_000;
+
+function completionBucket(createdIso: string, completedIso: string | null): keyof CompletionBuckets {
+  if (!completedIso) return 'm3plus';
+  const days = (new Date(completedIso).getTime() - new Date(createdIso).getTime()) / DAY_MS;
+  if (days <= 30) return 'm1';
+  if (days <= 60) return 'm2';
+  if (days <= 90) return 'm3';
+  return 'm3plus';
+}
+
 export interface MonthEntry {
   key: string;        // "2025-05"
   chartLabel: string; // "25-05"  (sortable: YY-MM)
@@ -23,6 +37,8 @@ export interface MonthEntry {
   createdCompleted: number;
   createdProcessing: number;
   createdCancelled: number;
+  // createdCompleted split by how long the order took from placement to completion.
+  createdCompletedByDuration: CompletionBuckets;
   weeks: WeekInMonth[];
 }
 
@@ -73,6 +89,7 @@ function ensureMonth(map: Record<string, MonthEntry>, mk: string): MonthEntry {
       year: y, month: m,
       completed: 0, cancelled: 0, created: 0,
       createdCompleted: 0, createdProcessing: 0, createdCancelled: 0,
+      createdCompletedByDuration: { m1: 0, m2: 0, m3: 0, m3plus: 0 },
       weeks: [],
     };
   }
@@ -114,7 +131,10 @@ export async function GET() {
       if (['completed', 'cancelled', 'processing'].includes(status) && createdDs) {
         const me = ensureMonth(monthMap, monthKey(createdDs));
         me.created += val;
-        if (status === 'completed')       me.createdCompleted  += val;
+        if (status === 'completed') {
+          me.createdCompleted += val;
+          me.createdCompletedByDuration[completionBucket(order.date_created, order.date_completed)] += val;
+        }
         else if (status === 'cancelled')  me.createdCancelled  += val;
         else                              me.createdProcessing += val;
         getOrAddWeek(me, sundayOf(createdDs)).created += val;
