@@ -11,6 +11,22 @@ export interface WeekInMonth {
   created: number;
 }
 
+/** Value split by time from placing the order: within 1 / 2 / 3 months (30-day blocks) or longer. */
+export interface DurationBuckets { m1: number; m2: number; m3: number; more: number }
+
+const DAY_MS = 86_400_000;
+
+function durationBucket(fromIso: string, toIso: string | null): keyof DurationBuckets {
+  if (!toIso) return 'more';
+  const days = (new Date(toIso).getTime() - new Date(fromIso).getTime()) / DAY_MS;
+  if (days <= 30) return 'm1';
+  if (days <= 60) return 'm2';
+  if (days <= 90) return 'm3';
+  return 'more';
+}
+
+const emptyBuckets = (): DurationBuckets => ({ m1: 0, m2: 0, m3: 0, more: 0 });
+
 export interface MonthEntry {
   key: string;        // "2025-05"
   chartLabel: string; // "25-05"  (sortable: YY-MM)
@@ -23,6 +39,9 @@ export interface MonthEntry {
   createdCompleted: number;
   createdProcessing: number;
   createdCancelled: number;
+  // `completed` / `cancelled` split by how long after ordering it happened (sums to each).
+  completedByDuration: DurationBuckets;
+  cancelledByDuration: DurationBuckets;
   weeks: WeekInMonth[];
 }
 
@@ -73,6 +92,7 @@ function ensureMonth(map: Record<string, MonthEntry>, mk: string): MonthEntry {
       year: y, month: m,
       completed: 0, cancelled: 0, created: 0,
       createdCompleted: 0, createdProcessing: 0, createdCancelled: 0,
+      completedByDuration: emptyBuckets(), cancelledByDuration: emptyBuckets(),
       weeks: [],
     };
   }
@@ -123,12 +143,15 @@ export async function GET() {
       if (status === 'completed' && compDs) {
         const me = ensureMonth(monthMap, monthKey(compDs));
         me.completed += val;
+        me.completedByDuration[durationBucket(order.date_created, order.date_completed)] += val;
         getOrAddWeek(me, sundayOf(compDs)).completed += val;
       }
 
       if (status === 'cancelled' && modDs) {
         const me = ensureMonth(monthMap, monthKey(modDs));
         me.cancelled += val;
+        // Shopify records when it was cancelled; Woo doesn't, so date_cancelled falls back to date_modified.
+        me.cancelledByDuration[durationBucket(order.date_created, order.date_cancelled ?? order.date_modified)] += val;
         getOrAddWeek(me, sundayOf(modDs)).cancelled += val;
       }
     }

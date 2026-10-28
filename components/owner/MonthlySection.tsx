@@ -5,7 +5,7 @@ import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import type { MonthEntry, WeekInMonth } from '@/app/api/monthly/route';
+import type { DurationBuckets, MonthEntry, WeekInMonth } from '@/app/api/monthly/route';
 import type { OrderRow } from '@/app/api/monthly/orders/route';
 import type { OrderDetail } from '@/app/api/weekly/order/[id]/route';
 
@@ -296,29 +296,52 @@ export default function MonthlySection() {
 
   const ROW_COLORS = { Completed: '#27ae60', Cancelled: '#e74c3c', Created: '#2563EB' };
 
-  // The Created bar is stacked: of the orders placed that month, how much is
-  // completed, still open, and cancelled today. Its total sits on top.
-  const CREATED_TOP = 'Created - cancelled';
-  // Legend in one column per bar, matching the bars' left-to-right order.
-  const LEGEND_COLS: { title: string; items: { label: string; color: string }[] }[] = [
-    { title: 'Created', items: [
-      { label: 'Created - processing', color: '#3498db' },
-      { label: 'Created - cancelled',  color: '#f1948a' },
-      { label: 'Created - completed',  color: '#7dcea0' },
-    ] },
-    { title: 'Completed', items: [{ label: 'Completed', color: '#27ae60' }] },
-    { title: 'Cancelled', items: [{ label: 'Cancelled', color: '#e74c3c' }] },
+  // Three stacked bars per month:
+  //  Created   — orders placed that month, by where they stand today.
+  //  Completed — orders completed that month, by how long after ordering.
+  //  Cancelled — orders cancelled that month, by how long after ordering.
+  const DURATIONS: { key: keyof DurationBuckets; text: string }[] = [
+    { key: 'm1',   text: 'within 1 month' },
+    { key: 'm2',   text: 'within 2 months' },
+    { key: 'm3',   text: 'within 3 months' },
+    { key: 'more', text: 'more than 3 months' },
   ];
-  const createdTotal = (i: number) => chartMonthMap[visibleLabels[i]]?.created ?? 0;
+  const COMPLETED_SHADES = ['#1e8449', '#27ae60', '#82e0aa', '#d5f5e3'];
+  const CANCELLED_SHADES = ['#922b21', '#e74c3c', '#f5a79f', '#fadbd8'];
+
+  type Seg = { label: string; color: string; value: (m: MonthEntry) => number };
+  const STACKS: { key: 'created' | 'completed' | 'cancelled'; title: string; labelColor: string; total: (m: MonthEntry) => number; segs: Seg[] }[] = [
+    { key: 'created', title: 'Created', labelColor: '#3498db', total: m => m.created, segs: [
+      { label: 'Created - completed',  color: '#7dcea0', value: m => m.createdCompleted },
+      { label: 'Created - processing', color: '#3498db', value: m => m.createdProcessing },
+      { label: 'Created - cancelled',  color: '#f1948a', value: m => m.createdCancelled },
+    ] },
+    { key: 'completed', title: 'Completed', labelColor: '#27ae60', total: m => m.completed,
+      segs: DURATIONS.map((d, i) => ({ label: `Completed ${d.text}`, color: COMPLETED_SHADES[i], value: (m: MonthEntry) => m.completedByDuration?.[d.key] ?? 0 })) },
+    { key: 'cancelled', title: 'Cancelled', labelColor: '#e74c3c', total: m => m.cancelled,
+      segs: DURATIONS.map((d, i) => ({ label: `Cancelled ${d.text}`, color: CANCELLED_SHADES[i], value: (m: MonthEntry) => m.cancelledByDuration?.[d.key] ?? 0 })) },
+  ];
+
+  // Legend: one column per bar. Created reads processing, cancelled, completed.
+  const LEGEND_COLS = STACKS.map(st => ({
+    title: st.title,
+    items: (st.key === 'created' ? [st.segs[1], st.segs[2], st.segs[0]] : st.segs).map(sg => ({ label: sg.label, color: sg.color })),
+  }));
+
+  const stackTotal = (stack: string, i: number) => {
+    const m = chartMonthMap[visibleLabels[i]];
+    const st = STACKS.find(s => s.key === stack);
+    return m && st ? st.total(m) : 0;
+  };
+  // The total is written above the top segment of each stack.
+  const topLabels = new Set(STACKS.map(st => st.segs[st.segs.length - 1].label));
+
   const chartData = {
     labels: visibleLabels,
-    datasets: [
-      { label: 'Created - completed', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCompleted  ?? 0), backgroundColor: '#7dcea0' },
-      { label: 'Created - processing', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdProcessing ?? 0), backgroundColor: '#3498db' },
-      { label: CREATED_TOP,           stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCancelled  ?? 0), backgroundColor: '#f1948a' },
-      { label: 'Completed',           stack: 'completed', data: visibleLabels.map(l => chartMonthMap[l]?.completed ?? 0), backgroundColor: '#27ae60' },
-      { label: 'Cancelled',           stack: 'cancelled', data: visibleLabels.map(l => chartMonthMap[l]?.cancelled ?? 0), backgroundColor: '#e74c3c' },
-    ],
+    datasets: STACKS.flatMap(st => st.segs.map(sg => ({
+      label: sg.label, stack: st.key, backgroundColor: sg.color,
+      data: visibleLabels.map(l => { const m = chartMonthMap[l]; return m ? sg.value(m) : 0; }),
+    }))),
   };
 
   const chartOptions = {
@@ -334,23 +357,23 @@ export default function MonthlySection() {
           label: (ctx: any) => {
             const v = Number(ctx.raw) || 0;
             const base = `${ctx.dataset.label}: ${Math.round(v / 1000)}K`;
-            const total = createdTotal(ctx.dataIndex);
-            return ctx.dataset.stack === 'created' && total > 0 ? `${base} (${Math.round(v / total * 100)}%)` : base;
+            const total = stackTotal(ctx.dataset.stack, ctx.dataIndex);
+            return total > 0 ? `${base} (${Math.round(v / total * 100)}%)` : base;
           },
         },
       },
       datalabels: {
         anchor: 'end' as const, align: 'top' as const, rotation: -90,
         font: { size: 8, weight: 'bold' as const },
-        // Only the top of each stack is labelled; the Created stack shows its total.
+        // Only the top of each stack is labelled, with the whole bar's total.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        display: (ctx: any) => ctx.dataset.stack !== 'created' || ctx.dataset.label === CREATED_TOP,
+        display: (ctx: any) => topLabels.has(ctx.dataset.label),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        color: (ctx: any) => ({ created: '#3498db', completed: '#27ae60', cancelled: '#e74c3c' } as Record<string, string>)[ctx.dataset.stack],
+        color: (ctx: any) => STACKS.find(st => st.key === ctx.dataset.stack)?.labelColor ?? '#666',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        formatter: (v: number, ctx: any) => {
-          const shown = ctx.dataset.stack === 'created' ? createdTotal(ctx.dataIndex) : v;
-          return shown > 0 ? Math.round(shown / 1000) : '';
+        formatter: (_: number, ctx: any) => {
+          const total = stackTotal(ctx.dataset.stack, ctx.dataIndex);
+          return total > 0 ? Math.round(total / 1000) : '';
         },
       },
     },
