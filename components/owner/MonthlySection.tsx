@@ -5,7 +5,7 @@ import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import type { CompletionBuckets, MonthEntry, WeekInMonth } from '@/app/api/monthly/route';
+import type { MonthEntry, WeekInMonth } from '@/app/api/monthly/route';
 import type { OrderRow } from '@/app/api/monthly/orders/route';
 import type { OrderDetail } from '@/app/api/weekly/order/[id]/route';
 
@@ -299,19 +299,12 @@ export default function MonthlySection() {
   // The Created bar is stacked: of the orders placed that month, how much is
   // completed, still open, and cancelled today. Its total sits on top.
   const CREATED_TOP = 'Created - cancelled';
-  // Completed share of the Created bar, by days from placement to completion.
-  const COMPLETED_BUCKETS: { key: keyof CompletionBuckets; label: string; color: string }[] = [
-    { key: 'm1',     label: 'Completed in 1 month',   color: '#1e8449' },
-    { key: 'm2',     label: 'Completed in 2 months',  color: '#52be80' },
-    { key: 'm3',     label: 'Completed in 3 months',  color: '#a9dfbf' },
-    { key: 'm3plus', label: 'Completed in 3+ months', color: '#d4efdf' },
-  ];
   // Legend in one column per bar, matching the bars' left-to-right order.
   const LEGEND_COLS: { title: string; items: { label: string; color: string }[] }[] = [
     { title: 'Created', items: [
       { label: 'Created - processing', color: '#3498db' },
       { label: 'Created - cancelled',  color: '#f1948a' },
-      ...COMPLETED_BUCKETS.map(b => ({ label: b.label, color: b.color })),
+      { label: 'Created - completed',  color: '#7dcea0' },
     ] },
     { title: 'Completed', items: [{ label: 'Completed', color: '#27ae60' }] },
     { title: 'Cancelled', items: [{ label: 'Cancelled', color: '#e74c3c' }] },
@@ -320,12 +313,7 @@ export default function MonthlySection() {
   const chartData = {
     labels: visibleLabels,
     datasets: [
-      // Fastest completions at the bottom, darkest green.
-      ...COMPLETED_BUCKETS.map(b => ({
-        label: b.label, stack: 'created',
-        data: visibleLabels.map(l => chartMonthMap[l]?.createdCompletedByDuration?.[b.key] ?? 0),
-        backgroundColor: b.color,
-      })),
+      { label: 'Created - completed', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCompleted  ?? 0), backgroundColor: '#7dcea0' },
       { label: 'Created - processing', stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdProcessing ?? 0), backgroundColor: '#3498db' },
       { label: CREATED_TOP,           stack: 'created',   data: visibleLabels.map(l => chartMonthMap[l]?.createdCancelled  ?? 0), backgroundColor: '#f1948a' },
       { label: 'Completed',           stack: 'completed', data: visibleLabels.map(l => chartMonthMap[l]?.completed ?? 0), backgroundColor: '#27ae60' },
