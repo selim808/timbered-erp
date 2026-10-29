@@ -11,7 +11,7 @@ const LINE_ITEMS = 50;
 const LINE_ITEMS_FRAGMENT = `
       lineItems(first: $li) {
         nodes {
-          id title quantity sku
+          id title quantity currentQuantity sku
           variant { id }
           product {
             id
@@ -55,6 +55,8 @@ interface RawLineItem {
   id: string;
   title: string;
   quantity: number;
+  /** Quantity after order edits: 0 once the item was removed or swapped for another. */
+  currentQuantity: number;
   sku: string | null;
   variant: { id: string } | null;
   product: {
@@ -163,9 +165,9 @@ function mapLineItem(li: RawLineItem, idx: number): CommerceLineItem {
     id: gidNumber(li.id) || idx + 1,
     name: li.title,
     product_id: wooId || gidNumber(li.product?.id),
-    quantity: li.quantity,
+    quantity: li.currentQuantity,
     price,
-    total: String(price * li.quantity),
+    total: String(price * li.currentQuantity),
     sku: li.sku ?? '',
     image: li.image?.url
       ? { src: li.image.url }
@@ -221,7 +223,10 @@ function normalize(o: RawOrder): CommerceOrder {
       state: ship.province ?? '',
       phone: o.billingAddress?.phone ?? o.customer?.phone ?? ship.phone ?? o.phone ?? '',
     },
-    line_items: (o.lineItems?.nodes ?? []).map(mapLineItem),
+    // Items removed or replaced in an order edit stay on the order with a
+    // current quantity of 0; they're no longer part of it, so drop them.
+    // (Filter after mapping so the index fallback ids stay stable.)
+    line_items: (o.lineItems?.nodes ?? []).map(mapLineItem).filter(li => li.quantity > 0),
     kanban: parseKanban(o.kanban?.value),
     kanban_digest: o.kanban?.compareDigest ?? null,
   };
