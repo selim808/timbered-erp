@@ -357,7 +357,7 @@ export default function PhaseGroupPage() {
         .pg-sub-nav::-webkit-scrollbar { display:none; }
         .pg-sub-btn { font-size:12px; font-weight:700; color:#aaa; background:none; border:none; border-bottom:2px solid transparent; padding:8px 16px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
         .pg-sub-btn.active { color:#7A4610; border-bottom-color:#7A4610; }
-        .pg-sub-refresh { margin-left:auto; align-self:center; font-size:11px; font-weight:700; color:#7A4610; background:#fef3e2; border:1px solid #e8ddd4; border-radius:20px; padding:4px 12px; margin:4px 8px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+        .pg-sub-refresh { margin-left:auto; font-size:11px; font-weight:700; color:#7A4610; background:#fef3e2; border:1px solid #e8ddd4; border-radius:20px; padding:4px 12px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
         .pg-sub-refresh:hover:not(:disabled) { background:#7A4610; color:#fff; }
         .pg-sub-refresh:disabled { opacity:.6; cursor:default; }
         .pg-tab-cnt { margin-left:5px; font-size:10px; border-radius:10px; padding:1px 6px; font-weight:700; }
@@ -428,16 +428,6 @@ export default function PhaseGroupPage() {
             </button>
           );
         })}
-        {feed && (
-          <button
-            className="pg-sub-refresh"
-            onClick={handleRefreshFeed}
-            disabled={feedLoading}
-            title={`Fetch latest ${feed} orders`}
-          >
-            {feedLoading ? '⏳' : '↻'} Refresh
-          </button>
-        )}
       </div>
 
       {/* Stats bar */}
@@ -490,6 +480,17 @@ export default function PhaseGroupPage() {
         <button className={`pg-filter-btn${noteFilter ? ' active' : ''}`} onClick={() => setNoteFilter(f => !f)}>
           📝 Notes
         </button>
+        {/* In the toolbar, not the tab row, so it never scrolls off-screen on phones. */}
+        {feed && (
+          <button
+            className="pg-sub-refresh"
+            onClick={handleRefreshFeed}
+            disabled={feedLoading}
+            title={`Fetch latest ${feed} orders`}
+          >
+            {feedLoading ? '⏳' : '↻'} Refresh
+          </button>
+        )}
       </div>
 
       {/* Order list */}
