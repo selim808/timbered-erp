@@ -58,9 +58,9 @@ export interface CommerceOrder {
   kanban?: KanbanData | null;
   /** Version token of that metafield, for conflict-safe writes. */
   kanban_digest?: string | null;
-  /** Readable copy of kanban, shown on the Shopify order page (timbered.kanban_summary). */
+  /** Readable copy of kanban, shown on the Shopify order page (timbered.kanban_status). */
   kanban_summary?: string | null;
-  /** Readable phase history, shown on the Shopify order page (timbered.kanban_history). */
+  /** Readable phase history, shown on the Shopify order page (timbered.kanban_timeline). */
   kanban_history?: string | null;
 }
 

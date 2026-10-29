@@ -45,8 +45,8 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
       billingAddress { firstName lastName phone }
       shippingAddress { firstName lastName name phone address1 address2 city province }
       kanban: metafield(namespace: "timbered", key: "kanban_phase") { value compareDigest }
-      kanbanSummary: metafield(namespace: "timbered", key: "kanban_summary") { value }
-      kanbanHistory: metafield(namespace: "timbered", key: "kanban_history") { value }${lite ? '' : LINE_ITEMS_FRAGMENT}
+      kanbanSummary: metafield(namespace: "timbered", key: "kanban_status") { value }
+      kanbanHistory: metafield(namespace: "timbered", key: "kanban_timeline") { value }${lite ? '' : LINE_ITEMS_FRAGMENT}
     }
   }
 }`;

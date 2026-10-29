@@ -6,9 +6,9 @@ import { shopifyGql } from '@/lib/shopify/client';
 // by line item id:
 //   { "<lineItemId>": { phase_id, phase, updated_at, history: [{ phase_id, phase, at, source }] } }
 // The list of valid phases lives in Supabase (phase_groups + phases).
-// A readable copy is kept in timbered.kanban_summary (multi-line text, pinned on
-// the Shopify order page), one line per item: "Title → Phase (DD-MMM-YY)",
-// and the full trail in timbered.kanban_history (one block per item).
+// Readable copies are pinned on the Shopify order page as text lists:
+// timbered.kanban_status (one row per item: "Title → Phase (DD-MMM-YY)") and
+// timbered.kanban_timeline (one row per phase change).
 // Every write goes through setItemPhases so validation and history stay in one place.
 
 export interface KanbanHistoryEntry {
@@ -37,8 +37,8 @@ export interface ActivePhase {
 
 const NS = 'timbered';
 const KEY = 'kanban_phase';
-const SUMMARY_KEY = 'kanban_summary';
-const HISTORY_KEY = 'kanban_history';
+const SUMMARY_KEY = 'kanban_status';
+const HISTORY_KEY = 'kanban_timeline';
 const BATCH = 8; // orders per call: 3 metafields each, metafieldsSet takes 25
 
 export function parseKanban(value: string | null | undefined): KanbanData | null {
@@ -111,28 +111,29 @@ function shortDate(iso: string): string {
   return `${get('day')}-${MONTHS[Number(get('month')) - 1]}-${get('year')}`;
 }
 
-/** One line per item, e.g. "Swing Climb Set → Paint (27-Oct-26)". */
-export function buildSummary(data: KanbanData): string {
+// Shown in Shopify as lists (one row per entry), so nothing hides behind a scrolling box.
+const LIST_MAX = 128; // Shopify's limit on values in a list metafield
+
+/** One row per item, e.g. "Swing Climb Set → Paint (27-Oct-26)". */
+export function buildSummary(data: KanbanData): string[] {
   return Object.entries(data)
     .map(([id, it]) => `${it.title || `Item ${id}`} → ${it.phase} (${shortDate(it.updated_at)})`)
-    .join('\n');
+    .slice(0, LIST_MAX);
 }
 
 const SOURCES: Record<string, string> = { auto: 'Auto', erp: 'ERP', 'erp-reassign': 'ERP' };
 
 /**
- * Every item's trail, one block per item:
- *   Swing Climb Set
- *   • WA Confirmation — 27-Oct-26 (Auto)
- *   • Paint — 29-Oct-26 (ERP)
+ * One row per phase change, grouped by item, oldest first:
+ *   "Swing Climb Set · WA Confirmation · 27-Oct-26 (Auto)"
+ *   "Swing Climb Set · Paint · 29-Oct-26 (ERP)"
+ * Past the list limit, the newest rows are kept.
  */
-export function buildHistory(data: KanbanData): string {
+export function buildHistory(data: KanbanData): string[] {
   return Object.entries(data)
-    .map(([id, it]) => [
-      it.title || `Item ${id}`,
-      ...(it.history ?? []).map(h => `• ${h.phase} — ${shortDate(h.at)} (${SOURCES[h.source] ?? h.source})`),
-    ].join('\n'))
-    .join('\n\n');
+    .flatMap(([id, it]) => (it.history ?? []).map(h =>
+      `${it.title || `Item ${id}`} · ${h.phase} · ${shortDate(h.at)} (${SOURCES[h.source] ?? h.source})`))
+    .slice(-LIST_MAX);
 }
 
 // ─── Writing ────────────────────────────────────────────────────────────────
@@ -164,15 +165,15 @@ async function writeKanban(writes: MetafieldWrite[]): Promise<Set<string>> {
         ownerId: w.ownerId,
         namespace: NS,
         key: SUMMARY_KEY,
-        type: 'multi_line_text_field',
-        value: buildSummary(w.data) || '—',
+        type: 'list.single_line_text_field',
+        value: JSON.stringify(buildSummary(w.data)),
       },
       {
         ownerId: w.ownerId,
         namespace: NS,
         key: HISTORY_KEY,
-        type: 'multi_line_text_field',
-        value: buildHistory(w.data) || '—',
+        type: 'list.single_line_text_field',
+        value: JSON.stringify(buildHistory(w.data)),
       },
     ]);
     const res = await shopifyGql<{ metafieldsSet: { userErrors: { field: string[] | null; message: string; code: string }[] } }>(
