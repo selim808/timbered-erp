@@ -40,6 +40,9 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
       currentTotalPriceSet { shopMoney { amount } }
       currentShippingPriceSet { shopMoney { amount } }
       currentTotalDiscountsSet { shopMoney { amount } }
+      totalPriceSet { shopMoney { amount } }
+      totalShippingPriceSet { shopMoney { amount } }
+      totalDiscountsSet { shopMoney { amount } }
       shippingLine { title }
       customer { firstName lastName phone }
       billingAddress { firstName lastName phone }
@@ -87,6 +90,11 @@ interface RawOrder {
   currentTotalPriceSet: RawMoney;
   currentShippingPriceSet: RawMoney | null;
   currentTotalDiscountsSet: RawMoney | null;
+  // Before returns/refunds. Cancelling refunds everything, so a cancelled
+  // order's "current" figures are all 0; these keep what it was worth.
+  totalPriceSet: RawMoney | null;
+  totalShippingPriceSet: RawMoney | null;
+  totalDiscountsSet: RawMoney | null;
   shippingLine: { title: string | null } | null;
   customer: { firstName: string | null; lastName: string | null; phone: string | null } | null;
   billingAddress: RawAddress | null;
@@ -156,7 +164,10 @@ function fullName(o: RawOrder): string {
   return o.email ? String(o.email).split('@')[0].split('+')[0] : '';
 }
 
-function mapLineItem(li: RawLineItem, idx: number): CommerceLineItem {
+function mapLineItem(li: RawLineItem, idx: number, cancelled: boolean): CommerceLineItem {
+  // Cancelling sets every item's current quantity to 0, so a cancelled order
+  // keeps what was ordered; otherwise use the quantity after order edits.
+  const qty = cancelled ? li.quantity : li.currentQuantity;
   const price = Number((li.discountedUnitPriceSet ?? li.originalUnitPriceSet)?.shopMoney.amount ?? 0);
 
   // Migrated products keep their WooCommerce id in a metafield. Preferring it
@@ -169,9 +180,9 @@ function mapLineItem(li: RawLineItem, idx: number): CommerceLineItem {
     id: gidNumber(li.id) || idx + 1,
     name: li.title,
     product_id: wooId || gidNumber(li.product?.id),
-    quantity: li.currentQuantity,
+    quantity: qty,
     price,
-    total: String(price * li.currentQuantity),
+    total: String(price * qty),
     sku: li.sku ?? '',
     image: li.image?.url
       ? { src: li.image.url }
@@ -194,6 +205,9 @@ function completedAt(o: RawOrder): string | null {
 
 function normalize(o: RawOrder): CommerceOrder {
   const ship = o.shippingAddress ?? {};
+  const cancelled = Boolean(o.cancelledAt);
+  const money = (current: RawMoney | null, beforeRefunds: RawMoney | null) =>
+    String((cancelled ? beforeRefunds ?? current : current)?.shopMoney.amount ?? '0');
   const name = fullName(o);
   const [first, ...rest] = name.split(' ');
 
@@ -202,19 +216,19 @@ function normalize(o: RawOrder): CommerceOrder {
     gid: o.id,
     id: Number(String(o.name).replace('#', '')) || 0,
     number: String(o.name).replace('#', ''),
-    status: o.cancelledAt ? 'cancelled' : (isFulfilled(o) || o.closed) ? 'completed' : 'processing',
+    status: cancelled ? 'cancelled' : (isFulfilled(o) || o.closed) ? 'completed' : 'processing',
     date_created: o.createdAt,
     date_modified: o.updatedAt,
     date_completed: completedAt(o),
     date_cancelled: o.cancelledAt,
     cancel_reason: cancelReasonOf(o),
-    total: String(o.currentTotalPriceSet.shopMoney.amount),
+    total: money(o.currentTotalPriceSet, o.totalPriceSet),
     payment_method: (o.paymentGatewayNames ?? []).join(', '),
     customer_note: o.note ?? '',
     email: o.email ?? '',
     shipping_method: o.shippingLine?.title ?? '',
-    shipping_total: o.currentShippingPriceSet?.shopMoney.amount ?? '0',
-    discount_total: o.currentTotalDiscountsSet?.shopMoney.amount ?? '0',
+    shipping_total: money(o.currentShippingPriceSet, o.totalShippingPriceSet),
+    discount_total: money(o.currentTotalDiscountsSet, o.totalDiscountsSet),
     // Shopify models custom charges as line items, not separate fee lines.
     fee_lines: [],
     billing: {
@@ -230,7 +244,9 @@ function normalize(o: RawOrder): CommerceOrder {
     // Items removed or replaced in an order edit stay on the order with a
     // current quantity of 0; they're no longer part of it, so drop them.
     // (Filter after mapping so the index fallback ids stay stable.)
-    line_items: (o.lineItems?.nodes ?? []).map(mapLineItem).filter(li => li.quantity > 0),
+    line_items: (o.lineItems?.nodes ?? [])
+      .map((li, idx) => mapLineItem(li, idx, cancelled))
+      .filter(li => li.quantity > 0),
     kanban: parseKanban(o.kanban?.value),
     kanban_digest: o.kanban?.compareDigest ?? null,
     kanban_summary: o.kanbanSummary?.value ?? null,
