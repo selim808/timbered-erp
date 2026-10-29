@@ -7,7 +7,8 @@ import { shopifyGql } from '@/lib/shopify/client';
 //   { "<lineItemId>": { phase_id, phase, updated_at, history: [{ phase_id, phase, at, source }] } }
 // The list of valid phases lives in Supabase (phase_groups + phases).
 // A readable copy is kept in timbered.kanban_summary (multi-line text, pinned on
-// the Shopify order page), one line per item: "Title → Phase (DD-MMM-YY)".
+// the Shopify order page), one line per item: "Title → Phase (DD-MMM-YY)",
+// and the full trail in timbered.kanban_history (one block per item).
 // Every write goes through setItemPhases so validation and history stay in one place.
 
 export interface KanbanHistoryEntry {
@@ -37,7 +38,8 @@ export interface ActivePhase {
 const NS = 'timbered';
 const KEY = 'kanban_phase';
 const SUMMARY_KEY = 'kanban_summary';
-const BATCH = 12; // orders per call: 2 metafields each, metafieldsSet takes 25
+const HISTORY_KEY = 'kanban_history';
+const BATCH = 8; // orders per call: 3 metafields each, metafieldsSet takes 25
 
 export function parseKanban(value: string | null | undefined): KanbanData | null {
   if (!value) return null;
@@ -116,6 +118,23 @@ export function buildSummary(data: KanbanData): string {
     .join('\n');
 }
 
+const SOURCES: Record<string, string> = { auto: 'Auto', erp: 'ERP', 'erp-reassign': 'ERP' };
+
+/**
+ * Every item's trail, one block per item:
+ *   Swing Climb Set
+ *   • WA Confirmation — 27-Oct-26 (Auto)
+ *   • Paint — 29-Oct-26 (ERP)
+ */
+export function buildHistory(data: KanbanData): string {
+  return Object.entries(data)
+    .map(([id, it]) => [
+      it.title || `Item ${id}`,
+      ...(it.history ?? []).map(h => `• ${h.phase} — ${shortDate(h.at)} (${SOURCES[h.source] ?? h.source})`),
+    ].join('\n'))
+    .join('\n\n');
+}
+
 // ─── Writing ────────────────────────────────────────────────────────────────
 
 interface MetafieldWrite { ownerId: string; data: KanbanData; digest: string | null }
@@ -130,7 +149,7 @@ async function writeKanban(writes: MetafieldWrite[]): Promise<Set<string>> {
   const stale = new Set<string>();
   for (let i = 0; i < writes.length; i += BATCH) {
     const chunk = writes.slice(i, i + BATCH);
-    // metafieldsSet is atomic, so the summary is only saved together with the data.
+    // metafieldsSet is atomic, so the readable copies are only saved together with the data.
     const inputs = chunk.flatMap(w => [
       {
         ownerId: w.ownerId,
@@ -147,6 +166,13 @@ async function writeKanban(writes: MetafieldWrite[]): Promise<Set<string>> {
         key: SUMMARY_KEY,
         type: 'multi_line_text_field',
         value: buildSummary(w.data) || '—',
+      },
+      {
+        ownerId: w.ownerId,
+        namespace: NS,
+        key: HISTORY_KEY,
+        type: 'multi_line_text_field',
+        value: buildHistory(w.data) || '—',
       },
     ]);
     const res = await shopifyGql<{ metafieldsSet: { userErrors: { field: string[] | null; message: string; code: string }[] } }>(
@@ -188,7 +214,7 @@ function applyPhase(
  */
 export async function seedMissingPhases(
   orders: {
-    gid: string | null; kanban?: KanbanData | null; kanban_digest?: string | null; kanban_summary?: string | null;
+    gid: string | null; kanban?: KanbanData | null; kanban_digest?: string | null; kanban_summary?: string | null; kanban_history?: string | null;
     line_items: { id: number; name: string }[];
   }[],
 ): Promise<void> {
@@ -200,8 +226,8 @@ export async function seedMissingPhases(
   for (const o of orders) {
     if (!o.gid) continue;
     const data: KanbanData = JSON.parse(JSON.stringify(o.kanban ?? {}));
-    // Also rewrite when the readable summary is missing (orders saved before it existed).
-    let changed = !!o.kanban && !o.kanban_summary;
+    // Also rewrite when a readable copy is missing (orders saved before it existed).
+    let changed = !!o.kanban && (!o.kanban_summary || !o.kanban_history);
     for (const li of o.line_items) {
       const key = String(li.id);
       if (!data[key]) changed = applyPhase(data, key, start, at, 'auto', li.name) || changed;

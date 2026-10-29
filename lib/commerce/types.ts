@@ -60,6 +60,8 @@ export interface CommerceOrder {
   kanban_digest?: string | null;
   /** Readable copy of kanban, shown on the Shopify order page (timbered.kanban_summary). */
   kanban_summary?: string | null;
+  /** Readable phase history, shown on the Shopify order page (timbered.kanban_history). */
+  kanban_history?: string | null;
 }
 
 export interface OrderQuery {
