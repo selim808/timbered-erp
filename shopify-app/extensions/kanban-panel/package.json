@@ -1,0 +1,10 @@
+{
+  "name": "kanban-panel",
+  "private": true,
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "preact": "^10.27.0",
+    "@shopify/ui-extensions": "2026.10.x"
+  }
+}

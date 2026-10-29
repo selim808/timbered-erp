@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Shopify admin extensions: built by Shopify CLI, not by Next.
+    "shopify-app/**",
   ]),
 ]);
 
