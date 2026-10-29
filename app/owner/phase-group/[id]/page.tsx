@@ -164,7 +164,9 @@ export default function PhaseGroupPage() {
     if (!g) { setError('Phase group not found'); setLoading(false); return; }
     setGroup(g);
     const first = phs.filter(p => p.phase_group_id === g.id)[0];
-    if (first) setActivePhase(first.name);
+    // After-sales opens on its leading Follow-up tab.
+    if (g.name.toLowerCase() === AFTER_SALES_GROUP.toLowerCase()) setActivePhase(FOLLOWUP_PHASE);
+    else if (first) setActivePhase(first.name);
 
     // Only the orders actually require a live fetch.
     fetch('/api/pipeline/orders')
@@ -269,10 +271,13 @@ export default function PhaseGroupPage() {
   const tabs = useMemo(() => {
     const list = groupPhases.map(p => ({ key: p.id, name: p.name }));
     if (!isAfterSales) return list;
-    let i = list.findIndex(t => t.name === FOLLOWUP_PHASE);
-    if (i < 0) { list.push({ key: 'tab-followup', name: FOLLOWUP_PHASE }); i = list.length - 1; }
-    list.splice(i + 1, 0, { key: 'tab-cancelled', name: CANCELLED_TAB });
-    return list;
+    // Follow-up and Cancelled are the most used, so they lead the row.
+    const followup = list.find(t => t.name === FOLLOWUP_PHASE) ?? { key: 'tab-followup', name: FOLLOWUP_PHASE };
+    return [
+      followup,
+      { key: 'tab-cancelled', name: CANCELLED_TAB },
+      ...list.filter(t => t.name !== FOLLOWUP_PHASE),
+    ];
   }, [groupPhases, isAfterSales]);
 
   // Count of line items per phase (for tab badges)
