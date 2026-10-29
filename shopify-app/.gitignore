@@ -1,0 +1,4 @@
+node_modules/
+.shopify/
+extensions/*/dist/
+extensions/*/shopify.d.ts

@@ -1,0 +1,11 @@
+api_version = "2026-10"
+
+[[extensions]]
+name = "t:name"
+handle = "kanban-panel"
+type = "ui_extension"
+
+# Shown on every order page in Shopify admin.
+[[extensions.targeting]]
+module = "./src/BlockExtension.jsx"
+target = "admin.order-details.block.render"

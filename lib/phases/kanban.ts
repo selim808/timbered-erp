@@ -121,7 +121,7 @@ export function buildSummary(data: KanbanData): string[] {
     .slice(0, LIST_MAX);
 }
 
-const SOURCES: Record<string, string> = { auto: 'Auto', erp: 'ERP', 'erp-reassign': 'ERP' };
+const SOURCES: Record<string, string> = { auto: 'Auto', erp: 'ERP', 'erp-reassign': 'ERP', shopify: 'Shopify' };
 
 /**
  * One row per phase change, grouped by item, oldest first:
