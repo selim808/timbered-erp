@@ -7,7 +7,7 @@ import { shopifyGql } from '@/lib/shopify/client';
 //   { "<lineItemId>": { phase_id, phase, updated_at, history: [{ phase_id, phase, at, source }] } }
 // The list of valid phases lives in Supabase (phase_groups + phases).
 // Readable copies are pinned on the Shopify order page as text lists:
-// timbered.kanban_status (one row per item: "Title → Phase (DD-MMM-YY)") and
+// timbered.kanban_status (one row per item: "Title → Phase") and
 // timbered.kanban_timeline (one row per phase change).
 // Every write goes through setItemPhases so validation and history stay in one place.
 
@@ -114,10 +114,10 @@ function shortDate(iso: string): string {
 // Shown in Shopify as lists (one row per entry), so nothing hides behind a scrolling box.
 const LIST_MAX = 128; // Shopify's limit on values in a list metafield
 
-/** One row per item, e.g. "Swing Climb Set → Paint (27-Oct-26)". */
+/** One row per item, e.g. "Swing Climb Set → Paint". */
 export function buildSummary(data: KanbanData): string[] {
   return Object.entries(data)
-    .map(([id, it]) => `${it.title || `Item ${id}`} → ${it.phase} (${shortDate(it.updated_at)})`)
+    .map(([id, it]) => `${it.title || `Item ${id}`} → ${it.phase}`)
     .slice(0, LIST_MAX);
 }
 
@@ -234,6 +234,8 @@ export async function seedMissingPhases(
       if (!data[key]) changed = applyPhase(data, key, start, at, 'auto', li.name) || changed;
       else if (!data[key].title) { data[key].title = li.name; changed = true; }
     }
+    // Rewrite when the readable Status is out of date (e.g. after a format change).
+    if (o.kanban && o.kanban_summary !== JSON.stringify(buildSummary(data))) changed = true;
     if (changed) {
       writes.push({ ownerId: o.gid, data, digest: o.kanban_digest ?? null });
       o.kanban = data;

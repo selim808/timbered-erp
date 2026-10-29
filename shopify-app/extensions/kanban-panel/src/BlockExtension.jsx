@@ -59,7 +59,7 @@ function parseKanban(value) {
 
 function buildStatus(data) {
   return Object.entries(data)
-    .map(([id, it]) => `${it.title || `Item ${id}`} → ${it.phase} (${shortDate(it.updated_at)})`)
+    .map(([id, it]) => `${it.title || `Item ${id}`} → ${it.phase}`)
     .slice(0, LIST_MAX);
 }
 

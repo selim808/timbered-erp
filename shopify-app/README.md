@@ -15,7 +15,7 @@ It reads and writes the same data as the ERP:
 | Field (order metafield)      | What it is                                  |
 |------------------------------|---------------------------------------------|
 | `timbered.kanban_phase`      | The data (JSON, keyed by line item id)      |
-| `timbered.kanban_status`     | Readable current phase, one row per item    |
+| `timbered.kanban_status`     | Readable current phase, one row per item ("Title → Phase") |
 | `timbered.kanban_timeline`   | Readable history, one row per phase change  |
 
 Saves use Shopify's `compareDigest`, so a change made at the same time in the ERP is never overwritten.
