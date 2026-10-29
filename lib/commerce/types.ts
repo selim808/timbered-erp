@@ -58,6 +58,8 @@ export interface CommerceOrder {
   kanban?: KanbanData | null;
   /** Version token of that metafield, for conflict-safe writes. */
   kanban_digest?: string | null;
+  /** Readable copy of kanban, shown on the Shopify order page (timbered.kanban_summary). */
+  kanban_summary?: string | null;
 }
 
 export interface OrderQuery {

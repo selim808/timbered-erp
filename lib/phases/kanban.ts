@@ -6,6 +6,8 @@ import { shopifyGql } from '@/lib/shopify/client';
 // by line item id:
 //   { "<lineItemId>": { phase_id, phase, updated_at, history: [{ phase_id, phase, at, source }] } }
 // The list of valid phases lives in Supabase (phase_groups + phases).
+// A readable copy is kept in timbered.kanban_summary (multi-line text, pinned on
+// the Shopify order page), one line per item: "Title → Phase (DD-MMM-YY)".
 // Every write goes through setItemPhases so validation and history stay in one place.
 
 export interface KanbanHistoryEntry {
@@ -16,6 +18,8 @@ export interface KanbanHistoryEntry {
 }
 
 export interface KanbanItem {
+  /** Item name, for the readable summary. */
+  title?: string;
   phase_id: string | null;
   phase: string;
   updated_at: string;
@@ -32,7 +36,8 @@ export interface ActivePhase {
 
 const NS = 'timbered';
 const KEY = 'kanban_phase';
-const BATCH = 25; // metafieldsSet limit per call
+const SUMMARY_KEY = 'kanban_summary';
+const BATCH = 12; // orders per call: 2 metafields each, metafieldsSet takes 25
 
 export function parseKanban(value: string | null | undefined): KanbanData | null {
   if (!value) return null;
@@ -89,6 +94,28 @@ export function itemPhaseOf(
   return entry ? { phase: entry.phase, updatedAt: entry.updated_at } : null;
 }
 
+// ─── Readable summary ───────────────────────────────────────────────────────
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** DD-MMM-YY in Cairo time. */
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Cairo', day: '2-digit', month: 'numeric', year: '2-digit',
+  }).formatToParts(d);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  return `${get('day')}-${MONTHS[Number(get('month')) - 1]}-${get('year')}`;
+}
+
+/** One line per item, e.g. "Swing Climb Set → Paint (27-Oct-26)". */
+export function buildSummary(data: KanbanData): string {
+  return Object.entries(data)
+    .map(([id, it]) => `${it.title || `Item ${id}`} → ${it.phase} (${shortDate(it.updated_at)})`)
+    .join('\n');
+}
+
 // ─── Writing ────────────────────────────────────────────────────────────────
 
 interface MetafieldWrite { ownerId: string; data: KanbanData; digest: string | null }
@@ -103,34 +130,49 @@ async function writeKanban(writes: MetafieldWrite[]): Promise<Set<string>> {
   const stale = new Set<string>();
   for (let i = 0; i < writes.length; i += BATCH) {
     const chunk = writes.slice(i, i + BATCH);
+    // metafieldsSet is atomic, so the summary is only saved together with the data.
+    const inputs = chunk.flatMap(w => [
+      {
+        ownerId: w.ownerId,
+        namespace: NS,
+        key: KEY,
+        type: 'json',
+        value: JSON.stringify(w.data),
+        // null digest = "only create if it doesn't exist yet"
+        compareDigest: w.digest,
+      },
+      {
+        ownerId: w.ownerId,
+        namespace: NS,
+        key: SUMMARY_KEY,
+        type: 'multi_line_text_field',
+        value: buildSummary(w.data) || '—',
+      },
+    ]);
     const res = await shopifyGql<{ metafieldsSet: { userErrors: { field: string[] | null; message: string; code: string }[] } }>(
       SET_MUTATION,
-      {
-        m: chunk.map(w => ({
-          ownerId: w.ownerId,
-          namespace: NS,
-          key: KEY,
-          type: 'json',
-          value: JSON.stringify(w.data),
-          // null digest = "only create if it doesn't exist yet"
-          compareDigest: w.digest,
-        })),
-      },
+      { m: inputs },
     );
     for (const e of res.metafieldsSet.userErrors) {
       if (e.code !== 'STALE_OBJECT') throw new Error(`Saving phase failed: ${e.message}`);
       const idx = Number(e.field?.[1]);
-      if (!Number.isNaN(idx) && chunk[idx]) stale.add(chunk[idx].ownerId);
+      if (!Number.isNaN(idx) && inputs[idx]) stale.add(inputs[idx].ownerId);
     }
   }
   return stale;
 }
 
-function applyPhase(data: KanbanData, lineItemId: string, phase: ActivePhase, at: string, source: string): boolean {
+function applyPhase(
+  data: KanbanData, lineItemId: string, phase: ActivePhase, at: string, source: string, title?: string,
+): boolean {
   const cur = data[lineItemId];
-  if (cur && cur.phase_id === phase.id) return false;
+  if (cur && cur.phase_id === phase.id) {
+    if (title && !cur.title) { cur.title = title; return true; }
+    return false;
+  }
   const entry = { phase_id: phase.id, phase: phase.name, at, source };
   data[lineItemId] = {
+    title: title || cur?.title,
     phase_id: phase.id,
     phase: phase.name,
     updated_at: at,
@@ -145,7 +187,10 @@ function applyPhase(data: KanbanData, lineItemId: string, phase: ActivePhase, at
  * caller can render the result straight away.
  */
 export async function seedMissingPhases(
-  orders: { gid: string | null; kanban?: KanbanData | null; kanban_digest?: string | null; line_items: { id: number }[] }[],
+  orders: {
+    gid: string | null; kanban?: KanbanData | null; kanban_digest?: string | null; kanban_summary?: string | null;
+    line_items: { id: number; name: string }[];
+  }[],
 ): Promise<void> {
   const start = await getStartPhase();
   if (!start) return;
@@ -154,10 +199,13 @@ export async function seedMissingPhases(
   const writes: MetafieldWrite[] = [];
   for (const o of orders) {
     if (!o.gid) continue;
-    const data: KanbanData = { ...(o.kanban ?? {}) };
-    let changed = false;
+    const data: KanbanData = JSON.parse(JSON.stringify(o.kanban ?? {}));
+    // Also rewrite when the readable summary is missing (orders saved before it existed).
+    let changed = !!o.kanban && !o.kanban_summary;
     for (const li of o.line_items) {
-      if (!data[String(li.id)]) changed = applyPhase(data, String(li.id), start, at, 'auto') || changed;
+      const key = String(li.id);
+      if (!data[key]) changed = applyPhase(data, key, start, at, 'auto', li.name) || changed;
+      else if (!data[key].title) { data[key].title = li.name; changed = true; }
     }
     if (changed) {
       writes.push({ ownerId: o.gid, data, digest: o.kanban_digest ?? null });
@@ -173,12 +221,12 @@ query OrderKanban($q: String!) {
     nodes {
       id
       kanban: metafield(namespace: "timbered", key: "kanban_phase") { value compareDigest }
-      lineItems(first: 100) { nodes { id } }
+      lineItems(first: 100) { nodes { id title } }
     }
   }
 }`;
 
-interface ReadOne { orders: { nodes: { id: string; kanban: { value: string; compareDigest: string } | null; lineItems: { nodes: { id: string }[] } }[] } }
+interface ReadOne { orders: { nodes: { id: string; kanban: { value: string; compareDigest: string } | null; lineItems: { nodes: { id: string; title: string }[] } }[] } }
 
 export interface PhaseUpdate {
   /** Order number as the ERP shows it (Shopify "#1234" without the #). */
@@ -211,13 +259,13 @@ export async function setItemPhases(updates: PhaseUpdate[], source = 'erp'): Pro
       const order = res.orders.nodes[0];
       if (!order) throw new Error(`Order ${num} is not a Shopify order (phases are stored on Shopify orders only)`);
 
-      const valid = new Set(order.lineItems.nodes.map(n => n.id.split('/').pop()!));
+      const titles = new Map(order.lineItems.nodes.map(n => [n.id.split('/').pop()!, n.title]));
       const data: KanbanData = parseKanban(order.kanban?.value) ?? {};
       const at = new Date().toISOString();
       let changed = false;
       for (const it of items) {
-        if (!valid.has(it.lineItemId)) throw new Error(`Item ${it.lineItemId} is not on order ${num}`);
-        changed = applyPhase(data, it.lineItemId, it.phase, at, source) || changed;
+        if (!titles.has(it.lineItemId)) throw new Error(`Item ${it.lineItemId} is not on order ${num}`);
+        changed = applyPhase(data, it.lineItemId, it.phase, at, source, titles.get(it.lineItemId)) || changed;
       }
       if (!changed) break;
 

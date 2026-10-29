@@ -44,7 +44,8 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
       customer { firstName lastName phone }
       billingAddress { firstName lastName phone }
       shippingAddress { firstName lastName name phone address1 address2 city province }
-      kanban: metafield(namespace: "timbered", key: "kanban_phase") { value compareDigest }${lite ? '' : LINE_ITEMS_FRAGMENT}
+      kanban: metafield(namespace: "timbered", key: "kanban_phase") { value compareDigest }
+      kanbanSummary: metafield(namespace: "timbered", key: "kanban_summary") { value }${lite ? '' : LINE_ITEMS_FRAGMENT}
     }
   }
 }`;
@@ -90,6 +91,7 @@ interface RawOrder {
   billingAddress: RawAddress | null;
   shippingAddress: RawAddress | null;
   kanban: { value: string; compareDigest: string } | null;
+  kanbanSummary: { value: string } | null;
   lineItems?: { nodes: RawLineItem[] };
 }
 
@@ -229,6 +231,7 @@ function normalize(o: RawOrder): CommerceOrder {
     line_items: (o.lineItems?.nodes ?? []).map(mapLineItem).filter(li => li.quantity > 0),
     kanban: parseKanban(o.kanban?.value),
     kanban_digest: o.kanban?.compareDigest ?? null,
+    kanban_summary: o.kanbanSummary?.value ?? null,
   };
 }
 
