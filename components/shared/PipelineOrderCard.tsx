@@ -155,10 +155,17 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
         <span className="poc-num" onClick={e => { e.stopPropagation(); onOpenDetail(); }}>
           {o.number}
         </span>
-        <span className="poc-name" title={o.cancelReason ? `${o.customerName} | ${o.cancelReason}` : undefined}>
-          {o.customerName}
-          {o.cancelReason && <span className="poc-reason"> | {o.cancelReason}</span>}
-        </span>
+        {(() => {
+          // "No Response · During Production · Material Loss" — older notes may span lines.
+          const cancel = [o.cancelReason, o.cancelTiming, o.cancelImpact]
+            .filter(Boolean).join(' · ').replace(/\s*\n\s*/g, ' · ');
+          return (
+            <span className="poc-name" title={cancel ? `${o.customerName} | ${cancel}` : undefined}>
+              {o.customerName}
+              {cancel && <span className="poc-reason"> | {cancel}</span>}
+            </span>
+          );
+        })()}
         <span className="poc-total">{fmtPrice(o.total)}</span>
         {wp && (
           <>

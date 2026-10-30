@@ -47,6 +47,8 @@ function normalize(o: RawWcOrder): CommerceOrder {
     date_cancelled: o.status === 'cancelled' ? o.date_modified : null,
     // Set when the ERP cancelled it (timbered_cancel_reason); Woo itself keeps none.
     cancel_reason: metaOf(o, WC_META.cancelReason),
+    cancel_timing: metaOf(o, WC_META.cancelTiming),
+    cancel_impact: metaOf(o, WC_META.cancelImpact),
     total: o.total ?? '0',
     payment_method: o.payment_method_title ?? '',
     customer_note: o.customer_note ?? '',

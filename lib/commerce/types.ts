@@ -43,6 +43,9 @@ export interface CommerceOrder {
   date_cancelled: string | null;
   /** Why the order was cancelled. Shopify only — Woo records no reason. */
   cancel_reason: string | null;
+  /** When / what it cost, as chosen in the ERP's cancel dialog. */
+  cancel_timing?: string | null;
+  cancel_impact?: string | null;
   total: string;
   payment_method: string;
   customer_note: string;

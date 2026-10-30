@@ -38,7 +38,9 @@ export interface PipelineOrder {
   // Set only for the After-Sales / Cancelled feed:
   cancelledDaysAgo?: number; // days since the order was cancelled
   daysToCancel?: number;     // days from order creation to cancellation
-  cancelReason?: string;     // Shopify only; Woo records no reason
+  cancelReason?: string;     // ERP-chosen reason, else Shopify's bucket + note
+  cancelTiming?: string;
+  cancelImpact?: string;
   // Set only for the Follow-up feed: signed code for the public /g/<code> guarantee link.
   warrantyCode?: string;
   lineItems: PipelineLineItem[];

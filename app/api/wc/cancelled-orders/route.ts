@@ -78,6 +78,8 @@ export async function GET(req: Request) {
         cancelledDaysAgo,
         daysToCancel,
         ...(o.cancel_reason ? { cancelReason: o.cancel_reason as string } : {}),
+        ...(o.cancel_timing ? { cancelTiming: o.cancel_timing as string } : {}),
+        ...(o.cancel_impact ? { cancelImpact: o.cancel_impact as string } : {}),
         lineItems,
       };
     });

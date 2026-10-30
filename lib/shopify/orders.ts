@@ -48,6 +48,9 @@ query Orders($first: Int!, ${lite ? '' : '$li: Int!, '}$cursor: String, $q: Stri
       billingAddress { firstName lastName phone }
       shippingAddress { firstName lastName name phone address1 address2 city province }
       kanban: metafield(namespace: "timbered", key: "kanban_phase") { value compareDigest }
+      cancelReasonMf: metafield(namespace: "timbered", key: "cancel_reason") { value }
+      cancelTimingMf: metafield(namespace: "timbered", key: "cancel_timing") { value }
+      cancelImpactMf: metafield(namespace: "timbered", key: "cancel_impact") { value }
       kanbanSummary: metafield(namespace: "timbered", key: "kanban_status") { value }
       kanbanHistory: metafield(namespace: "timbered", key: "kanban_timeline") { value }${lite ? '' : LINE_ITEMS_FRAGMENT}
     }
@@ -100,6 +103,9 @@ interface RawOrder {
   billingAddress: RawAddress | null;
   shippingAddress: RawAddress | null;
   kanban: { value: string; compareDigest: string } | null;
+  cancelReasonMf: { value: string } | null;
+  cancelTimingMf: { value: string } | null;
+  cancelImpactMf: { value: string } | null;
   kanbanSummary: { value: string } | null;
   kanbanHistory: { value: string } | null;
   lineItems?: { nodes: RawLineItem[] };
@@ -221,7 +227,10 @@ function normalize(o: RawOrder): CommerceOrder {
     date_modified: o.updatedAt,
     date_completed: completedAt(o),
     date_cancelled: o.cancelledAt,
-    cancel_reason: cancelReasonOf(o),
+    // The ERP's own reason (timbered.cancel_reason) wins over Shopify's bucket + note.
+    cancel_reason: o.cancelledAt ? (o.cancelReasonMf?.value || cancelReasonOf(o)) : null,
+    cancel_timing: o.cancelledAt ? (o.cancelTimingMf?.value ?? null) : null,
+    cancel_impact: o.cancelledAt ? (o.cancelImpactMf?.value ?? null) : null,
     total: money(o.currentTotalPriceSet, o.totalPriceSet),
     payment_method: (o.paymentGatewayNames ?? []).join(', '),
     customer_note: o.note ?? '',
