@@ -94,13 +94,16 @@ export interface CancelDetails {
   impact?: string;
 }
 
-/** "Reason: No Response | Timing: During Production | Impact: Material Loss" */
+/** One line each:
+ *  Reason: No Response
+ *  Timing: During Production
+ *  Impact: Material Loss */
 export function cancelNoteOf({ reason, timing, impact }: CancelDetails): string {
   return [
     reason && `Reason: ${reason}`,
     timing && `Timing: ${timing}`,
     impact && `Impact: ${impact}`,
-  ].filter(Boolean).join(' | ');
+  ].filter(Boolean).join('\n');
 }
 
 export async function cancelOrder(id: string, details: CancelDetails): Promise<void> {
