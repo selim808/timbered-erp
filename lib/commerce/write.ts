@@ -57,7 +57,12 @@ export async function reactivateOrder(id: string): Promise<void> {
     await wc.put(`/orders/${id}`, {
       status: 'processing',
       ...(idx === -1 ? {} : { billing: { last_name: lastName.slice(0, idx) } }),
-      meta_data: [{ key: 'cancellation_reason', value: '' }],
+      meta_data: [
+        { key: 'cancellation_reason', value: '' },
+        { key: 'timbered_cancel_reason', value: '' },
+        { key: 'timbered_cancel_timing', value: '' },
+        { key: 'timbered_cancel_impact', value: '' },
+      ],
     });
     return;
   }
@@ -114,7 +119,12 @@ export async function cancelOrder(id: string, details: CancelDetails): Promise<v
   if (source === 'wc') {
     const payload: Record<string, unknown> = { status: 'cancelled' };
     if (reason) {
-      payload.meta_data = [{ key: 'cancellation_reason', value: note }];
+      payload.meta_data = [
+        { key: 'cancellation_reason', value: note },
+        { key: 'timbered_cancel_reason', value: details.reason },
+        { key: 'timbered_cancel_timing', value: details.timing ?? '' },
+        { key: 'timbered_cancel_impact', value: details.impact ?? '' },
+      ];
 
       // Append "__<reason>" to the customer's last name so the reason is
       // visible alongside the name. Skip if a marker is already present.

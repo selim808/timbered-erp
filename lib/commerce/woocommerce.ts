@@ -1,5 +1,6 @@
 import wc from '@/lib/woocommerce/client';
 import type { CommerceLineItem, CommerceOrder, CommerceStatus, OrderQuery } from './types';
+import { parseKanban, WC_META } from '@/lib/phases/kanban';
 
 interface RawWcLineItem {
   id: number; name: string; product_id: number; quantity: number;
@@ -18,12 +19,18 @@ interface RawWcOrder {
     address_2?: string; city?: string; state?: string; phone?: string;
   };
   line_items?: RawWcLineItem[];
+  meta_data?: { key: string; value: unknown }[];
 }
 
 const KNOWN: CommerceStatus[] = ['processing', 'completed', 'cancelled', 'on-hold', 'pending'];
 
 function mapStatus(status: string): CommerceStatus {
   return (KNOWN as string[]).includes(status) ? status as CommerceStatus : 'pending';
+}
+
+function metaOf(o: RawWcOrder, key: string): string | null {
+  const m = o.meta_data?.find(x => x.key === key);
+  return m && typeof m.value === 'string' ? m.value : null;
 }
 
 function normalize(o: RawWcOrder): CommerceOrder {
@@ -38,9 +45,8 @@ function normalize(o: RawWcOrder): CommerceOrder {
     date_completed: o.date_completed,
     // Woo records no cancellation timestamp; the last edit is the closest proxy.
     date_cancelled: o.status === 'cancelled' ? o.date_modified : null,
-    // Woo keeps no cancellation reason on the order; it only ever lives in the
-    // per-order notes endpoint, which is a request each.
-    cancel_reason: null,
+    // Set when the ERP cancelled it (timbered_cancel_reason); Woo itself keeps none.
+    cancel_reason: metaOf(o, WC_META.cancelReason),
     total: o.total ?? '0',
     payment_method: o.payment_method_title ?? '',
     customer_note: o.customer_note ?? '',
@@ -68,6 +74,10 @@ function normalize(o: RawWcOrder): CommerceOrder {
       sku: li.sku ?? '',
       image: li.image?.src ? { src: li.image.src } : null,
     })),
+    // Same kanban data as Shopify orders, kept in order meta (Custom Fields).
+    kanban: parseKanban(metaOf(o, WC_META.phase)),
+    kanban_summary: metaOf(o, WC_META.status),
+    kanban_history: metaOf(o, WC_META.history),
   };
 }
 

@@ -78,7 +78,7 @@ export async function GET() {
         price: parseFloat(li.price ?? '0'),
         total: parseFloat(li.total ?? '0'),
         imageUrl: li.image?.src ?? '',
-        phase: itemPhaseOf(o, li.id)?.phase ?? (o.source === 'shopify' ? startName : ''),
+        phase: itemPhaseOf(o, li.id)?.phase ?? startName,
         stock: stockMap.get(li.product_id) ?? 0,
         orderedQty: orderedQtyMap.get(li.product_id) ?? li.quantity,
       }));

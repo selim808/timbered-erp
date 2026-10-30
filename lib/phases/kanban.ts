@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { shopifyGql } from '@/lib/shopify/client';
+import wc from '@/lib/woocommerce/client';
 
 // ─── Kanban phase per order item ────────────────────────────────────────────
 // Each Shopify order carries the metafield timbered.kanban_phase (JSON), keyed
@@ -40,6 +41,20 @@ const KEY = 'kanban_phase';
 const SUMMARY_KEY = 'kanban_status';
 const HISTORY_KEY = 'kanban_timeline';
 const BATCH = 8; // orders per call: 3 metafields each, metafieldsSet takes 25
+
+/**
+ * WooCommerce orders keep the same data in order meta ("Custom Fields"):
+ * the JSON, plus Status and History as plain text (one line per row).
+ */
+export const WC_META = {
+  phase: 'timbered_kanban_phase',
+  status: 'timbered_kanban_status',
+  history: 'timbered_kanban_history',
+  cancelReason: 'timbered_cancel_reason',
+  cancelTiming: 'timbered_cancel_timing',
+  cancelImpact: 'timbered_cancel_impact',
+} as const;
+const WC_BATCH = 100; // Woo batch endpoint limit
 
 export function parseKanban(value: string | null | undefined): KanbanData | null {
   if (!value) return null;
@@ -189,6 +204,24 @@ async function writeKanban(writes: MetafieldWrite[]): Promise<Set<string>> {
   return stale;
 }
 
+function wooMeta(data: KanbanData) {
+  return [
+    { key: WC_META.phase, value: JSON.stringify(data) },
+    { key: WC_META.status, value: buildSummary(data).join('\n') },
+    { key: WC_META.history, value: buildHistory(data).join('\n') },
+  ];
+}
+
+/** Saves kanban meta on Woo orders. Woo has no version check, so callers re-read just before writing. */
+async function writeWooKanban(writes: { id: number | string; data: KanbanData }[]): Promise<void> {
+  for (let i = 0; i < writes.length; i += WC_BATCH) {
+    const chunk = writes.slice(i, i + WC_BATCH);
+    await wc.post('/orders/batch', {
+      update: chunk.map(w => ({ id: Number(w.id), meta_data: wooMeta(w.data) })),
+    });
+  }
+}
+
 function applyPhase(
   data: KanbanData, lineItemId: string, phase: ActivePhase, at: string, source: string, title?: string,
 ): boolean {
@@ -210,12 +243,13 @@ function applyPhase(
 
 /**
  * Gives every item with no phase yet the start phase. Call with freshly
- * fetched Shopify orders; Woo orders are skipped. Mutates order.kanban so the
- * caller can render the result straight away.
+ * fetched orders (Shopify and Woo). Mutates order.kanban so the caller can
+ * render the result straight away.
  */
 export async function seedMissingPhases(
   orders: {
-    gid: string | null; kanban?: KanbanData | null; kanban_digest?: string | null; kanban_summary?: string | null; kanban_history?: string | null;
+    source: string; id: number; gid: string | null;
+    kanban?: KanbanData | null; kanban_digest?: string | null; kanban_summary?: string | null; kanban_history?: string | null;
     line_items: { id: number; name: string }[];
   }[],
 ): Promise<void> {
@@ -224,8 +258,10 @@ export async function seedMissingPhases(
   const at = new Date().toISOString();
 
   const writes: MetafieldWrite[] = [];
+  const wooWrites: { id: number; data: KanbanData }[] = [];
   for (const o of orders) {
-    if (!o.gid) continue;
+    const isWoo = o.source === 'wc';
+    if (!isWoo && !o.gid) continue;
     const data: KanbanData = JSON.parse(JSON.stringify(o.kanban ?? {}));
     // Also rewrite when a readable copy is missing (orders saved before it existed).
     let changed = !!o.kanban && (!o.kanban_summary || !o.kanban_history);
@@ -235,13 +271,16 @@ export async function seedMissingPhases(
       else if (!data[key].title) { data[key].title = li.name; changed = true; }
     }
     // Rewrite when the readable Status is out of date (e.g. after a format change).
-    if (o.kanban && o.kanban_summary !== JSON.stringify(buildSummary(data))) changed = true;
+    const expected = isWoo ? buildSummary(data).join('\n') : JSON.stringify(buildSummary(data));
+    if (o.kanban && o.kanban_summary !== expected) changed = true;
     if (changed) {
-      writes.push({ ownerId: o.gid, data, digest: o.kanban_digest ?? null });
+      if (isWoo) wooWrites.push({ id: o.id, data });
+      else writes.push({ ownerId: o.gid!, data, digest: o.kanban_digest ?? null });
       o.kanban = data;
     }
   }
   if (writes.length) await writeKanban(writes); // a stale write means someone else just saved; leave theirs
+  if (wooWrites.length) await writeWooKanban(wooWrites);
 }
 
 const READ_ONE = `
@@ -284,9 +323,9 @@ export async function setItemPhases(updates: PhaseUpdate[], source = 'erp'): Pro
 
   for (const [num, items] of perOrder) {
     for (let attempt = 1; ; attempt++) {
-      const res = await shopifyGql<ReadOne>(READ_ONE, { q: `name:${num}` });
-      const order = res.orders.nodes[0];
-      if (!order) throw new Error(`Order ${num} is not a Shopify order (phases are stored on Shopify orders only)`);
+      const res = await shopifyGql<ReadOne>(READ_ONE, { q: `name:${num}` }).catch(() => null);
+      const order = res?.orders.nodes[0];
+      if (!order) { await setWooItemPhases(num, items, source); break; }
 
       const titles = new Map(order.lineItems.nodes.map(n => [n.id.split('/').pop()!, n.title]));
       const data: KanbanData = parseKanban(order.kanban?.value) ?? {};
@@ -303,4 +342,26 @@ export async function setItemPhases(updates: PhaseUpdate[], source = 'erp'): Pro
       if (attempt >= 3) throw new Error(`Order ${num} kept changing while saving; try again`);
     }
   }
+}
+
+/** Woo version of a phase change: same data and rules, stored in order meta. */
+async function setWooItemPhases(
+  num: string, items: { lineItemId: string; phase: ActivePhase }[], source: string,
+): Promise<void> {
+  let order: { id: number; line_items?: { id: number; name: string }[]; meta_data?: { key: string; value: unknown }[] };
+  try {
+    ({ data: order } = await wc.get(`/orders/${num}`));
+  } catch {
+    throw new Error(`Order ${num} was not found on Shopify or WooCommerce`);
+  }
+  const titles = new Map((order.line_items ?? []).map(li => [String(li.id), li.name]));
+  const raw = order.meta_data?.find(m => m.key === WC_META.phase)?.value;
+  const data: KanbanData = parseKanban(typeof raw === 'string' ? raw : null) ?? {};
+  const at = new Date().toISOString();
+  let changed = false;
+  for (const it of items) {
+    if (!titles.has(it.lineItemId)) throw new Error(`Item ${it.lineItemId} is not on order ${num}`);
+    changed = applyPhase(data, it.lineItemId, it.phase, at, source, titles.get(it.lineItemId)) || changed;
+  }
+  if (changed) await wc.put(`/orders/${order.id}`, { meta_data: wooMeta(data) });
 }
