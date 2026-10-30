@@ -88,13 +88,30 @@ export async function reactivateOrder(id: string): Promise<void> {
   assertNoUserErrors(res.orderOpen.userErrors, 'orderOpen');
 }
 
-export async function cancelOrder(id: string, reason: string): Promise<void> {
+export interface CancelDetails {
+  reason: string;
+  timing?: string;
+  impact?: string;
+}
+
+/** "Reason: No Response | Timing: During Production | Impact: Material Loss" */
+export function cancelNoteOf({ reason, timing, impact }: CancelDetails): string {
+  return [
+    reason && `Reason: ${reason}`,
+    timing && `Timing: ${timing}`,
+    impact && `Impact: ${impact}`,
+  ].filter(Boolean).join(' | ');
+}
+
+export async function cancelOrder(id: string, details: CancelDetails): Promise<void> {
   const { source, gid } = await resolveOrder(id);
+  const reason = details.reason;
+  const note = cancelNoteOf(details);
 
   if (source === 'wc') {
     const payload: Record<string, unknown> = { status: 'cancelled' };
     if (reason) {
-      payload.meta_data = [{ key: 'cancellation_reason', value: reason }];
+      payload.meta_data = [{ key: 'cancellation_reason', value: note }];
 
       // Append "__<reason>" to the customer's last name so the reason is
       // visible alongside the name. Skip if a marker is already present.
@@ -115,7 +132,18 @@ export async function cancelOrder(id: string, reason: string): Promise<void> {
          orderCancelUserErrors { message }
        }
      }`,
-    { orderId: gid, reason: 'OTHER', staffNote: reason || null },
+    { orderId: gid, reason: 'OTHER', staffNote: note || null },
   );
   assertNoUserErrors(res.orderCancel.orderCancelUserErrors, 'orderCancel');
+
+  // Also keep each value in its own order field (timbered.cancel_*), for reports and partners.
+  const fields = ([['cancel_reason', details.reason], ['cancel_timing', details.timing], ['cancel_impact', details.impact]] as const)
+    .filter(([, v]) => v);
+  if (fields.length) {
+    const mf = await shopifyGql<{ metafieldsSet: { userErrors: { message: string }[] } }>(
+      `mutation($m: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $m) { userErrors { message } } }`,
+      { m: fields.map(([key, value]) => ({ ownerId: gid, namespace: 'timbered', key, type: 'single_line_text_field', value })) },
+    );
+    assertNoUserErrors(mf.metafieldsSet.userErrors, 'metafieldsSet');
+  }
 }

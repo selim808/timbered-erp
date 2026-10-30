@@ -10,28 +10,42 @@ export interface CancellationReason {
   sort_order: number;
 }
 
+/** What the user picked for one order. Labels come from the Supabase lists. */
+export interface CancelChoice {
+  reason: string;
+  timing: string;
+  impact: string;
+}
+
 interface Props {
   open: boolean;
   orders: PipelineOrder[];
   reasons: CancellationReason[];
+  timings: CancellationReason[];
+  impacts: CancellationReason[];
   submitting?: boolean;
-  /** orderId → reason label, one entry per order. */
-  onConfirm: (reasonByOrder: Record<number, string>) => void;
+  /** orderId → reason, timing and impact, one entry per order. */
+  onConfirm: (choiceByOrder: Record<number, CancelChoice>) => void;
   onClose: () => void;
 }
+
+const EMPTY: CancelChoice = { reason: '', timing: '', impact: '' };
 
 function orderQty(o: PipelineOrder) {
   return o.lineItems.reduce((sum, li) => sum + (li.quantity ?? 0), 0);
 }
 
 export default function CancelOrdersModal({
-  open, orders, reasons, submitting = false, onConfirm, onClose,
+  open, orders, reasons, timings, impacts, submitting = false, onConfirm, onClose,
 }: Props) {
-  const [reasonByOrder, setReasonByOrder] = useState<Record<number, string>>({});
+  const [choiceByOrder, setChoiceByOrder] = useState<Record<number, CancelChoice>>({});
+  const choiceOf = (id: number) => choiceByOrder[id] ?? EMPTY;
+  const setChoice = (id: number, field: keyof CancelChoice, value: string) =>
+    setChoiceByOrder(prev => ({ ...prev, [id]: { ...(prev[id] ?? EMPTY), [field]: value } }));
 
   // Reset selections whenever the modal opens with a new batch.
   useEffect(() => {
-    if (open) setReasonByOrder({});
+    if (open) setChoiceByOrder({});
   }, [open, orders]);
 
   useEffect(() => {
@@ -49,7 +63,10 @@ export default function CancelOrdersModal({
     return { qty, value };
   }, [orders]);
 
-  const allChosen = orders.length > 0 && orders.every(o => reasonByOrder[o.id]);
+  const allChosen = orders.length > 0 && orders.every(o => {
+    const c = choiceOf(o.id);
+    return c.reason && c.timing && c.impact;
+  });
 
   if (!open) return null;
 
@@ -72,17 +89,26 @@ export default function CancelOrdersModal({
                 <span className="com-row-cust">{o.customerName || '—'}</span>
                 <span className="com-row-meta">{orderQty(o)} pcs · {fmtPrice(o.total)} EGP</span>
               </div>
-              <select
-                className={`com-reason${reasonByOrder[o.id] ? '' : ' empty'}`}
-                value={reasonByOrder[o.id] ?? ''}
-                disabled={submitting}
-                onChange={e => setReasonByOrder(prev => ({ ...prev, [o.id]: e.target.value }))}
-              >
-                <option value="" disabled>Select reason…</option>
-                {reasons.map(r => (
-                  <option key={r.id} value={r.label}>{r.label}</option>
+              <div className="com-selects">
+                {([
+                  ['reason', 'Reason', reasons],
+                  ['timing', 'Timing', timings],
+                  ['impact', 'Impact', impacts],
+                ] as const).map(([field, label, list]) => (
+                  <select
+                    key={field}
+                    className={`com-reason${choiceOf(o.id)[field] ? '' : ' empty'}`}
+                    value={choiceOf(o.id)[field]}
+                    disabled={submitting}
+                    onChange={e => setChoice(o.id, field, e.target.value)}
+                  >
+                    <option value="" disabled>{label}…</option>
+                    {list.map(r => (
+                      <option key={r.id} value={r.label}>{r.label}</option>
+                    ))}
+                  </select>
                 ))}
-              </select>
+              </div>
             </div>
           ))}
         </div>
@@ -103,7 +129,7 @@ export default function CancelOrdersModal({
           <button
             className="com-btn yes"
             disabled={!allChosen || submitting}
-            onClick={() => onConfirm(reasonByOrder)}
+            onClick={() => onConfirm(choiceByOrder)}
           >
             {submitting ? 'Cancelling…' : 'Yes, cancel'}
           </button>
@@ -144,6 +170,7 @@ export default function CancelOrdersModal({
           overflow: hidden; text-overflow: ellipsis; max-width: 180px;
         }
         .com-row-meta { font-size: 11px; color: #999; }
+        .com-selects { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
         .com-reason {
           flex-shrink: 0; min-width: 150px; padding: 7px 9px; border-radius: 8px;
           border: 1px solid #ddd; background: #fff; font-size: 12px; color: #333;
