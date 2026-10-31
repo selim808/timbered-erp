@@ -31,6 +31,12 @@ const BoxIcon = () => (
   </svg>
 );
 
+const ProductionIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B86E1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 20h20M4 20V10l5 3V10l5 3V10l5 3v7M18 6v4"/>
+  </svg>
+);
+
 const AppIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B86E1A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h6M7 16h4"/>
@@ -88,6 +94,12 @@ export default function ImportantLinks() {
             title="Website"
             sub="timberedgroup.com"
             buttons={[{ label: 'Open', href: 'https://timberedgroup.com' }]}
+          />
+          <Banner
+            icon={<ProductionIcon />}
+            title="Production Module"
+            sub="Job orders & production tracking"
+            buttons={[{ label: 'Open', href: 'https://script.google.com/macros/s/AKfycbz-qw68Ng-aRFi8VUAVxklyatuG-0amxcviAufNIngI4r9vn3pZhftVaQx8pGB_lUFm/exec' }]}
           />
           <Banner
             icon={<BoxIcon />}
