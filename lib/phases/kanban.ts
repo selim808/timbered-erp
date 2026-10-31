@@ -365,3 +365,25 @@ async function setWooItemPhases(
   }
   if (changed) await wc.put(`/orders/${order.id}`, { meta_data: wooMeta(data) });
 }
+
+/**
+ * A brand-new Shopify order (from the orders/create webhook): every item starts
+ * in the first phase, stamped with the order's own creation time. Create-only:
+ * if the order already has phase data (someone was faster), it is left alone.
+ */
+export async function seedNewShopifyOrder(
+  orderGid: string,
+  lineItems: { id: number | string; title: string }[],
+  createdAt: string,
+): Promise<'seeded' | 'exists' | 'no-phases'> {
+  const start = await getStartPhase();
+  if (!start) return 'no-phases';
+  const at = Number.isNaN(new Date(createdAt).getTime()) ? new Date().toISOString() : new Date(createdAt).toISOString();
+
+  const data: KanbanData = {};
+  for (const li of lineItems) applyPhase(data, String(li.id), start, at, 'auto', li.title);
+  if (!Object.keys(data).length) return 'exists';
+
+  const stale = await writeKanban([{ ownerId: orderGid, data, digest: null }]);
+  return stale.size ? 'exists' : 'seeded';
+}
