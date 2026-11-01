@@ -28,18 +28,18 @@ interface ProdData {
 }
 
 // ─── Phase colour rules ───────────────────────────────────────────
-// Phase names match the Supabase phase list (as stored in the Shopify kanban metafield).
-const GREEN_PHASES = new Set([
-  'Ready', 'Scheduled (dated)', 'With Bosta', 'With Private', 'Partially Delivered', 'Fully Delivered',
-]);
-const RED_PHASES = new Set([
-  'Not in WH', 'Missing Parts', 'Defected', 'No Response from Customer', 'Postponed (no date)',
-  'Difficult Delivery', 'Refuse Partial', 'Returned', 'Delivery Failed', 'Returned to WH',
-  'With Bareed-Cairo', 'With Bareed-Tanta',
-]);
+// One colour per Supabase phase group.
 const NO_PHASE = 'No phase';
-const phaseColor = (p: string) =>
-  p === NO_PHASE ? '#95a5a6' : GREEN_PHASES.has(p) ? '#27ae60' : RED_PHASES.has(p) ? '#e74c3c' : '#3498db';
+const GROUP_COLORS: Record<string, string> = {
+  'Confirmation': '#7f8c9d',
+  'Planning':     '#8e44ad',
+  'Production':   '#2980b9',
+  'Warehouse':    '#f1948a',
+  'Delivery':     '#27ae60',
+  'After-sales':  '#f4d03f',
+  [NO_PHASE]:     '#bdc3c7',
+};
+const groupColor = (g: string) => GROUP_COLORS[g] ?? '#bdc3c7';
 
 // Groups counted as Fabrication; the rest (Warehouse, Delivery, After-sales) count as Delivery.
 const FAB_GROUPS = new Set(['Confirmation', 'Planning', 'Production', NO_PHASE]);
@@ -97,7 +97,7 @@ export default function ProductionSection() {
 
   // ── Bar chart ────────────────────────────────────────────────
   const filtered = phases.filter(p => (p.Value || 0) > 0);
-  const colors   = filtered.map(p => phaseColor(p.Phases));
+  const colors   = filtered.map(p => groupColor(p.Group));
   const chartData = {
     labels: filtered.map(p => p.Phases),
     datasets: [{ data: filtered.map(p => p.Value), backgroundColor: colors, borderWidth: 0 }],
@@ -110,7 +110,7 @@ export default function ProductionSection() {
       datalabels: {
         anchor: 'end' as const, align: 'top' as const,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        color: (ctx: any) => colors[ctx.dataIndex] as string,
+        color: (ctx: any) => (filtered[ctx.dataIndex]?.Group === 'After-sales' ? '#b7950b' : colors[ctx.dataIndex]) as string,
         font:  { weight: 'bold' as const, size: 10 },
         formatter: (v: number) => v > 0 ? Math.round(v / 1000) + 'K' : '',
       },
