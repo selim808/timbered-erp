@@ -1,60 +1,65 @@
 import { NextResponse } from 'next/server';
 import { fetchOrders } from '@/lib/commerce/orders';
+import { getActivePhases } from '@/lib/phases/kanban';
 
 interface Phase {
   Phases: string;
+  /** Supabase phase group (Confirmation, Planning, Production, Warehouse, Delivery, After-sales). */
+  Group: string;
   Value: number;
+  Items: number;
 }
+
+const NO_PHASE = 'No phase';
 
 // ── WIP breakdown source ────────────────────────────────────────────
-// The WIP phases/values live in a Google Sheet, range A2:B35
-// (col A = phase name, col B = value). We read it via the gviz endpoint so we
-// get the raw cell values and the exact range. Sheet id/gid are overridable via
-// env but default to the production sheet so no extra Vercel config is needed.
-const SHEET_ID    = process.env.PROD_SHEET_ID  ?? '1nWXrJVPPjGtq7Om4c1FDlKw8vDJ_IGsE76avg2V0c-o';
-const SHEET_GID   = process.env.PROD_SHEET_GID ?? '810319678';
-const SHEET_RANGE = 'A2:B35';
-
-async function fetchPhases(): Promise<Phase[]> {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}&range=${SHEET_RANGE}`;
-  const res = await fetch(url, { next: { revalidate: 300 } });
-  const text = await res.text();
-
-  // gviz wraps the JSON in a JSONP callback: /*O_o*/\ngoogle.visualization.Query.setResponse({…});
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error('Unexpected sheet response');
-  const json = JSON.parse(text.slice(start, end + 1));
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows: any[] = json?.table?.rows ?? [];
-  return rows
-    .map((r) => ({
-      Phases: r?.c?.[0]?.v ?? '',
-      Value: Number(r?.c?.[1]?.v ?? 0),
-    }))
-    .filter((p: Phase) => p.Phases);
-}
-
-async function fetchProcessing() {
-  const orders = await fetchOrders({ status: 'processing' });
-  let itemsNo = 0, procValue = 0;
-
-  orders.forEach(o => {
-    o.line_items.forEach(i => { itemsNo += i.quantity || 1; });
-    procValue += parseFloat(o.total) || 0;
-  });
-
-  return { ordersNo: orders.length, itemsNo, procValue: Math.round(procValue) };
-}
-
+// Built from the item kanban phases stored on each processing order
+// (Shopify metafield timbered.kanban_phase; Woo order meta for old orders).
+// Each order's total is spread over its items by line value, so the WIP total
+// matches the Processing Value. Phase order comes from the Supabase phase list.
 export async function GET() {
   try {
-    const [phases, wc] = await Promise.all([
-      fetchPhases(),
-      fetchProcessing(),
+    const [orders, active] = await Promise.all([
+      fetchOrders({ status: 'processing' }),
+      getActivePhases(),
     ]);
-    return NextResponse.json({ phases, ...wc });
+
+    const byName = new Map<string, Phase>();
+    for (const p of active) byName.set(p.name, { Phases: p.name, Group: p.group, Value: 0, Items: 0 });
+    const bucket = (name: string) => {
+      let b = byName.get(name);
+      if (!b) { b = { Phases: name, Group: name === NO_PHASE ? NO_PHASE : 'Other', Value: 0, Items: 0 }; byName.set(name, b); }
+      return b;
+    };
+
+    let itemsNo = 0, procValue = 0, unphasedItems = 0;
+    for (const o of orders) {
+      const orderTotal = parseFloat(o.total) || 0;
+      procValue += orderTotal;
+      const lines = o.line_items;
+      const lineVals = lines.map(li => parseFloat(li.total) || (li.price || 0) * (li.quantity || 1));
+      const sum = lineVals.reduce((s, v) => s + v, 0);
+
+      lines.forEach((li, idx) => {
+        const qty = li.quantity || 1;
+        itemsNo += qty;
+        const share = sum > 0 ? lineVals[idx] / sum : 1 / lines.length;
+        const name = o.kanban?.[String(li.id)]?.phase || NO_PHASE;
+        if (name === NO_PHASE) unphasedItems += qty;
+        const b = bucket(name);
+        b.Value += orderTotal * share;
+        b.Items += qty;
+      });
+    }
+
+    const phases = [...byName.values()].map(p => ({ ...p, Value: Math.round(p.Value) }));
+    return NextResponse.json({
+      phases,
+      ordersNo: orders.length,
+      itemsNo,
+      procValue: Math.round(procValue),
+      unphasedItems,
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

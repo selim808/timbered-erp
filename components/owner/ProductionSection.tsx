@@ -14,7 +14,9 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, ChartDa
 // ─── Types ────────────────────────────────────────────────────────
 interface Phase {
   Phases: string;
+  Group: string;
   Value: number;
+  Items: number;
 }
 
 interface ProdData {
@@ -22,19 +24,25 @@ interface ProdData {
   ordersNo: number;
   itemsNo: number;
   procValue: number;
+  unphasedItems: number;
 }
 
 // ─── Phase colour rules ───────────────────────────────────────────
+// Phase names match the Supabase phase list (as stored in the Shopify kanban metafield).
 const GREEN_PHASES = new Set([
-  'WH-Ready', 'DLV-Bosta', 'DLV-Private', 'Delivered Partially',
+  'Ready', 'Scheduled (dated)', 'With Bosta', 'With Private', 'Partially Delivered', 'Fully Delivered',
 ]);
 const RED_PHASES = new Set([
-  'WH-Defected', 'WH-No_Response', 'WH-Postponed', 'WH-Returned',
-  'Not Received in WH', 'Not available in WH',
-  'DLV-Bareed-Cairo', 'DLV-Bareed-Tanta',
+  'Not in WH', 'Missing Parts', 'Defected', 'No Response from Customer', 'Postponed (no date)',
+  'Difficult Delivery', 'Refuse Partial', 'Returned', 'Delivery Failed', 'Returned to WH',
+  'With Bareed-Cairo', 'With Bareed-Tanta',
 ]);
+const NO_PHASE = 'No phase';
 const phaseColor = (p: string) =>
-  GREEN_PHASES.has(p) ? '#27ae60' : RED_PHASES.has(p) ? '#e74c3c' : '#3498db';
+  p === NO_PHASE ? '#95a5a6' : GREEN_PHASES.has(p) ? '#27ae60' : RED_PHASES.has(p) ? '#e74c3c' : '#3498db';
+
+// Groups counted as Fabrication; the rest (Warehouse, Delivery, After-sales) count as Delivery.
+const FAB_GROUPS = new Set(['Confirmation', 'Planning', 'Production', NO_PHASE]);
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -73,19 +81,19 @@ export default function ProductionSection() {
   );
   if (!data) return null;
 
-  const { phases, ordersNo, itemsNo, procValue } = data;
+  const { phases, ordersNo, itemsNo, procValue, unphasedItems } = data;
 
   // ── WIP totals ────────────────────────────────────────────────
   const totalWip = phases.reduce((s, p) => s + (p.Value || 0), 0);
-  const splitIdx = phases.findIndex(p => p.Phases === 'Ready to Ship');
-  const fabPhases = splitIdx >= 0 ? phases.slice(0, splitIdx + 1) : phases;
-  const dlvPhases = splitIdx >= 0 ? phases.slice(splitIdx + 1)    : [];
+  const fabPhases = phases.filter(p => FAB_GROUPS.has(p.Group));
+  const dlvPhases = phases.filter(p => !FAB_GROUPS.has(p.Group));
   const fabVal    = fabPhases.reduce((s, p) => s + (p.Value || 0), 0);
   const dlvVal    = dlvPhases.reduce((s, p) => s + (p.Value || 0), 0);
   const fabPct    = totalWip > 0 ? Math.round(fabVal / totalWip * 100) : 0;
   const dlvPct    = totalWip > 0 ? Math.round(dlvVal / totalWip * 100) : 0;
 
-  const mismatch = totalWip > 0 && procValue > 0 && totalWip !== procValue;
+  // WIP is the order totals spread over items, so it only drifts from Processing by rounding.
+  const mismatch = totalWip > 0 && procValue > 0 && Math.abs(totalWip - procValue) > phases.length;
 
   // ── Bar chart ────────────────────────────────────────────────
   const filtered = phases.filter(p => (p.Value || 0) > 0);
@@ -134,6 +142,11 @@ export default function ProductionSection() {
         </div>
 
         {/* Mismatch warning */}
+        {unphasedItems > 0 && (
+          <div style={{ color: '#e74c3c', fontSize: 13, fontWeight: 700, textAlign: 'center' }}>
+            {unphasedItems.toLocaleString('en-GB')} item{unphasedItems === 1 ? '' : 's'} with no kanban phase → check
+          </div>
+        )}
         {mismatch && (
           <div style={{ color: '#e74c3c', fontSize: 13, fontWeight: 700, textAlign: 'center' }}>
             Kanban ≠ Processing → check
