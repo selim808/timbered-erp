@@ -9,6 +9,8 @@ import {
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { WipRow } from '@/app/api/production/route';
+import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
+import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, ChartDataLabels);
 
@@ -23,6 +25,7 @@ interface Phase {
 
 interface ProdData {
   phases: Phase[];
+  orders: PipelineOrder[];
   ordersNo: number;
   itemsNo: number;
   procValue: number;
@@ -55,14 +58,20 @@ function daysSince(iso: string | null): string {
 }
 
 /** Items currently in one phase, longest-waiting first. */
-function PhaseModal({ phase, onClose }: { phase: Phase; onClose: () => void }) {
+function PhaseModal({ phase, orders, onClose }: { phase: Phase; orders: PipelineOrder[]; onClose: () => void }) {
+  const [detail, setDetail] = useState<PipelineOrder | null>(null);
+
   useEffect(() => {
+    // Escape closes the order details first, then the list.
+    if (detail) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, detail]);
 
-  const orders = new Set(phase.Rows.map(r => r.orderNumber)).size;
+  const byNumber = new Map(orders.map(o => [String(o.number || o.id), o]));
+
+  const orderCount = new Set(phase.Rows.map(r => r.orderNumber)).size;
 
   return (
     <div className="prod-modal-overlay" onClick={onClose}>
@@ -71,7 +80,7 @@ function PhaseModal({ phase, onClose }: { phase: Phase; onClose: () => void }) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{phase.Phases}</div>
             <div style={{ fontSize: 11, opacity: 0.9 }}>
-              {orders} order{orders === 1 ? '' : 's'} · {phase.Items} item{phase.Items === 1 ? '' : 's'} · {fmt(phase.Value)} EGP
+              {orderCount} order{orderCount === 1 ? '' : 's'} · {phase.Items} item{phase.Items === 1 ? '' : 's'} · {fmt(phase.Value)} EGP
             </div>
           </div>
           <button className="prod-modal-close" onClick={onClose} aria-label="Close">×</button>
@@ -84,7 +93,15 @@ function PhaseModal({ phase, onClose }: { phase: Phase; onClose: () => void }) {
             <tbody>
               {phase.Rows.map((r, i) => (
                 <tr key={`${r.orderNumber}-${i}`}>
-                  <td style={{ fontWeight: 700, color: '#7A4610' }}>{r.orderNumber}</td>
+                  <td>
+                    {byNumber.has(r.orderNumber) ? (
+                      <button className="prod-ord-btn" onClick={() => setDetail(byNumber.get(r.orderNumber)!)}>
+                        {r.orderNumber}
+                      </button>
+                    ) : (
+                      <span style={{ fontWeight: 700, color: '#7A4610' }}>{r.orderNumber}</span>
+                    )}
+                  </td>
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.customer || '—'}</div>
                     <div style={{ fontSize: 11, color: '#7A6F65' }}>{r.item}</div>
@@ -98,6 +115,11 @@ function PhaseModal({ phase, onClose }: { phase: Phase; onClose: () => void }) {
           </table>
         </div>
       </div>
+      {detail && (
+        <div onClick={e => e.stopPropagation()}>
+          <OrderDetailSheet order={detail} onClose={() => setDetail(null)} onBack={() => setDetail(null)} />
+        </div>
+      )}
     </div>
   );
 }
@@ -118,6 +140,7 @@ const STYLES = `
 .prod-modal-tbl { width:100%; border-collapse:collapse; font-size:12px; }
 .prod-modal-tbl th { position:sticky; top:0; background:#FBF5EC; color:#7A6F65; font-size:10px; text-transform:uppercase; letter-spacing:.5px; text-align:left; padding:7px 10px; }
 .prod-modal-tbl td { padding:7px 10px; border-bottom:1px solid #F0E6D8; vertical-align:top; }
+.prod-ord-btn { font-weight:700; color:#7A4610; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; font-size:12px; }
 .prod-modal-tbl .num { text-align:right; white-space:nowrap; }
 .prod-dist-lbl { position:absolute; font-size:10px; color:#999; font-weight:700; text-transform:uppercase; white-space:nowrap; transform:translateX(-50%); transition:left 0.8s ease-in-out; }
 `;
@@ -246,7 +269,7 @@ export default function ProductionSection() {
         <div style={{ fontSize: 11, color: '#9e9087', textAlign: 'center', marginTop: -6 }}>Tap a bar to see its orders</div>
 
       </div>
-      {openPhase && <PhaseModal phase={openPhase} onClose={() => setOpenPhase(null)} />}
+      {openPhase && <PhaseModal phase={openPhase} orders={data.orders ?? []} onClose={() => setOpenPhase(null)} />}
     </>
   );
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { getActivePhases } from '@/lib/phases/kanban';
+import { mapOrderBase } from '@/lib/commerce/map';
+import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 
 /** One item sitting in a phase, for the click-through list on the WIP chart. */
 export interface WipRow {
@@ -75,6 +77,23 @@ export async function GET() {
     }
 
     // Longest-waiting items first; unphased ones (no date) go by order number.
+    // Full orders for the shared order-details sheet opened from the phase list.
+    const detailOrders: PipelineOrder[] = orders.map(o => ({
+      ...mapOrderBase(o, o.date_created),
+      lineItems: o.line_items.map(li => ({
+        id: li.id,
+        productId: li.product_id,
+        name: li.name,
+        quantity: li.quantity,
+        price: li.price,
+        total: parseFloat(li.total) || 0,
+        imageUrl: li.image?.src ?? '',
+        phase: o.kanban?.[String(li.id)]?.phase ?? '',
+        stock: 0,
+        orderedQty: li.quantity,
+      })),
+    }));
+
     const phases = [...byName.values()].map(p => ({
       ...p,
       Value: Math.round(p.Value),
@@ -82,6 +101,7 @@ export async function GET() {
     }));
     return NextResponse.json({
       phases,
+      orders: detailOrders,
       ordersNo: orders.length,
       itemsNo,
       procValue: Math.round(procValue),
