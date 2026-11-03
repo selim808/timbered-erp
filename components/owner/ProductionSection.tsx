@@ -8,6 +8,7 @@ import {
   LinearScale, Tooltip, Title,
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
+import type { WipRow } from '@/app/api/production/route';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, ChartDataLabels);
 
@@ -17,6 +18,7 @@ interface Phase {
   Group: string;
   Value: number;
   Items: number;
+  Rows: WipRow[];
 }
 
 interface ProdData {
@@ -46,6 +48,60 @@ const FAB_GROUPS = new Set(['Confirmation', 'Planning', 'Production', NO_PHASE])
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 
+function daysSince(iso: string | null): string {
+  if (!iso) return '—';
+  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  return d <= 0 ? 'today' : `${d}d`;
+}
+
+/** Items currently in one phase, longest-waiting first. */
+function PhaseModal({ phase, onClose }: { phase: Phase; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const orders = new Set(phase.Rows.map(r => r.orderNumber)).size;
+
+  return (
+    <div className="prod-modal-overlay" onClick={onClose}>
+      <div className="prod-modal" onClick={e => e.stopPropagation()}>
+        <div className="prod-modal-head" style={{ background: groupColor(phase.Group), color: phase.Group === 'After-sales' ? '#1C1A17' : '#fff' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{phase.Phases}</div>
+            <div style={{ fontSize: 11, opacity: 0.9 }}>
+              {orders} order{orders === 1 ? '' : 's'} · {phase.Items} item{phase.Items === 1 ? '' : 's'} · {fmt(phase.Value)} EGP
+            </div>
+          </div>
+          <button className="prod-modal-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div style={{ overflowY: 'auto' }}>
+          <table className="prod-modal-tbl">
+            <thead>
+              <tr><th>Order</th><th>Customer / item</th><th className="num">Qty</th><th className="num">Value</th><th className="num">In phase</th></tr>
+            </thead>
+            <tbody>
+              {phase.Rows.map((r, i) => (
+                <tr key={`${r.orderNumber}-${i}`}>
+                  <td style={{ fontWeight: 700, color: '#7A4610' }}>{r.orderNumber}</td>
+                  <td>
+                    <div style={{ fontWeight: 600 }}>{r.customer || '—'}</div>
+                    <div style={{ fontSize: 11, color: '#7A6F65' }}>{r.item}</div>
+                  </td>
+                  <td className="num">{r.qty}</td>
+                  <td className="num">{fmt(r.value)}</td>
+                  <td className="num">{daysSince(r.since)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── CSS ─────────────────────────────────────────────────────────
 const STYLES = `
 .prod-kpi-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; margin-bottom:4px; }
@@ -55,6 +111,14 @@ const STYLES = `
 .prod-multi-bar { display:flex; width:100%; height:22px; background:#f0f0f0; border-radius:11px; overflow:hidden; }
 .prod-seg { height:100%; transition:width 0.8s ease-in-out; display:flex; align-items:center; justify-content:center; color:white; font-size:11px; font-weight:800; }
 .prod-dist-wrap { position:relative; height:20px; margin-top:8px; overflow:visible; margin-bottom:4px; }
+.prod-modal-overlay { position:fixed; inset:0; z-index:300; background:rgba(28,26,23,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+.prod-modal { background:#fff; border-radius:12px; width:100%; max-width:520px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+.prod-modal-head { display:flex; justify-content:space-between; align-items:center; gap:12px; color:#fff; padding:12px 14px; }
+.prod-modal-close { background:none; border:none; color:inherit; font-size:22px; line-height:1; cursor:pointer; padding:0 2px; }
+.prod-modal-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+.prod-modal-tbl th { position:sticky; top:0; background:#FBF5EC; color:#7A6F65; font-size:10px; text-transform:uppercase; letter-spacing:.5px; text-align:left; padding:7px 10px; }
+.prod-modal-tbl td { padding:7px 10px; border-bottom:1px solid #F0E6D8; vertical-align:top; }
+.prod-modal-tbl .num { text-align:right; white-space:nowrap; }
 .prod-dist-lbl { position:absolute; font-size:10px; color:#999; font-weight:700; text-transform:uppercase; white-space:nowrap; transform:translateX(-50%); transition:left 0.8s ease-in-out; }
 `;
 
@@ -63,6 +127,7 @@ export default function ProductionSection() {
   const [data, setData]       = useState<ProdData | null>(null);
   const [loadState, setLoad]  = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErr]      = useState('');
+  const [openPhase, setOpenPhase] = useState<Phase | null>(null);
 
   useEffect(() => {
     fetch('/api/production')
@@ -104,6 +169,11 @@ export default function ProductionSection() {
   };
   const chartOptions = {
     responsive: true, maintainAspectRatio: false,
+    // Tap a bar to list the items in that phase.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onClick: (_: unknown, els: any[]) => { if (els.length) setOpenPhase(filtered[els[0].index] ?? null); },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onHover: (e: any, els: any[]) => { if (e.native?.target) e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
     plugins: {
       legend: { display: false },
       title:  { display: true, text: 'WIP Breakdown', font: { size: 14, weight: 'bold' as const } },
@@ -173,8 +243,10 @@ export default function ProductionSection() {
         <div style={{ width: '100%', height: 360 }}>
           <Bar data={chartData} options={chartOptions} />
         </div>
+        <div style={{ fontSize: 11, color: '#9e9087', textAlign: 'center', marginTop: -6 }}>Tap a bar to see its orders</div>
 
       </div>
+      {openPhase && <PhaseModal phase={openPhase} onClose={() => setOpenPhase(null)} />}
     </>
   );
 }

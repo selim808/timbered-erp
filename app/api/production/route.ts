@@ -2,12 +2,25 @@ import { NextResponse } from 'next/server';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { getActivePhases } from '@/lib/phases/kanban';
 
+/** One item sitting in a phase, for the click-through list on the WIP chart. */
+export interface WipRow {
+  orderNumber: string;
+  customer: string;
+  item: string;
+  qty: number;
+  /** This item's share of the order total. */
+  value: number;
+  /** When the item entered its current phase (null when it has none). */
+  since: string | null;
+}
+
 interface Phase {
   Phases: string;
   /** Supabase phase group (Confirmation, Planning, Production, Warehouse, Delivery, After-sales). */
   Group: string;
   Value: number;
   Items: number;
+  Rows: WipRow[];
 }
 
 const NO_PHASE = 'No phase';
@@ -25,10 +38,10 @@ export async function GET() {
     ]);
 
     const byName = new Map<string, Phase>();
-    for (const p of active) byName.set(p.name, { Phases: p.name, Group: p.group, Value: 0, Items: 0 });
+    for (const p of active) byName.set(p.name, { Phases: p.name, Group: p.group, Value: 0, Items: 0, Rows: [] });
     const bucket = (name: string) => {
       let b = byName.get(name);
-      if (!b) { b = { Phases: name, Group: name === NO_PHASE ? NO_PHASE : 'Other', Value: 0, Items: 0 }; byName.set(name, b); }
+      if (!b) { b = { Phases: name, Group: name === NO_PHASE ? NO_PHASE : 'Other', Value: 0, Items: 0, Rows: [] }; byName.set(name, b); }
       return b;
     };
 
@@ -44,15 +57,29 @@ export async function GET() {
         const qty = li.quantity || 1;
         itemsNo += qty;
         const share = sum > 0 ? lineVals[idx] / sum : 1 / lines.length;
-        const name = o.kanban?.[String(li.id)]?.phase || NO_PHASE;
+        const entry = o.kanban?.[String(li.id)];
+        const name = entry?.phase || NO_PHASE;
         if (name === NO_PHASE) unphasedItems += qty;
         const b = bucket(name);
         b.Value += orderTotal * share;
         b.Items += qty;
+        b.Rows.push({
+          orderNumber: String(o.number || o.id),
+          customer: `${o.billing.first_name} ${o.billing.last_name}`.trim(),
+          item: li.name,
+          qty,
+          value: Math.round(orderTotal * share),
+          since: entry?.phase ? entry.updated_at : null,
+        });
       });
     }
 
-    const phases = [...byName.values()].map(p => ({ ...p, Value: Math.round(p.Value) }));
+    // Longest-waiting items first; unphased ones (no date) go by order number.
+    const phases = [...byName.values()].map(p => ({
+      ...p,
+      Value: Math.round(p.Value),
+      Rows: p.Rows.sort((a, b) => (a.since ?? '').localeCompare(b.since ?? '') || a.orderNumber.localeCompare(b.orderNumber)),
+    }));
     return NextResponse.json({
       phases,
       ordersNo: orders.length,
