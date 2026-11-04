@@ -142,6 +142,13 @@ const STYLES = `
 .prod-modal-tbl td { padding:7px 10px; border-bottom:1px solid #F0E6D8; vertical-align:top; }
 .prod-ord-btn { font-weight:700; color:#7A4610; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; font-size:12px; }
 .prod-modal-tbl .num { text-align:right; white-space:nowrap; }
+.prod-legend { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; background:#fff; border:1px solid #E8D9C4; border-radius:12px; overflow:hidden; }
+.prod-legend th { background:#FBF5EC; color:#7A6F65; font-size:10px; text-transform:uppercase; letter-spacing:.5px; text-align:left; padding:7px 10px; font-weight:700; }
+.prod-legend td { padding:7px 10px; border-top:1px solid #F0E6D8; color:#1C1A17; }
+.prod-legend tfoot td { font-weight:700; background:#FBF5EC; }
+.prod-legend .num { text-align:right; white-space:nowrap; }
+.prod-legend td:first-child { white-space:nowrap; }
+.prod-legend-swatch { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:8px; vertical-align:-1px; }
 .prod-dist-lbl { position:absolute; font-size:10px; color:#999; font-weight:700; text-transform:uppercase; white-space:nowrap; transform:translateX(-50%); transition:left 0.8s ease-in-out; }
 `;
 
@@ -182,6 +189,21 @@ export default function ProductionSection() {
 
   // WIP is the order totals spread over items, so it only drifts from Processing by rounding.
   const mismatch = totalWip > 0 && procValue > 0 && Math.abs(totalWip - procValue) > phases.length;
+
+  // ── Group legend: value per phase group, in board order ──────
+  const groupTotals: { group: string; value: number; items: number }[] = [];
+  for (const p of phases) {
+    let g = groupTotals.find(x => x.group === p.Group);
+    if (!g) { g = { group: p.Group, value: 0, items: 0 }; groupTotals.push(g); }
+    g.value += p.Value || 0;
+    g.items += p.Items || 0;
+  }
+  const legendRows = groupTotals.filter(g => g.value > 0 || g.items > 0);
+  const pctOfProc = (v: number) => {
+    if (procValue <= 0) return '0%';
+    const pct = v / procValue * 100;
+    return pct > 0 && pct < 1 ? '<1%' : `${Math.round(pct)}%`;
+  };
 
   // ── Bar chart ────────────────────────────────────────────────
   const filtered = phases.filter(p => (p.Value || 0) > 0);
@@ -267,6 +289,34 @@ export default function ProductionSection() {
           <Bar data={chartData} options={chartOptions} />
         </div>
         <div style={{ fontSize: 11, color: '#9e9087', textAlign: 'center', marginTop: -6 }}>Tap a bar to see its orders</div>
+
+        {/* Legend: each phase group's colour, current value and share of processing value */}
+        <table className="prod-legend">
+          <thead>
+            <tr><th>Group</th><th className="num">Items</th><th className="num">Value</th><th className="num">% of proc.</th></tr>
+          </thead>
+          <tbody>
+            {legendRows.map(g => (
+              <tr key={g.group}>
+                <td>
+                  <span className="prod-legend-swatch" style={{ background: groupColor(g.group) }} />
+                  {g.group}
+                </td>
+                <td className="num">{g.items.toLocaleString('en-GB')}</td>
+                <td className="num">{fmt(g.value)}</td>
+                <td className="num">{pctOfProc(g.value)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              <td className="num">{itemsNo.toLocaleString('en-GB')}</td>
+              <td className="num">{fmt(totalWip)}</td>
+              <td className="num">{pctOfProc(totalWip)}</td>
+            </tr>
+          </tfoot>
+        </table>
 
       </div>
       {openPhase && <PhaseModal phase={openPhase} orders={data.orders ?? []} onClose={() => setOpenPhase(null)} />}
