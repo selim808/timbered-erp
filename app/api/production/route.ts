@@ -14,6 +14,8 @@ export interface WipRow {
   value: number;
   /** When the item entered its current phase (null when it has none). */
   since: string | null;
+  /** When the order was placed. */
+  ordered: string;
 }
 
 interface Phase {
@@ -72,6 +74,7 @@ export async function GET() {
           qty,
           value: Math.round(orderTotal * share),
           since: entry?.phase ? entry.updated_at : null,
+          ordered: o.date_created,
         });
       });
     }

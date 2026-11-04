@@ -63,6 +63,20 @@ function daysSince(iso: string | null): string {
 }
 
 /** Items currently in one phase, longest-waiting first. */
+type SortKey = 'waiting' | 'value' | 'newest';
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'waiting', label: 'Longest waiting' },
+  { key: 'value',   label: 'Value' },
+  { key: 'newest',  label: 'Newest' },
+];
+const byOrderNo = (a: WipRow, b: WipRow) => a.orderNumber.localeCompare(b.orderNumber, undefined, { numeric: true });
+const SORTERS: Record<SortKey, (a: WipRow, b: WipRow) => number> = {
+  // Earliest phase entry first; items with no phase date go last.
+  waiting: (a, b) => (a.since ?? '\uffff').localeCompare(b.since ?? '\uffff') || byOrderNo(a, b),
+  value:   (a, b) => b.value - a.value || byOrderNo(a, b),
+  newest:  (a, b) => (b.ordered ?? '').localeCompare(a.ordered ?? '') || -byOrderNo(a, b),
+};
+
 function PhaseModal({ phase, orders, onClose }: { phase: ModalData; orders: PipelineOrder[]; onClose: () => void }) {
   const [detail, setDetail] = useState<PipelineOrder | null>(null);
 
@@ -77,6 +91,8 @@ function PhaseModal({ phase, orders, onClose }: { phase: ModalData; orders: Pipe
   const byNumber = new Map(orders.map(o => [String(o.number || o.id), o]));
 
   const orderCount = new Set(phase.Rows.map(r => r.orderNumber)).size;
+  const [sort, setSort] = useState<SortKey>('waiting');
+  const rows = [...phase.Rows].sort(SORTERS[sort]);
 
   return (
     <div className="prod-modal-overlay" onClick={onClose}>
@@ -90,13 +106,19 @@ function PhaseModal({ phase, orders, onClose }: { phase: ModalData; orders: Pipe
           </div>
           <button className="prod-modal-close" onClick={onClose} aria-label="Close">×</button>
         </div>
+        <div className="prod-sort">
+          <span>Sort</span>
+          {SORT_OPTIONS.map(o => (
+            <button key={o.key} className={sort === o.key ? 'active' : ''} onClick={() => setSort(o.key)}>{o.label}</button>
+          ))}
+        </div>
         <div style={{ overflowY: 'auto' }}>
           <table className="prod-modal-tbl">
             <thead>
               <tr><th>Order</th><th>Customer / item</th><th className="num">Qty</th><th className="num">Value</th><th className="num">In phase</th></tr>
             </thead>
             <tbody>
-              {phase.Rows.map((r, i) => (
+              {rows.map((r, i) => (
                 <tr key={`${r.orderNumber}-${i}`}>
                   <td>
                     {byNumber.has(r.orderNumber) ? (
@@ -143,6 +165,10 @@ const STYLES = `
 .prod-modal { background:#fff; border-radius:12px; width:100%; max-width:520px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.25); }
 .prod-modal-head { display:flex; justify-content:space-between; align-items:center; gap:12px; color:#fff; padding:12px 14px; }
 .prod-modal-close { background:none; border:none; color:inherit; font-size:22px; line-height:1; cursor:pointer; padding:0 2px; }
+.prod-sort { display:flex; flex-shrink:0; align-items:center; gap:6px; flex-wrap:wrap; padding:8px 10px; background:#fff; border-bottom:1px solid #F0E6D8; font-size:11px; }
+.prod-sort > span { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#9e9087; margin-right:2px; }
+.prod-sort button { font-size:11px; font-weight:700; color:#7A4610; background:#fff; border:1.5px solid #E8D9C4; border-radius:14px; padding:3px 10px; cursor:pointer; }
+.prod-sort button.active { background:#7A4610; border-color:#7A4610; color:#fff; }
 .prod-modal-tbl { width:100%; border-collapse:collapse; font-size:12px; }
 .prod-modal-tbl th { position:sticky; top:0; background:#FBF5EC; color:#7A6F65; font-size:10px; text-transform:uppercase; letter-spacing:.5px; text-align:left; padding:7px 10px; }
 .prod-modal-tbl td { padding:7px 10px; border-bottom:1px solid #F0E6D8; vertical-align:top; }
