@@ -23,6 +23,11 @@ interface Phase {
   Rows: WipRow[];
 }
 
+/** A row in the group view of the modal remembers which phase it came from. */
+type ModalRow = WipRow & { phase?: string };
+/** What the orders modal shows: one phase, or a whole group across its phases. */
+type ModalData = Omit<Phase, 'Rows'> & { Rows: ModalRow[]; isGroup?: boolean };
+
 interface ProdData {
   phases: Phase[];
   orders: PipelineOrder[];
@@ -58,7 +63,7 @@ function daysSince(iso: string | null): string {
 }
 
 /** Items currently in one phase, longest-waiting first. */
-function PhaseModal({ phase, orders, onClose }: { phase: Phase; orders: PipelineOrder[]; onClose: () => void }) {
+function PhaseModal({ phase, orders, onClose }: { phase: ModalData; orders: PipelineOrder[]; onClose: () => void }) {
   const [detail, setDetail] = useState<PipelineOrder | null>(null);
 
   useEffect(() => {
@@ -105,6 +110,7 @@ function PhaseModal({ phase, orders, onClose }: { phase: Phase; orders: Pipeline
                   <td>
                     <div style={{ fontWeight: 600 }}>{r.customer || '—'}</div>
                     <div style={{ fontSize: 11, color: '#7A6F65' }}>{r.item}</div>
+                    {phase.isGroup && r.phase && <span className="prod-row-phase">{r.phase}</span>}
                   </td>
                   <td className="num">{r.qty}</td>
                   <td className="num">{fmt(r.value)}</td>
@@ -149,6 +155,9 @@ const STYLES = `
 .prod-legend .num { text-align:right; white-space:nowrap; }
 .prod-legend td:first-child { white-space:nowrap; }
 .prod-legend-swatch { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:8px; vertical-align:-1px; }
+.prod-legend-btn { display:inline-flex; align-items:center; background:none; border:none; padding:0; font:inherit; color:#1C1A17; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+.prod-legend-btn .prod-legend-swatch { vertical-align:0; }
+.prod-row-phase { display:inline-block; margin-top:3px; font-size:10px; font-weight:700; color:#7A4610; background:#fef3e2; border-radius:8px; padding:1px 7px; }
 .prod-dist-lbl { position:absolute; font-size:10px; color:#999; font-weight:700; text-transform:uppercase; white-space:nowrap; transform:translateX(-50%); transition:left 0.8s ease-in-out; }
 `;
 
@@ -157,7 +166,7 @@ export default function ProductionSection() {
   const [data, setData]       = useState<ProdData | null>(null);
   const [loadState, setLoad]  = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErr]      = useState('');
-  const [openPhase, setOpenPhase] = useState<Phase | null>(null);
+  const [openPhase, setOpenPhase] = useState<ModalData | null>(null);
 
   useEffect(() => {
     fetch('/api/production')
@@ -199,6 +208,19 @@ export default function ProductionSection() {
     g.items += p.Items || 0;
   }
   const legendRows = groupTotals.filter(g => g.value > 0 || g.items > 0);
+
+  /** Every item in a group across its phases, longest-waiting first, each tagged with its phase. */
+  const groupModal = (group: string): ModalData => {
+    const inGroup = phases.filter(p => p.Group === group);
+    return {
+      Phases: group, Group: group, isGroup: true,
+      Value: inGroup.reduce((s, p) => s + (p.Value || 0), 0),
+      Items: inGroup.reduce((s, p) => s + (p.Items || 0), 0),
+      Rows: inGroup
+        .flatMap(p => p.Rows.map(r => ({ ...r, phase: p.Phases })))
+        .sort((a, b) => (a.since ?? '').localeCompare(b.since ?? '') || a.orderNumber.localeCompare(b.orderNumber)),
+    };
+  };
   const pctOfProc = (v: number) => {
     if (procValue <= 0) return '0%';
     const pct = v / procValue * 100;
@@ -299,8 +321,10 @@ export default function ProductionSection() {
             {legendRows.map(g => (
               <tr key={g.group}>
                 <td>
-                  <span className="prod-legend-swatch" style={{ background: groupColor(g.group) }} />
-                  {g.group}
+                  <button className="prod-legend-btn" onClick={() => setOpenPhase(groupModal(g.group))} title={`Show ${g.group} orders`}>
+                    <span className="prod-legend-swatch" style={{ background: groupColor(g.group) }} />
+                    {g.group}
+                  </button>
                 </td>
                 <td className="num">{g.items.toLocaleString('en-GB')}</td>
                 <td className="num">{fmt(g.value)}</td>
