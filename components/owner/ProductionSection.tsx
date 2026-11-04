@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -11,6 +11,7 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { WipRow } from '@/app/api/production/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
+import { usePdfLibs } from '@/components/warranty/Certificate';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, ChartDataLabels);
 
@@ -52,6 +53,11 @@ const GROUP_COLORS: Record<string, string> = {
 const groupColor = (g: string) => GROUP_COLORS[g] ?? '#bdc3c7';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
+
+/** e.g. "Wed, 4 Nov 2026, 14:05" in Cairo time, stamped on the shared picture. */
+const todayLabel = () => new Date().toLocaleString('en-GB', {
+  timeZone: 'Africa/Cairo', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+});
 
 function daysSince(iso: string | null): string {
   if (!iso) return '—';
@@ -170,6 +176,9 @@ const STYLES = `
 .prod-modal-tbl td { padding:7px 10px; border-bottom:1px solid #F0E6D8; vertical-align:top; }
 .prod-ord-btn { font-weight:700; color:#7A4610; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; font-size:12px; }
 .prod-modal-tbl .num { text-align:right; white-space:nowrap; }
+.prod-share-btn { font-size:12px; font-weight:700; color:#fff; background:#25D366; border:none; border-radius:18px; padding:7px 14px; cursor:pointer; }
+.prod-share-btn:disabled { background:#bfe9cf; cursor:default; }
+.prod-share-only { display:none; text-align:center; }
 .prod-legend { width:100%; border-collapse:separate; border-spacing:0; font-size:12px; background:#fff; border:1px solid #E8D9C4; border-radius:12px; overflow:hidden; }
 .prod-legend th { background:#FBF5EC; color:#7A6F65; font-size:10px; text-transform:uppercase; letter-spacing:.5px; text-align:left; padding:7px 10px; font-weight:700; }
 .prod-legend td { padding:7px 10px; border-top:1px solid #F0E6D8; color:#1C1A17; }
@@ -188,6 +197,9 @@ export default function ProductionSection() {
   const [loadState, setLoad]  = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErr]      = useState('');
   const [openPhase, setOpenPhase] = useState<ModalData | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
+  const imgLibReady = usePdfLibs(); // loads html2canvas (with jsPDF) from the CDN
 
   useEffect(() => {
     fetch('/api/production')
@@ -273,10 +285,72 @@ export default function ProductionSection() {
     },
   };
 
+  async function shareImage() {
+    const el = shareRef.current;
+    const h2c = (window as unknown as { html2canvas?: (el: HTMLElement, o?: Record<string, unknown>) => Promise<HTMLCanvasElement> }).html2canvas;
+    if (!el || !h2c) return;
+    setSharing(true);
+    try {
+      const canvas = await h2c(el, {
+        scale: 2, backgroundColor: '#FBF5EC',
+        onclone: (doc: Document) => {
+          doc.querySelectorAll<HTMLElement>('.prod-share-only').forEach(n => { n.style.display = 'block'; });
+          // html2canvas mis-places text inside <button>s, so the picture gets plain boxes instead.
+          doc.querySelectorAll<HTMLElement>('button.prod-seg, button.prod-legend-btn').forEach(b => {
+            const box = doc.createElement(b.classList.contains('prod-seg') ? 'div' : 'span');
+            box.className = b.className;
+            box.setAttribute('style', b.getAttribute('style') ?? '');
+            box.innerHTML = b.innerHTML;
+            // html2canvas draws this font ~4px low next to coloured boxes; nudge to line them up.
+            if (b.classList.contains('prod-seg')) {
+              box.innerHTML = `<span style="position:relative;top:-4px">${b.textContent ?? ''}</span>`;
+            } else {
+              box.style.cssText += ';display:flex;align-items:center;text-decoration:none;';
+              box.querySelector<HTMLElement>('.prod-legend-swatch')?.style.setProperty('margin-top', '8px');
+            }
+            b.replaceWith(box);
+          });
+        },
+      });
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('Could not create the image');
+      const file = new File([blob], `production-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Production WIP', text: `Production WIP · ${todayLabel()}` });
+      } else {
+        // No share menu (most computers): download the picture instead.
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = file.name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }
+    } catch (e) {
+      // Closing the share menu without picking an app is not an error.
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        alert('Could not share the image: ' + (e instanceof Error ? e.message : String(e)));
+      }
+    }
+    setSharing(false);
+  }
+
   return (
     <>
       <style>{STYLES}</style>
-      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div ref={shareRef} style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* Share: renders this section as a picture and opens the phone's share menu (WhatsApp → group). */}
+        <div data-html2canvas-ignore style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="prod-share-btn" onClick={() => void shareImage()} disabled={!imgLibReady || sharing}>
+            {sharing ? 'Preparing…' : '📤 Share as image'}
+          </button>
+        </div>
+        {/* Only shown in the shared picture */}
+        <div className="prod-share-only">
+          <div style={{ fontWeight: 800, fontSize: 16, color: '#7A4610' }}>Timbered · Production WIP</div>
+          <div style={{ fontSize: 12, color: '#7A6F65' }}>{todayLabel()}</div>
+        </div>
 
         {/* KPI cards */}
         <div className="prod-kpi-grid">
@@ -329,7 +403,7 @@ export default function ProductionSection() {
         <div style={{ width: '100%', height: 360 }}>
           <Bar data={chartData} options={chartOptions} />
         </div>
-        <div style={{ fontSize: 11, color: '#9e9087', textAlign: 'center', marginTop: -6 }}>Tap a bar to see its orders</div>
+        <div data-html2canvas-ignore style={{ fontSize: 11, color: '#9e9087', textAlign: 'center', marginTop: -6 }}>Tap a bar to see its orders</div>
 
         {/* Legend: each phase group's colour, current value and share of processing value */}
         <table className="prod-legend">
