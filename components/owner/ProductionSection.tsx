@@ -51,9 +51,6 @@ const GROUP_COLORS: Record<string, string> = {
 };
 const groupColor = (g: string) => GROUP_COLORS[g] ?? '#bdc3c7';
 
-// Groups counted as Fabrication; the rest (Warehouse, Delivery, After-sales) count as Delivery.
-const FAB_GROUPS = new Set(['Confirmation', 'Planning', 'Production', NO_PHASE]);
-
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 
 function daysSince(iso: string | null): string {
@@ -159,8 +156,7 @@ const STYLES = `
 .prod-label { display:block; font-size:10px; color:#9e9087; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; margin-bottom:4px; }
 .prod-kpi { font-size:22px; font-weight:700; color:#1C1A17; margin-top:4px; }
 .prod-multi-bar { display:flex; width:100%; height:22px; background:#f0f0f0; border-radius:11px; overflow:hidden; }
-.prod-seg { height:100%; transition:width 0.8s ease-in-out; display:flex; align-items:center; justify-content:center; color:white; font-size:11px; font-weight:800; }
-.prod-dist-wrap { position:relative; height:20px; margin-top:8px; overflow:visible; margin-bottom:4px; }
+.prod-seg { border:none; padding:0; cursor:pointer; min-width:0; height:100%; transition:width 0.8s ease-in-out; display:flex; align-items:center; justify-content:center; color:white; font-size:11px; font-weight:800; }
 .prod-modal-overlay { position:fixed; inset:0; z-index:300; background:rgba(28,26,23,.45); display:flex; align-items:center; justify-content:center; padding:16px; }
 .prod-modal { background:#fff; border-radius:12px; width:100%; max-width:520px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.25); }
 .prod-modal-head { display:flex; justify-content:space-between; align-items:center; gap:12px; color:#fff; padding:12px 14px; }
@@ -184,7 +180,6 @@ const STYLES = `
 .prod-legend-btn { display:inline-flex; align-items:center; background:none; border:none; padding:0; font:inherit; color:#1C1A17; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
 .prod-legend-btn .prod-legend-swatch { vertical-align:0; }
 .prod-row-phase { display:inline-block; margin-top:3px; font-size:10px; font-weight:700; color:#7A4610; background:#fef3e2; border-radius:8px; padding:1px 7px; }
-.prod-dist-lbl { position:absolute; font-size:10px; color:#999; font-weight:700; text-transform:uppercase; white-space:nowrap; transform:translateX(-50%); transition:left 0.8s ease-in-out; }
 `;
 
 // ─── Component ───────────────────────────────────────────────────
@@ -215,12 +210,6 @@ export default function ProductionSection() {
 
   // ── WIP totals ────────────────────────────────────────────────
   const totalWip = phases.reduce((s, p) => s + (p.Value || 0), 0);
-  const fabPhases = phases.filter(p => FAB_GROUPS.has(p.Group));
-  const dlvPhases = phases.filter(p => !FAB_GROUPS.has(p.Group));
-  const fabVal    = fabPhases.reduce((s, p) => s + (p.Value || 0), 0);
-  const dlvVal    = dlvPhases.reduce((s, p) => s + (p.Value || 0), 0);
-  const fabPct    = totalWip > 0 ? Math.round(fabVal / totalWip * 100) : 0;
-  const dlvPct    = totalWip > 0 ? Math.round(dlvVal / totalWip * 100) : 0;
 
   // WIP is the order totals spread over items, so it only drifts from Processing by rounding.
   const mismatch = totalWip > 0 && procValue > 0 && Math.abs(totalWip - procValue) > phases.length;
@@ -316,21 +305,25 @@ export default function ProductionSection() {
           </div>
         )}
 
-        {/* Fab vs Delivery distribution bar */}
-        <div style={{ paddingBottom: 8 }}>
+        {/* Share of WIP per phase group, same colours as the chart; tap a part for its orders */}
+        {totalWip > 0 && (
           <div className="prod-multi-bar">
-            <div className="prod-seg" style={{ width: `${fabPct}%`, background: '#2980b9' }}>
-              {fabPct > 8 ? `${fabPct}% (${Math.round(fabVal / 1000)}K)` : ''}
-            </div>
-            <div className="prod-seg" style={{ width: `${dlvPct}%`, background: '#27ae60' }}>
-              {dlvPct > 8 ? `${dlvPct}% (${Math.round(dlvVal / 1000)}K)` : ''}
-            </div>
+            {legendRows.filter(g => g.value > 0).map(g => {
+              const pct = g.value / totalWip * 100;
+              return (
+                <button
+                  key={g.group}
+                  className="prod-seg"
+                  title={`${g.group}: ${Math.round(pct)}%`}
+                  onClick={() => setOpenPhase(groupModal(g.group))}
+                  style={{ width: `${pct}%`, background: groupColor(g.group), color: g.group === 'After-sales' ? '#1C1A17' : '#fff' }}
+                >
+                  {pct >= 4 ? `${Math.round(pct)}%` : ''}
+                </button>
+              );
+            })}
           </div>
-          <div className="prod-dist-wrap">
-            <span className="prod-dist-lbl" style={{ left: `${fabPct / 2}%`, opacity: fabPct > 8 ? 1 : 0 }}>Fabrication</span>
-            <span className="prod-dist-lbl" style={{ left: `${fabPct + dlvPct / 2}%`, opacity: dlvPct > 8 ? 1 : 0 }}>Delivery</span>
-          </div>
-        </div>
+        )}
 
         {/* WIP bar chart */}
         <div style={{ width: '100%', height: 360 }}>
