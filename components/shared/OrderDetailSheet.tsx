@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ItemJourney from './ItemJourney';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 
 export interface OrderSheetRow {
@@ -29,6 +30,7 @@ function fmtPrice(n: number) {
 
 export default function OrderDetailSheet({ title, rows, order, onClose, onBack }: Props) {
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
+  const [journeyItem, setJourneyItem] = useState<PipelineLineItem | null>(null);
 
   const isDirectMode = !!order;
   const detailOrder: PipelineOrder | null =
@@ -42,6 +44,9 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
   return (
     <>
       <style>{`
+        .od-item-row { cursor:pointer; }
+        .od-item-row:hover td { background:#FBF5EC; }
+        .od-item-name { text-decoration:underline dotted; text-underline-offset:3px; }
         .od-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:400; display:flex; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
         .od-box { background:#fff; border-radius:14px; width:100%; max-width:480px; overflow:hidden; margin:auto; }
         .od-header { background:#7A4610; color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px; }
@@ -144,8 +149,8 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
                   <thead><tr><th>Item</th><th>Qty</th><th>Total</th><th>Phase</th></tr></thead>
                   <tbody>
                     {detailOrder.lineItems.map(li => (
-                      <tr key={li.id}>
-                        <td>{li.name}</td>
+                      <tr key={li.id} className="od-item-row" onClick={() => setJourneyItem(li)} title="Show this item's journey">
+                        <td><span className="od-item-name">{li.name}</span></td>
                         <td>×{li.quantity}</td>
                         <td>{fmtPrice(li.total)}</td>
                         <td style={{ color: '#aaa', fontSize: 11 }}>{li.phase || '—'}</td>
@@ -177,6 +182,13 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
           )}
         </div>
       </div>
+      {journeyItem && detailOrder && (
+        <ItemJourney
+          orderNumber={String(detailOrder.number || detailOrder.id)}
+          item={journeyItem}
+          onClose={() => setJourneyItem(null)}
+        />
+      )}
     </>
   );
 }
