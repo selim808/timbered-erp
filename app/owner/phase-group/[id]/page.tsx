@@ -6,7 +6,7 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import PipelineOrderList, { PhaseGroup, Phase, fmtPrice, waPhone } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
-import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
+import { getPhaseGroups, getPhases, onPhasesUpdated } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 import {
   readFeedCache, writeFeedCache, fetchFeedOrders,
@@ -153,6 +153,14 @@ export default function PhaseGroupPage() {
     const href = `https://wa.me/${waPhone(o.customerPhone)}?text=${encodeURIComponent(msg)}`;
     window.open(href, '_blank', 'noopener,noreferrer');
   }
+
+  // Swap in the live phase list once the background sync brings it (renamed group or phases included).
+  useEffect(() => onPhasesUpdated((g, p) => {
+    setPhaseGroups(g);
+    setPhases(p);
+    const fresh = g.find(x => x.id === id);
+    if (fresh) setGroup(fresh);
+  }), [id]);
 
   useEffect(() => {
     // Phases come from the predefined/cached snapshot — no network needed.

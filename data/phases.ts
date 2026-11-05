@@ -1,12 +1,11 @@
 import type { PhaseGroup, Phase } from '@/components/shared/PipelineOrderCard';
 
 // ─── Predefined phase snapshot ───────────────────────────────────────────────
-// Phases & phase-groups change rarely. The app renders from this predefined
-// snapshot (and a localStorage copy the owner refreshes via the "Load new
-// phases" button on the dashboard) instead of hitting the DB on every page.
-// Regenerate by tapping "Load new phases" — that overwrites the cached copy;
-// this file is the offline / first-load fallback.
-// Last snapshot: 2026-10-29.
+// Pages render instantly from this snapshot (or the device's cached copy),
+// then sync the live list from the DB in the background (lib/phaseCache.ts).
+// This file is only the offline / first-load fallback; refresh it now and
+// then so new devices start close to the live list.
+// Last snapshot: 2026-11-05.
 
 export const PREDEFINED_PHASE_GROUPS: PhaseGroup[] = [
   { id: 'f2a7d232-2075-4b6a-915d-a921612f9c6e', name: "Confirmation", sort_order: 10, color: '#16A34A' },
@@ -22,25 +21,26 @@ export const PREDEFINED_PHASES: Phase[] = [
   { id: '9aadccd9-5fb3-498a-99ff-d762f81cecb0', phase_group_id: 'f2a7d232-2075-4b6a-915d-a921612f9c6e', name: "WA Confirmation", sort_order: 10 },
   { id: 'fd04538d-7658-4f27-bff2-6198ecc3ce86', phase_group_id: 'f2a7d232-2075-4b6a-915d-a921612f9c6e', name: "Call Confirmation", sort_order: 20 },
   { id: '1f48ea59-b0fe-482e-8eb9-f2c7572e41b9', phase_group_id: 'f2a7d232-2075-4b6a-915d-a921612f9c6e', name: "Deposit", sort_order: 30 },
+  { id: 'a071cc7f-145d-43ba-aa84-d7aaa954c000', phase_group_id: 'f2a7d232-2075-4b6a-915d-a921612f9c6e', name: "Refrigerator", sort_order: 40 },
 
   // Planning
   { id: 'aa15c015-a142-49fa-bd8c-fbf010038bd1', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "Check Inventory", sort_order: 10 },
   { id: '31fec0d5-fc24-44da-b295-ff395dfe241b', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "Modeling", sort_order: 20 },
-  { id: 'c42cf288-4ddb-4701-9c56-fb463a2e3d43', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "JO Preparation", sort_order: 30 },
-  { id: 'e99d165e-70c4-4ef8-9bae-9d69b219053f', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "Procurement", sort_order: 40 },
+  { id: '9934dddf-7a13-4303-b649-3a9e070b1d91', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "Batch Planning", sort_order: 30 },
+  { id: 'd0bd2ede-9bf3-4804-b689-5acf86342e7f', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "Release for Production", sort_order: 40 },
+  { id: 'e99d165e-70c4-4ef8-9bae-9d69b219053f', phase_group_id: '6974ff21-046e-44b5-82a7-e41076223d74', name: "Procurement", sort_order: 50 },
 
   // Production
-  { id: 'b9d041b5-8813-43b2-baf2-0ac1157f4c0e', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Cutting", sort_order: 10 },
+  { id: 'b9d041b5-8813-43b2-baf2-0ac1157f4c0e', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Cutting & Shaping", sort_order: 10 },
   { id: '17e893b2-a63c-465d-b29d-64becf806b3d', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "CNC", sort_order: 20 },
-  { id: 'e8f9104d-c3a5-436b-a094-a14fdc68bf04', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Upholstery", sort_order: 30 },
-  { id: '36cdb7fe-c518-41ee-b14d-1ec534b896cf', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Shaping & Joint Prep.", sort_order: 40 },
-  { id: '19ad8d80-b434-4466-bfed-07a288acb853', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Sand-Fillet", sort_order: 50 },
-  { id: '8534f4a3-6349-4124-8414-7857ce8d0f8a', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Assemble", sort_order: 60 },
-  { id: '8d255f02-ecfc-486b-9662-7c343402c102', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Paint", sort_order: 70 },
-  { id: 'f9e560f2-df7e-452e-b388-582015f61991', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Inspection", sort_order: 80 },
-  { id: 'ddd8babd-0271-4471-9a50-126949ce803e', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Re-work", sort_order: 90 },
-  { id: 'a7ad7deb-90fb-4cf9-8990-dc9863e2a253', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Packaging", sort_order: 100 },
-  { id: 'd3708362-73ac-42a1-be24-c1fac5fbb0c2', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Shipping to WH", sort_order: 110 },
+  { id: '8534f4a3-6349-4124-8414-7857ce8d0f8a', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Assemble", sort_order: 30 },
+  { id: '19ad8d80-b434-4466-bfed-07a288acb853', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Sand-Fillet", sort_order: 40 },
+  { id: '2cf17f60-6940-4f1f-b328-15aa3599ac9c', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Veneering", sort_order: 50 },
+  { id: '8d255f02-ecfc-486b-9662-7c343402c102', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Paint", sort_order: 60 },
+  { id: 'e8f9104d-c3a5-436b-a094-a14fdc68bf04', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Upholstery", sort_order: 70 },
+  { id: 'f9e560f2-df7e-452e-b388-582015f61991', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "QC & Packing", sort_order: 80 },
+  { id: 'd3708362-73ac-42a1-be24-c1fac5fbb0c2', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Shipping to WH", sort_order: 90 },
+  { id: 'ddd8babd-0271-4471-9a50-126949ce803e', phase_group_id: '170ee236-b02d-49ee-929a-fdd3e8df4f92', name: "Re-work", sort_order: 100 },
 
   // Warehouse
   { id: 'ad047f70-e06b-4954-ae34-6bcc380131f8', phase_group_id: 'a8876fb7-e608-4a75-8ae6-3c7a243b7771', name: "Shipping Received & Approved", sort_order: 10 },

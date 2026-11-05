@@ -7,8 +7,9 @@ import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 //   1. localStorage copy (set by the "Load new phases" button), if present;
 //   2. otherwise the PREDEFINED snapshot bundled in data/phases.ts.
 //
-// This keeps the pipeline pages instant and working on flaky mobile networks —
-// phases change rarely, so a manual refresh is enough.
+// This keeps the pipeline pages instant and working on flaky mobile networks.
+// Every page then syncs the live list in the background (syncPhasesInBackground)
+// and re-renders when it arrives, so renames in the database show up on their own.
 
 const GROUPS_KEY = 'tg_phase_groups_v2';
 const PHASES_KEY = 'tg_phases_v2';
@@ -52,7 +53,41 @@ export async function refreshPhaseCache(): Promise<{ groups: number; phases: num
     throw new Error(phases?.error ?? 'Could not load phases');
   }
 
-  window.localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
-  window.localStorage.setItem(PHASES_KEY, JSON.stringify(phases));
+  try {
+    window.localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+    window.localStorage.setItem(PHASES_KEY, JSON.stringify(phases));
+  } catch {
+    /* storage full / blocked — the fresh lists still reach open pages below */
+  }
+  latest = { groups, phases };
+  window.dispatchEvent(new Event(UPDATED_EVENT));
   return { groups: groups.length, phases: phases.length };
+}
+
+// ─── Background sync ─────────────────────────────────────────────────────────
+
+const UPDATED_EVENT = 'tg-phases-updated';
+const SYNC_TTL_MS = 60_000;
+let latest: { groups: PhaseGroup[]; phases: Phase[] } | null = null;
+let syncing: Promise<unknown> | null = null;
+let syncedAt = 0;
+
+/** Fetches the live phase list in the background (at most once a minute). Failures keep the cached copy. */
+export function syncPhasesInBackground(): void {
+  if (typeof window === 'undefined' || syncing || Date.now() - syncedAt < SYNC_TTL_MS) return;
+  syncing = refreshPhaseCache()
+    .then(() => { syncedAt = Date.now(); })
+    .catch(() => { /* offline or API down: keep showing the cached list */ })
+    .finally(() => { syncing = null; });
+}
+
+/**
+ * Calls onChange with the fresh lists whenever a sync brings them, and starts
+ * a background sync. Use in an effect; returns the unsubscribe function.
+ */
+export function onPhasesUpdated(onChange: (groups: PhaseGroup[], phases: Phase[]) => void): () => void {
+  const handler = () => onChange(latest?.groups ?? getPhaseGroups(), latest?.phases ?? getPhases());
+  window.addEventListener(UPDATED_EVENT, handler);
+  syncPhasesInBackground();
+  return () => window.removeEventListener(UPDATED_EVENT, handler);
 }

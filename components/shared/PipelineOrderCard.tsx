@@ -48,6 +48,8 @@ export function PhaseSelect({ groups, phases, value, onChange }: {
     <select className="poc-phase-sel" value={value} onChange={e => onChange(e.target.value)}
       onClick={e => e.stopPropagation()}>
       <option value="">— phase —</option>
+      {/* The item's phase may be missing from an out-of-date list; show it rather than a blank. */}
+      {value && !phases.some(p => p.name === value) && <option value={value}>{value}</option>}
       {groups.map(g => (
         <optgroup key={g.id} label={g.name}>
           {phases.filter(p => p.phase_group_id === g.id).map(p => (

@@ -5,7 +5,7 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import PipelineOrderList, { PIPELINE_ORDER_CARD_STYLES, PhaseGroup, Phase, fmtPrice, waPhone, daysBadgeClass, PhaseSelect, GroupCheckbox, ItemRow } from '@/components/shared/PipelineOrderCard';
 import ProductPopup from '@/components/shared/ProductPopup';
-import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
+import { getPhaseGroups, getPhases, onPhasesUpdated } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 import CancelOrdersModal, { CancellationReason, CancelChoice } from '@/components/owner/CancelOrdersModal';
 import CancelledOrdersTab from '@/components/owner/CancelledOrdersTab';
@@ -586,6 +586,9 @@ export default function OrdersPipelinePage() {
   const [productPopup, setProductPopup] = useState<PipelineLineItem | null>(null);
   const [toast, setToast]         = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Swap in the live phase list once the background sync brings it.
+  useEffect(() => onPhasesUpdated((g, p) => { setPhaseGroups(g); setPhases(p); }), []);
 
   useEffect(() => {
     // Phases come from the predefined/cached snapshot — no network needed.

@@ -5,7 +5,7 @@ import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/
 import PipelineOrderList, { PhaseGroup, Phase, fmtPrice } from '@/components/shared/PipelineOrderCard';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import ProductPopup from '@/components/shared/ProductPopup';
-import { getPhaseGroups, getPhases } from '@/lib/phaseCache';
+import { getPhaseGroups, getPhases, onPhasesUpdated } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 
 export default function ReviewPage() {
@@ -21,6 +21,9 @@ export default function ReviewPage() {
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
   const [productPopup, setProductPopup] = useState<PipelineLineItem | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Swap in the live phase list once the background sync brings it.
+  useEffect(() => onPhasesUpdated((g, p) => { setPhaseGroups(g); setPhases(p); }), []);
 
   useEffect(() => {
     // Phases from the predefined/cached snapshot; only orders need a live fetch.

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getPhaseGroups } from '@/lib/phaseCache';
+import { getPhaseGroups, onPhasesUpdated } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS } from '@/data/phases';
 
 export default function BottomNav() {
@@ -14,6 +14,8 @@ export default function BottomNav() {
 
   useEffect(() => {
     setGroups(getPhaseGroups());
+    // …then follow the live list from the database.
+    return onPhasesUpdated(g => setGroups(g));
   }, []);
 
   return (
