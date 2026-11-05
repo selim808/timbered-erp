@@ -4,7 +4,7 @@ import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 // Client-side cache for phase groups & phases.
 //
 // The app reads phases from this cache instead of hitting the DB on every page:
-//   1. localStorage copy (set by the "Load new phases" button), if present;
+//   1. localStorage copy (saved by the last background sync), if present;
 //   2. otherwise the PREDEFINED snapshot bundled in data/phases.ts.
 //
 // This keeps the pipeline pages instant and working on flaky mobile networks.
@@ -38,7 +38,7 @@ export function getPhases(): Phase[] {
 
 /**
  * Fetch the latest phase groups & phases from the API and overwrite the cache.
- * Used by the "Load new phases" button on the dashboard.
+ * Used by the background sync below.
  */
 export async function refreshPhaseCache(): Promise<{ groups: number; phases: number }> {
   const [groups, phases] = await Promise.all([

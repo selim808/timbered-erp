@@ -9,7 +9,7 @@ import { PREDEFINED_PHASE_GROUPS } from '@/data/phases';
 export default function BottomNav() {
   const pathname = usePathname();
   // Render from the predefined snapshot immediately, then swap in any cached
-  // copy the owner refreshed via "Load new phases" (localStorage is client-only).
+  // copy saved by the last background sync (localStorage is client-only).
   const [groups, setGroups] = useState(PREDEFINED_PHASE_GROUPS);
 
   useEffect(() => {
