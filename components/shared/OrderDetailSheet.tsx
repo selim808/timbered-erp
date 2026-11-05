@@ -16,6 +16,13 @@ interface Props {
   onBack?: () => void;
 }
 
+/** e.g. "04 Nov 2026, 14:05" in Cairo time. */
+function fmtCancelTime(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    timeZone: 'Africa/Cairo', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 function fmtPrice(n: number) {
   return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
 }
@@ -52,6 +59,11 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
         .od-order-days { font-size:10px; color:#bbb; flex-shrink:0; white-space:nowrap; }
         .od-order-phase { font-size:10px; color:#aaa; flex-shrink:0; max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .od-section { padding:10px 16px; border-bottom:1px solid #f0e8e0; }
+        .od-cancel { background:#fdf2f0; }
+        .od-cancel-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+        .od-cancel-tbl th { text-align:left; width:70px; font-size:11px; font-weight:700; color:#9e9087; padding:3px 0; vertical-align:top; }
+        .od-cancel-tbl td { padding:3px 0; color:#1C1A17; }
+        .od-cancel-sub { color:#9e9087; font-size:12px; }
         .od-label { font-size:10px; color:#aaa; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-bottom:4px; }
         .od-val { font-size:12px; color:#333; margin-bottom:2px; }
         .od-contact { display:flex; gap:8px; margin-top:6px; }
@@ -100,6 +112,26 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
                   </div>
                 )}
               </div>
+              {(detailOrder.cancelledAt || detailOrder.cancelReason) && (
+                <div className="od-section od-cancel">
+                  <div className="od-label" style={{ color: '#c0392b' }}>Cancellation</div>
+                  <table className="od-cancel-tbl">
+                    <tbody>
+                      {detailOrder.cancelledAt && (
+                        <tr><th>Time</th><td>
+                          {fmtCancelTime(detailOrder.cancelledAt)}
+                          {detailOrder.daysToCancel != null && (
+                            <span className="od-cancel-sub"> · {detailOrder.daysToCancel === 0 ? 'same day as ordered' : `${detailOrder.daysToCancel}d after ordering`}</span>
+                          )}
+                        </td></tr>
+                      )}
+                      <tr><th>Reason</th><td>{detailOrder.cancelReason || '—'}</td></tr>
+                      <tr><th>Timing</th><td>{detailOrder.cancelTiming || '—'}</td></tr>
+                      <tr><th>Impact</th><td>{detailOrder.cancelImpact || '—'}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
               {detailOrder.customerNote && (
                 <div className="od-section">
                   <div className="od-label">Note</div>

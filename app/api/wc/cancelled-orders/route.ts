@@ -76,6 +76,7 @@ export async function GET(req: Request) {
       return {
         ...mapOrderBase(o, cancelledAt),
         cancelledDaysAgo,
+        cancelledAt,
         daysToCancel,
         ...(o.cancel_reason ? { cancelReason: o.cancel_reason as string } : {}),
         ...(o.cancel_timing ? { cancelTiming: o.cancel_timing as string } : {}),

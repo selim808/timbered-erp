@@ -37,6 +37,7 @@ export interface PipelineOrder {
   leadTimeDays?: number;     // days from order creation to completion
   // Set only for the After-Sales / Cancelled feed:
   cancelledDaysAgo?: number; // days since the order was cancelled
+  cancelledAt?: string;      // ISO time it was cancelled (Woo: last edit, it keeps no cancel time)
   daysToCancel?: number;     // days from order creation to cancellation
   cancelReason?: string;     // ERP-chosen reason, else Shopify's bucket + note
   cancelTiming?: string;
