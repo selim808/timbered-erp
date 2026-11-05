@@ -263,6 +263,8 @@ export default function ProductionSection() {
   };
   const chartOptions = {
     responsive: true, maintainAspectRatio: false,
+    // Draw the chart at 3× so it stays sharp in the shared picture.
+    devicePixelRatio: Math.max(3, typeof window !== 'undefined' ? window.devicePixelRatio : 1),
     // Tap a bar to list the items in that phase.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onClick: (_: unknown, els: any[]) => { if (els.length) setOpenPhase(filtered[els[0].index] ?? null); },
@@ -292,7 +294,8 @@ export default function ProductionSection() {
     setSharing(true);
     try {
       const canvas = await h2c(el, {
-        scale: 2, backgroundColor: '#FBF5EC',
+        // 3× (or the screen's own density, if higher) so text survives WhatsApp's compression.
+        scale: Math.min(4, Math.max(3, window.devicePixelRatio || 1)), backgroundColor: '#FBF5EC',
         onclone: (doc: Document) => {
           doc.querySelectorAll<HTMLElement>('.prod-share-only').forEach(n => { n.style.display = 'block'; });
           // html2canvas mis-places text inside <button>s, so the picture gets plain boxes instead.
