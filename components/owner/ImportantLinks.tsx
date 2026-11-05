@@ -99,7 +99,7 @@ export default function ImportantLinks() {
             icon={<ProductionIcon />}
             title="Production Module"
             sub="Job orders & production tracking"
-            buttons={[{ label: 'Open', href: 'https://script.google.com/macros/s/AKfycbz-qw68Ng-aRFi8VUAVxklyatuG-0amxcviAufNIngI4r9vn3pZhftVaQx8pGB_lUFm/exec' }]}
+            buttons={[{ label: 'Open', href: 'https://timbered-production.vercel.app' }]}
           />
           <Banner
             icon={<BoxIcon />}
