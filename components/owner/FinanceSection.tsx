@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { cairoNowLabel, shareElementAsImage } from '@/lib/shareImage';
 import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
@@ -156,6 +157,9 @@ const STYLES = `
 .fin-card { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:16px; margin-bottom:12px; }
 .fin-kpi-card { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:14px 16px; }
 .fin-label { display:block; font-size:10px; color:#9e9087; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; margin-bottom:4px; }
+.fin-share-icon { display:inline-flex; align-items:center; justify-content:center; vertical-align:-3px; margin-left:8px; width:22px; height:22px; border-radius:50%; border:1px solid #E8D9C4; background:#fff; color:#25D366; cursor:pointer; padding:0; }
+.fin-share-icon:disabled { color:#bbb; cursor:default; }
+.share-only { display:none; }
 .fin-sec-title { font-size:10px; color:#9e9087; text-transform:uppercase; letter-spacing:1.2px; font-weight:800; text-align:center; margin:16px 0 8px; }
 .fin-hval { font-size:16px; font-weight:700; color:#2c3e50; }
 .fin-kpi { font-size:22px; font-weight:700; margin-top:4px; }
@@ -206,6 +210,8 @@ export default function FinanceSection() {
   const [selected, setSelected] = useState('__all__');
   const [loadState, setLoadState] = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErrMsg]   = useState('');
+  const cashRef = useRef<HTMLDivElement>(null);
+  const [sharingCash, setSharingCash] = useState(false);
 
   useEffect(() => {
     fetch('/api/finance')
@@ -325,6 +331,28 @@ export default function FinanceSection() {
       },
     },
   };
+
+  async function shareCash() {
+    const el = cashRef.current;
+    if (!el) return;
+    setSharingCash(true);
+    try {
+      // The table scrolls sideways on phones; widen the picture so every column is in it.
+      const table = el.querySelector('table');
+      const width = Math.max(el.clientWidth, (table?.scrollWidth ?? 0) + 34);
+      await shareElementAsImage(el, {
+        name: 'cash-in-vs-completed',
+        text: `Cash In vs Completed · ${selected === '__all__' ? 'All Rounds' : selected}`,
+        width,
+        prepare: clone => {
+          clone.querySelectorAll<HTMLElement>('.fin-cash-scroll').forEach(n => { n.style.overflow = 'visible'; });
+        },
+      });
+    } catch (e) {
+      alert('Could not share the image: ' + (e instanceof Error ? e.message : String(e)));
+    }
+    setSharingCash(false);
+  }
 
   return (
     <>
@@ -472,10 +500,28 @@ export default function FinanceSection() {
           </div>
         </div>
 
-        {/* ── Cash In vs Completed ── */}
-        <p className="fin-sec-title">Cash In vs Completed</p>
+        {/* ── Cash In vs Completed ── (the share icon sends this block as a picture) */}
+        <div ref={cashRef}>
+        <p className="fin-sec-title">
+          Cash In vs Completed
+          <button
+            className="fin-share-icon" data-html2canvas-ignore
+            onClick={() => void shareCash()} disabled={sharingCash}
+            title="Share as image" aria-label="Share Cash In vs Completed as image"
+          >
+            {sharingCash ? '…' : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+            )}
+          </button>
+        </p>
+        <div className="share-only" style={{ textAlign: 'center', marginBottom: 6 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: '#7A4610' }}>Timbered · {selected === '__all__' ? 'All Rounds' : selected}</div>
+          <div style={{ fontSize: 11, color: '#7A6F65' }}>{cairoNowLabel()}</div>
+        </div>
         <div className="fin-card">
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div className="fin-cash-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table className="fin-tbl" style={{ minWidth: 340 }}>
               <thead>
                 <tr>
@@ -508,6 +554,8 @@ export default function FinanceSection() {
               </tbody>
             </table>
           </div>
+        </div>
+
         </div>
 
         {/* ── Orders funnel ── */}
