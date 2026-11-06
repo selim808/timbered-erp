@@ -211,7 +211,8 @@ export default function FinanceSection() {
   const [loadState, setLoadState] = useState<'loading' | 'done' | 'error'>('loading');
   const [errMsg, setErrMsg]   = useState('');
   const cashRef = useRef<HTMLDivElement>(null);
-  const [sharingCash, setSharingCash] = useState(false);
+  const funnelRef = useRef<HTMLDivElement>(null);
+  const [sharing, setSharing] = useState<'cash' | 'funnel' | null>(null);
 
   useEffect(() => {
     fetch('/api/finance')
@@ -332,26 +333,37 @@ export default function FinanceSection() {
     },
   };
 
-  async function shareCash() {
-    const el = cashRef.current;
+  const roundLabel = selected === '__all__' ? 'All Rounds' : selected;
+
+  /** Sends one block (title + card) as a picture through the phone's share menu. */
+  async function shareBlock(which: 'cash' | 'funnel') {
+    const el = (which === 'cash' ? cashRef : funnelRef).current;
     if (!el) return;
-    setSharingCash(true);
+    const title = which === 'cash' ? 'Cash In vs Completed' : 'Orders funnel';
+    setSharing(which);
     try {
-      // The table scrolls sideways on phones; widen the picture so every column is in it.
+      // Tables scroll sideways on phones; widen the picture so every column is in it.
       const table = el.querySelector('table');
       const width = Math.max(el.clientWidth, (table?.scrollWidth ?? 0) + 34);
       await shareElementAsImage(el, {
-        name: 'cash-in-vs-completed',
-        text: `Cash In vs Completed · ${selected === '__all__' ? 'All Rounds' : selected}`,
+        name: which === 'cash' ? 'cash-in-vs-completed' : 'orders-funnel',
+        text: `${title} · ${roundLabel}`,
         width,
         prepare: clone => {
           clone.querySelectorAll<HTMLElement>('.fin-cash-scroll').forEach(n => { n.style.overflow = 'visible'; });
+          // html2canvas draws this font ~4px low inside coloured boxes and places dots high;
+          // nudge them, and drop the captions under the bar (the table already names each colour).
+          clone.querySelectorAll<HTMLElement>('.fin-seg, .fin-pct').forEach(n => {
+            n.innerHTML = `<span style="position:relative;top:-4px">${n.textContent ?? ''}</span>`;
+          });
+          clone.querySelectorAll<HTMLElement>('.fin-dot').forEach(n => { n.style.marginTop = '12px'; });
+          clone.querySelectorAll<HTMLElement>('.fin-dist-wrap').forEach(n => { n.style.display = 'none'; });
         },
       });
     } catch (e) {
       alert('Could not share the image: ' + (e instanceof Error ? e.message : String(e)));
     }
-    setSharingCash(false);
+    setSharing(null);
   }
 
   return (
@@ -504,22 +516,9 @@ export default function FinanceSection() {
         <div ref={cashRef}>
         <p className="fin-sec-title">
           Cash In vs Completed
-          <button
-            className="fin-share-icon" data-html2canvas-ignore
-            onClick={() => void shareCash()} disabled={sharingCash}
-            title="Share as image" aria-label="Share Cash In vs Completed as image"
-          >
-            {sharingCash ? '…' : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
-              </svg>
-            )}
-          </button>
+          <ShareIcon busy={sharing === 'cash'} label="Cash In vs Completed" onClick={() => void shareBlock('cash')} />
         </p>
-        <div className="share-only" style={{ textAlign: 'center', marginBottom: 6 }}>
-          <div style={{ fontWeight: 800, fontSize: 14, color: '#7A4610' }}>Timbered · {selected === '__all__' ? 'All Rounds' : selected}</div>
-          <div style={{ fontSize: 11, color: '#7A6F65' }}>{cairoNowLabel()}</div>
-        </div>
+        <ShareHeading round={roundLabel} />
         <div className="fin-card">
           <div className="fin-cash-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table className="fin-tbl" style={{ minWidth: 340 }}>
@@ -558,8 +557,13 @@ export default function FinanceSection() {
 
         </div>
 
-        {/* ── Orders funnel ── */}
-        <p className="fin-sec-title">Orders funnel</p>
+        {/* ── Orders funnel ── (the share icon sends this block as a picture) */}
+        <div ref={funnelRef}>
+        <p className="fin-sec-title">
+          Orders funnel
+          <ShareIcon busy={sharing === 'funnel'} label="Orders funnel" onClick={() => void shareBlock('funnel')} />
+        </p>
+        <ShareHeading round={roundLabel} />
         <div className="fin-card">
           <table className="fin-tbl">
             <thead>
@@ -610,8 +614,36 @@ export default function FinanceSection() {
             ))}
           </div>
         </div>
+        </div>
 
       </div>
     </>
+  );
+}
+
+/** Small share icon placed after a section title. Left out of the picture itself. */
+function ShareIcon({ busy, label, onClick }: { busy: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      className="fin-share-icon" data-html2canvas-ignore
+      onClick={onClick} disabled={busy}
+      title="Share as image" aria-label={`Share ${label} as image`}
+    >
+      {busy ? '…' : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
+/** Heading that only appears in the shared picture: round and Cairo date/time. */
+function ShareHeading({ round }: { round: string }) {
+  return (
+    <div className="share-only" style={{ textAlign: 'center', marginBottom: 6 }}>
+      <div style={{ fontWeight: 800, fontSize: 14, color: '#7A4610' }}>Timbered · {round}</div>
+      <div style={{ fontSize: 11, color: '#7A6F65' }}>{cairoNowLabel()}</div>
+    </div>
   );
 }
