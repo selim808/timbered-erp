@@ -72,12 +72,12 @@ function chartLabelDisplay(l: string): string {
 // ─── CSS ─────────────────────────────────────────────────────────
 const STYLES = `
   .mo-chart-title { text-align:center; font-size:14px; font-weight:700; color:#666; margin-bottom:-2px; }
-  .mo-legend { display:grid; grid-template-columns:repeat(3, auto); justify-content:center; gap:4px 28px; font-size:12px; color:#666; }
+  .mo-legend { display:grid; grid-template-columns:repeat(3, minmax(0, max-content)); justify-content:center; gap:4px 24px; font-size:12px; color:#666; }
   .mo-legend-col { display:flex; flex-direction:column; gap:4px; }
   .mo-legend-head { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#9e9087; border-bottom:1px solid #eee; padding-bottom:2px; }
-  .mo-legend-item { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+  .mo-legend-item { display:flex; align-items:center; gap:6px; }
   .mo-legend-swatch { width:12px; height:12px; flex-shrink:0; }
-  @media (max-width: 420px) { .mo-legend { gap:4px 14px; font-size:11px; } }
+  @media (max-width: 420px) { .mo-legend { gap:4px 12px; font-size:11px; } }
 .mo-card { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:10px 12px; }
 .mo-label { display:block; font-size:10px; color:#9e9087; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; margin-bottom:3px; }
 .mo-kpi { font-size:18px; font-weight:700; margin-top:2px; }
@@ -298,31 +298,32 @@ export default function MonthlySection() {
   //  Created   — orders placed that month, by where they stand today.
   //  Completed — orders completed that month, by how long after ordering.
   //  Cancelled — orders cancelled that month, by how long after ordering.
-  const DURATIONS: { key: keyof DurationBuckets; text: string }[] = [
-    { key: 'm1',   text: 'within 1 month' },
-    { key: 'm2',   text: 'within 2 months' },
-    { key: 'more', text: 'more than 2 months' },
+  const DURATIONS: { key: keyof DurationBuckets; text: string; short: string }[] = [
+    { key: 'm1',   text: 'within 1 month',     short: '≤ 1 month' },
+    { key: 'm2',   text: 'within 2 months',    short: '≤ 2 months' },
+    { key: 'more', text: 'more than 2 months', short: '> 2 months' },
   ];
   const COMPLETED_SHADES = ['#1e8449', '#27ae60', '#a9dfbf'];
   const CANCELLED_SHADES = ['#922b21', '#e74c3c', '#f5b7b1'];
 
-  type Seg = { label: string; color: string; value: (m: MonthEntry) => number };
+  // label: full name (tooltips); short: legend text under the column heading, so it fits a phone.
+  type Seg = { label: string; short: string; color: string; value: (m: MonthEntry) => number };
   const STACKS: { key: 'created' | 'completed' | 'cancelled'; title: string; labelColor: string; total: (m: MonthEntry) => number; segs: Seg[] }[] = [
     { key: 'created', title: 'Created', labelColor: '#3498db', total: m => m.created, segs: [
-      { label: 'Created - completed',  color: '#7dcea0', value: m => m.createdCompleted },
-      { label: 'Created - processing', color: '#3498db', value: m => m.createdProcessing },
-      { label: 'Created - cancelled',  color: '#f1948a', value: m => m.createdCancelled },
+      { label: 'Created - completed',  short: 'Completed',  color: '#7dcea0', value: m => m.createdCompleted },
+      { label: 'Created - processing', short: 'Processing', color: '#3498db', value: m => m.createdProcessing },
+      { label: 'Created - cancelled',  short: 'Cancelled',  color: '#f1948a', value: m => m.createdCancelled },
     ] },
     { key: 'completed', title: 'Completed', labelColor: '#27ae60', total: m => m.completed,
-      segs: DURATIONS.map((d, i) => ({ label: `Completed ${d.text}`, color: COMPLETED_SHADES[i], value: (m: MonthEntry) => m.completedByDuration?.[d.key] ?? 0 })) },
+      segs: DURATIONS.map((d, i) => ({ label: `Completed ${d.text}`, short: d.short, color: COMPLETED_SHADES[i], value: (m: MonthEntry) => m.completedByDuration?.[d.key] ?? 0 })) },
     { key: 'cancelled', title: 'Cancelled', labelColor: '#e74c3c', total: m => m.cancelled,
-      segs: DURATIONS.map((d, i) => ({ label: `Cancelled ${d.text}`, color: CANCELLED_SHADES[i], value: (m: MonthEntry) => m.cancelledByDuration?.[d.key] ?? 0 })) },
+      segs: DURATIONS.map((d, i) => ({ label: `Cancelled ${d.text}`, short: d.short, color: CANCELLED_SHADES[i], value: (m: MonthEntry) => m.cancelledByDuration?.[d.key] ?? 0 })) },
   ];
 
   // Legend: one column per bar. Created reads processing, cancelled, completed.
   const LEGEND_COLS = STACKS.map(st => ({
     title: st.title,
-    items: (st.key === 'created' ? [st.segs[1], st.segs[2], st.segs[0]] : st.segs).map(sg => ({ label: sg.label, color: sg.color })),
+    items: (st.key === 'created' ? [st.segs[1], st.segs[2], st.segs[0]] : st.segs).map(sg => ({ label: sg.short, color: sg.color })),
   }));
 
   const stackTotal = (stack: string, i: number) => {
@@ -384,8 +385,10 @@ export default function MonthlySection() {
         grid: { display: false },
         stacked: true,
       },
-      y: { stacked: true, max: yMax, ticks: { callback: (v: number | string) => Number(v) / 1000 + 'K' }, grid: { color: '#f0f0f0' } },
+      y: { stacked: true, max: yMax, ticks: { font: { size: 9 }, callback: (v: number | string) => Number(v) / 1000 + 'K' }, grid: { color: '#f0f0f0' } },
     },
+    // Three bars per month on a phone: use most of each month's slot so bars and their values have room.
+    datasets: { bar: { categoryPercentage: 0.92, barPercentage: 0.94 } },
   };
 
   return (
@@ -520,7 +523,7 @@ export default function MonthlySection() {
           ))}
         </div>
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ height: 320, minWidth: Math.max(visibleLabels.length * 36, 300) }}>
+          <div style={{ height: 320, minWidth: visibleLabels.length > 12 ? visibleLabels.length * 30 : 0 }}>
             <Bar data={chartData} options={chartOptions} />
           </div>
         </div>
