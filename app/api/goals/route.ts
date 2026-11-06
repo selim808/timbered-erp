@@ -1,12 +1,7 @@
 import { NextResponse } from 'next/server';
 import { fetchOrders } from '@/lib/commerce/orders';
-
-// Aug–Dec ramps linearly from 700K to 1M (+75K/month).
-const SALES_TGT: Record<string, number> = {
-  Jan: 200_000, Feb: 300_000, Mar: 400_000, Apr: 500_000, May: 600_000,
-  Jun: 400_000, Jul: 400_000, Aug: 700_000, Sep: 775_000,
-  Oct: 850_000, Nov: 925_000, Dec: 1_000_000,
-};
+import { fetchAdSpend } from '@/lib/meta';
+import { SALES_TGT } from '@/lib/salesTargets';
 
 const MKT_RATIO = 0.15;
 
@@ -51,34 +46,14 @@ function sumCounted(stats: StatusStat[]): number {
   return stats.reduce((s, r) => s + (COUNTED.includes(r.status) ? r.total : 0), 0);
 }
 
-async function fetchAccountSpend(accountId: string, timeRange: string): Promise<number> {
-  const token = process.env.META_TOKEN;
-  if (!token) return 0;
-
-  const url =
-    `https://graph.facebook.com/v24.0/${accountId}/insights` +
-    `?level=account&fields=spend&time_range=${encodeURIComponent(timeRange)}&access_token=${token}`;
-
-  const res  = await fetch(url);
-  const json = await res.json() as { data?: { spend: string }[]; error?: { message: string } };
-  if (json.error) return 0;
-  return (json.data ?? []).reduce((s, d) => s + (parseFloat(d.spend) || 0), 0);
-}
-
 async function fetchMonthMeta(year: number, month: number): Promise<number> {
-  const accountIds = (process.env.META_ACCOUNT_IDS ?? '').split(',').filter(Boolean);
-  if (accountIds.length === 0) return 0;
-
   const mm  = String(month).padStart(2, '0');
   const now = new Date();
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
   const lastDay = isCurrentMonth
     ? String(now.getDate()).padStart(2, '0')
     : String(new Date(year, month, 0).getDate()).padStart(2, '0');
-
-  const timeRange = JSON.stringify({ since: `${year}-${mm}-01`, until: `${year}-${mm}-${lastDay}` });
-  const spends = await Promise.all(accountIds.map(id => fetchAccountSpend(id, timeRange)));
-  return Math.round(spends.reduce((a, b) => a + b, 0) * 1.14);
+  return fetchAdSpend(`${year}-${mm}-01`, `${year}-${mm}-${lastDay}`);
 }
 
 /** Actuals for a finished year (no targets). Past months never change, so cache for a day. */

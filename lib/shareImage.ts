@@ -35,8 +35,9 @@ export function cairoNowLabel() {
 }
 
 export async function shareElementAsImage(el: HTMLElement, opts: {
-  /** File name without extension; the date is added. */
+  /** File name without extension; today's date is added unless addDate is false. */
   name: string;
+  addDate?: boolean;
   /** Text sent along with the picture where the share target supports it. */
   text?: string;
   /** Picture width in CSS px, when the content is wider than it shows (e.g. a sideways-scrolling table). */
@@ -64,7 +65,8 @@ export async function shareElementAsImage(el: HTMLElement, opts: {
     });
     const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
     if (!blob) throw new Error('Could not create the image');
-    const file = new File([blob], `${opts.name}-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+    const fileName = opts.addDate === false ? opts.name : `${opts.name}-${new Date().toISOString().slice(0, 10)}`;
+    const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
 
     if (navigator.canShare?.({ files: [file] })) {
       try {

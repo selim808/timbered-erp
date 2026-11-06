@@ -12,6 +12,7 @@ import type { WipRow } from '@/app/api/production/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import { usePdfLibs } from '@/components/warranty/Certificate';
+import { groupColor } from '@/lib/phaseGroupColors';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Title, ChartDataLabels);
 
@@ -38,19 +39,6 @@ interface ProdData {
   unphasedItems: number;
 }
 
-// ─── Phase colour rules ───────────────────────────────────────────
-// One colour per Supabase phase group.
-const NO_PHASE = 'No phase';
-const GROUP_COLORS: Record<string, string> = {
-  'Confirmation': '#7f8c9d',
-  'Planning':     '#8e44ad',
-  'Production':   '#2980b9',
-  'Warehouse':    '#f1948a',
-  'Delivery':     '#27ae60',
-  'After-sales':  '#f4d03f',
-  [NO_PHASE]:     '#bdc3c7',
-};
-const groupColor = (g: string) => GROUP_COLORS[g] ?? '#bdc3c7';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 
