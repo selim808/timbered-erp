@@ -72,7 +72,7 @@ export default function ItemJourney({ orderNumber, item, onClose }: Props) {
   return (
     <div className="ij-overlay" onClick={e => { e.stopPropagation(); onClose(); }}>
       <style>{`
-        .ij-overlay { position:fixed; inset:0; z-index:450; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
+        .ij-overlay { position:fixed; inset:0; z-index:1150; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; padding:16px; }
         .ij-box { background:#fff; border-radius:14px; width:100%; max-width:440px; max-height:85vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.3); }
         .ij-head { background:#7A4610; color:#fff; padding:12px 16px; display:flex; align-items:flex-start; gap:10px; }
         .ij-title { flex:1; min-width:0; }

@@ -24,6 +24,14 @@ function fmtCancelTime(iso: string) {
   });
 }
 
+function statusStyle(s: string): { background: string; color: string } {
+  if (s === 'completed')  return { background: '#e8f8f0', color: '#27ae60' };
+  if (s === 'processing') return { background: '#e8f0fb', color: '#2563EB' };
+  if (s === 'cancelled')  return { background: '#fde8e8', color: '#e74c3c' };
+  if (s === 'pending')    return { background: '#fef3e2', color: '#B86E1A' };
+  return { background: '#f0f0f0', color: '#888' };
+}
+
 function fmtPrice(n: number) {
   return n.toLocaleString('en-EG', { maximumFractionDigits: 0 });
 }
@@ -47,7 +55,7 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
         .od-item-row { cursor:pointer; }
         .od-item-row:hover td { background:#FBF5EC; }
         .od-item-name { text-decoration:underline dotted; text-underline-offset:3px; }
-        .od-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:400; display:flex; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
+        .od-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:1100; display:flex; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
         .od-box { background:#fff; border-radius:14px; width:100%; max-width:480px; overflow:hidden; margin:auto; }
         .od-header { background:#7A4610; color:#fff; padding:12px 16px; display:flex; align-items:center; gap:10px; }
         .od-title { font-size:13px; font-weight:700; flex:1; }
@@ -80,6 +88,9 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
         .od-table td { padding:5px 6px; border-bottom:1px solid #f8f4f0; vertical-align:top; }
         .od-table tr:last-child td { border-bottom:none; }
         .od-total { display:flex; justify-content:space-between; padding:10px 16px; background:#fef3e2; font-size:13px; font-weight:700; color:#7A4610; }
+        .od-status { display:inline-block; font-size:10px; font-weight:700; text-transform:capitalize; border-radius:10px; padding:1px 8px; margin-right:6px; }
+        .od-kv { display:flex; justify-content:space-between; gap:12px; font-size:12px; color:#333; padding:2px 0; }
+        .od-kv span:first-child { color:#9e9087; }
         .od-empty { padding:20px; text-align:center; color:#aaa; font-size:13px; }
       `}</style>
 
@@ -95,6 +106,17 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
 
           {detailOrder ? (
             <div className="od-body">
+              {(detailOrder.status || detailOrder.orderedAt) && (
+                <div className="od-section">
+                  {detailOrder.status && (
+                    <span className="od-status" style={statusStyle(detailOrder.status)}>{detailOrder.status}</span>
+                  )}
+                  {detailOrder.orderedAt && <span className="od-val">Placed {fmtCancelTime(detailOrder.orderedAt)}</span>}
+                  {detailOrder.completedAt && (
+                    <div className="od-val" style={{ marginTop: 2 }}>Completed {fmtCancelTime(detailOrder.completedAt)}</div>
+                  )}
+                </div>
+              )}
               <div className="od-section">
                 <div className="od-label">Customer</div>
                 <div className="od-val">{detailOrder.customerName}</div>
@@ -116,6 +138,7 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
                       .filter(Boolean).join(', ')}
                   </div>
                 )}
+                {detailOrder.email && <div className="od-val" style={{ color: '#888' }}>{detailOrder.email}</div>}
               </div>
               {(detailOrder.cancelledAt || detailOrder.cancelReason) && (
                 <div className="od-section od-cancel">
@@ -159,6 +182,21 @@ export default function OrderDetailSheet({ title, rows, order, onClose, onBack }
                   </tbody>
                 </table>
               </div>
+              {(detailOrder.paymentMethod || detailOrder.shippingTotal || detailOrder.discountTotal || detailOrder.fees?.length) ? (
+                <div className="od-section">
+                  <div className="od-label">Payment &amp; shipping</div>
+                  {detailOrder.paymentMethod && <div className="od-kv"><span>Payment</span><span>{detailOrder.paymentMethod}</span></div>}
+                  {!!detailOrder.shippingTotal && (
+                    <div className="od-kv"><span>{detailOrder.shippingMethod || 'Shipping'}</span><span>{fmtPrice(detailOrder.shippingTotal)}</span></div>
+                  )}
+                  {(detailOrder.fees ?? []).map((f, i) => (
+                    <div key={i} className="od-kv"><span>{f.name || 'Fee'}</span><span>{fmtPrice(f.total)}</span></div>
+                  ))}
+                  {!!detailOrder.discountTotal && (
+                    <div className="od-kv"><span>Discount</span><span style={{ color: '#27ae60' }}>−{fmtPrice(detailOrder.discountTotal)}</span></div>
+                  )}
+                </div>
+              ) : null}
               <div className="od-total">
                 <span>Total</span><span>{fmtPrice(detailOrder.total)} EGP</span>
               </div>

@@ -44,6 +44,16 @@ export interface PipelineOrder {
   cancelImpact?: string;
   // Set only for the Follow-up feed: signed code for the public /g/<code> guarantee link.
   warrantyCode?: string;
+  // Set when one order is loaded on its own (GET /api/orders/[id]), e.g. from Weekly/Monthly:
+  status?: string;           // processing | completed | cancelled | on-hold | pending
+  orderedAt?: string;        // ISO time the order was placed
+  completedAt?: string;      // ISO time it was completed, when it is
+  email?: string;
+  paymentMethod?: string;
+  shippingMethod?: string;
+  shippingTotal?: number;
+  discountTotal?: number;
+  fees?: { name: string; total: number }[];
   lineItems: PipelineLineItem[];
 }
 

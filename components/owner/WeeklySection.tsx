@@ -7,7 +7,8 @@ import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Lege
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { WeekEntry } from '@/app/api/weekly/route';
 import type { OrderRow } from '@/app/api/weekly/orders/route';
-import type { OrderDetail } from '@/app/api/weekly/order/[id]/route';
+import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
+import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -101,7 +102,7 @@ export default function WeeklySection() {
   const [modalOrders, setModalOrders] = useState<OrderRow[]>([]);
   const [modalLoad, setModalLoad]     = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [modalErr, setModalErr]       = useState('');
-  const [selOrder, setSelOrder]       = useState<OrderDetail | null>(null);
+  const [selOrder, setSelOrder]       = useState<PipelineOrder | null>(null);
   const [selOrderLoad, setSelOrderLoad] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [selOrderErr, setSelOrderErr] = useState('');
   const today = todayStr();
@@ -202,23 +203,20 @@ export default function WeeklySection() {
     setSelYears(prev => prev.size === allYears.length ? new Set([allYears[0]]) : new Set(allYears));
   }
 
-  function statusStyle(s: string): { background: string; color: string } {
-    if (s === 'completed')  return { background: '#e8f8f0', color: '#27ae60' };
-    if (s === 'processing') return { background: '#e8f0fb', color: '#2563EB' };
-    if (s === 'cancelled')  return { background: '#fde8e8', color: '#e74c3c' };
-    if (s === 'pending')    return { background: '#fef3e2', color: '#B86E1A' };
-    return { background: '#f0f0f0', color: '#888' };
+  function closeOrderDetail() {
+    setSelOrder(null);
+    setSelOrderLoad('idle');
   }
 
   function openOrderDetail(id: number) {
     setSelOrder(null);
     setSelOrderLoad('loading');
     setSelOrderErr('');
-    fetch(`/api/weekly/order/${id}`)
+    fetch(`/api/orders/${id}`)
       .then(r => r.json())
-      .then((data: OrderDetail | { error: string }) => {
+      .then((data: PipelineOrder | { error: string }) => {
         if ('error' in data) throw new Error((data as { error: string }).error);
-        setSelOrder(data as OrderDetail);
+        setSelOrder(data as PipelineOrder);
         setSelOrderLoad('done');
       })
       .catch((e: Error) => { setSelOrderErr(e.message); setSelOrderLoad('error'); });
@@ -470,109 +468,19 @@ export default function WeeklySection() {
       )}
 
       {/* Order detail modal */}
-      {(selOrderLoad === 'loading' || selOrderLoad === 'done' || selOrderLoad === 'error') && (
-        <div className="wk-detail-overlay" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); }}>
-          <div className="wk-detail-modal" onClick={e => e.stopPropagation()}>
-            <div className="wk-detail-hdr">
-              <div>
-                {selOrderLoad === 'loading' && <div style={{ fontSize: 14, fontWeight: 700, color: '#2c3e50' }}>Loading order…</div>}
-                {selOrderLoad === 'error'   && <div style={{ fontSize: 14, fontWeight: 700, color: '#b0341e' }}>Error</div>}
-                {selOrderLoad === 'done' && selOrder && (
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#2c3e50', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                      Order {selOrder.number}
-                      <span className="wk-status" style={statusStyle(selOrder.status)}>{selOrder.status}</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9e9087', marginTop: 3 }}>{selOrder.dateCreated}{selOrder.dateCompleted && selOrder.dateCompleted !== selOrder.dateCreated ? ` · completed ${selOrder.dateCompleted}` : ''}</div>
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button className="wk-detail-back" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); }}>← Back</button>
-                <button className="wk-modal-close" onClick={() => { setSelOrder(null); setSelOrderLoad('idle'); setModal(null); }}>×</button>
-              </div>
-            </div>
-
-            <div className="wk-detail-body">
-              {selOrderLoad === 'loading' && (
-                <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>Loading…</div>
-              )}
-              {selOrderLoad === 'error' && (
-                <div style={{ padding: '16px 0', textAlign: 'center', fontSize: 13, color: '#b0341e' }}>{selOrderErr}</div>
-              )}
-
-              {selOrderLoad === 'done' && selOrder && (<>
-
-                {/* Customer */}
-                <div>
-                  <div className="wk-section-lbl">Customer</div>
-                  <div className="wk-info-grid">
-                    <div><span>Name</span>{selOrder.customer.name || '—'}</div>
-                    <div><span>Phone</span>{selOrder.customer.phone || '—'}</div>
-                    <div style={{ gridColumn: '1 / -1' }}><span>Address</span>{selOrder.customer.address || '—'}</div>
-                    {selOrder.customer.email && <div style={{ gridColumn: '1 / -1' }}><span>Email</span>{selOrder.customer.email}</div>}
-                  </div>
-                </div>
-
-                {/* Items */}
-                <div>
-                  <div className="wk-section-lbl">Items</div>
-                  <table className="wk-items-tbl">
-                    <thead>
-                      <tr>
-                        <th>Product</th>
-                        <th className="r" style={{ width: 36 }}>Qty</th>
-                        <th className="r" style={{ width: 80 }}>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selOrder.items.map((item, i) => (
-                        <tr key={i}>
-                          <td style={{ color: '#333' }}>{item.name}</td>
-                          <td className="r" style={{ color: '#888' }}>{item.quantity}</td>
-                          <td className="r" style={{ fontWeight: 600 }}>{Math.round(item.total).toLocaleString('en-GB')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Totals */}
-                <div className="wk-totals">
-                  {selOrder.shippingTotal > 0 && (
-                    <div className="wk-totals-row">
-                      <span>{selOrder.shippingMethod || 'Shipping'}</span>
-                      <span>{Math.round(selOrder.shippingTotal).toLocaleString('en-GB')}</span>
-                    </div>
-                  )}
-                  {selOrder.discountTotal > 0 && (
-                    <div className="wk-totals-row" style={{ color: '#27ae60' }}>
-                      <span>Discount</span>
-                      <span>− {Math.round(selOrder.discountTotal).toLocaleString('en-GB')}</span>
-                    </div>
-                  )}
-                  {selOrder.fees.map((f, i) => (
-                    <div key={i} className="wk-totals-row">
-                      <span>{f.name}</span>
-                      <span>{Math.round(f.total).toLocaleString('en-GB')}</span>
-                    </div>
-                  ))}
-                  <div className="wk-totals-grand">
-                    <span>Total</span>
-                    <span>{Math.round(selOrder.total).toLocaleString('en-GB')} EGP</span>
-                  </div>
-                </div>
-
-                {/* Payment + note */}
-                {(selOrder.paymentMethod || selOrder.customerNote) && (
-                  <div className="wk-info-grid">
-                    {selOrder.paymentMethod && <div><span>Payment</span>{selOrder.paymentMethod}</div>}
-                    {selOrder.customerNote  && <div style={{ gridColumn: '1 / -1' }}><span>Note</span>{selOrder.customerNote}</div>}
-                  </div>
-                )}
-
-              </>)}
-            </div>
+      {selOrderLoad === 'done' && selOrder ? (
+        // Same order popup as the rest of the ERP: phases, item journeys, cancellation, WA/Call, payment & shipping.
+        <OrderDetailSheet
+          order={selOrder}
+          onBack={closeOrderDetail}
+          onClose={() => { closeOrderDetail(); setModal(null); }}
+        />
+      ) : (selOrderLoad === 'loading' || selOrderLoad === 'error') && (
+        <div className="wk-detail-overlay" onClick={closeOrderDetail}>
+          <div className="wk-detail-modal" onClick={e => e.stopPropagation()} style={{ padding: 24, textAlign: 'center', fontSize: 13 }}>
+            {selOrderLoad === 'loading'
+              ? <span style={{ color: '#7A6F65' }}>Loading order…</span>
+              : <span style={{ color: '#b0341e' }}>{selOrderErr}</span>}
           </div>
         </div>
       )}
