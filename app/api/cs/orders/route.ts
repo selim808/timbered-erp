@@ -7,9 +7,6 @@ import type { PipelineLineItem } from '@/app/api/pipeline/orders/route';
 
 export interface CsLineItem extends PipelineLineItem {
   phaseUpdatedAt: string | null;
-  expectedDays: number | null;
-  daysInPhase: number | null;
-  isDelayed: boolean;
 }
 
 export interface CsOrder {
@@ -34,11 +31,10 @@ export interface CsOrder {
   upsellOffered: boolean;
   upsellAccepted: boolean | null;
   upsellNote: string | null;
-  isDelayed: boolean;
 }
 
 // GET: WC "processing" orders enriched with cs_order_state + current
-// production phase (Shopify metafield) + per-phase delay threshold (phases.expected_days).
+// production phase (Shopify metafield).
 // Any order without a cs_order_state row yet is lazily seeded as 'new',
 // mirroring the phase auto-seed in app/api/pipeline/orders/route.ts.
 export async function GET() {
@@ -47,9 +43,8 @@ export async function GET() {
     const db = createAdminClient();
     const orderIds = wcOrders.map((o: any) => String(o.id));
 
-    const [{ data: csRows }, { data: phases }, { data: stockRows }] = await Promise.all([
+    const [{ data: csRows }, { data: stockRows }] = await Promise.all([
       db.from('cs_order_state').select('*').in('wc_order_id', orderIds),
-      db.from('phases').select('name, expected_days').eq('is_active', true),
       db.from('stockcount').select('product_id, stock').in(
         'product_id',
         [...new Set(wcOrders.flatMap((o: any) => (o.line_items ?? []).map((li: any) => li.product_id as number)))]
@@ -67,23 +62,15 @@ export async function GET() {
       (seeded ?? []).forEach((r: any) => csMap.set(r.wc_order_id, r));
     }
 
-    const expectedDaysByPhase = new Map<string, number>();
-    (phases ?? []).forEach((p: any) => {
-      if (p.expected_days != null) expectedDaysByPhase.set(p.name, p.expected_days);
-    });
 
 
     const stockMap = new Map<number, number>();
     (stockRows ?? []).forEach((r: any) => stockMap.set(Number(r.product_id), r.stock ?? 0));
 
-    const now = Date.now();
     const orders: CsOrder[] = wcOrders.map((o: any) => {
       const cs = csMap.get(String(o.id));
       const lineItems: CsLineItem[] = (o.line_items ?? []).map((li: any) => {
         const entry = itemPhaseOf(o, li.id);
-        const expectedDays = entry ? expectedDaysByPhase.get(entry.phase) ?? null : null;
-        const daysInPhase = entry ? Math.floor((now - new Date(entry.updatedAt).getTime()) / 86400000) : null;
-        const isDelayed = expectedDays != null && daysInPhase != null && daysInPhase > expectedDays;
         return {
           id: li.id,
           productId: li.product_id,
@@ -96,9 +83,6 @@ export async function GET() {
           stock: stockMap.get(li.product_id) ?? 0,
           orderedQty: li.quantity,
           phaseUpdatedAt: entry?.updatedAt ?? null,
-          expectedDays,
-          daysInPhase,
-          isDelayed,
         };
       });
 
@@ -113,7 +97,6 @@ export async function GET() {
         upsellOffered: cs?.upsell_offered ?? false,
         upsellAccepted: cs?.upsell_accepted ?? null,
         upsellNote: cs?.upsell_note ?? null,
-        isDelayed: lineItems.some(li => li.isDelayed),
       };
     });
 

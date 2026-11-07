@@ -94,7 +94,7 @@ export default function PostDeliveryIssuesTab() {
       {loadState === 'done' && issues.length > 0 && (
         <div className="cs-list">
           {issues.map(i => (
-            <div key={i.id} className={`cs-card${i.status !== 'resolved' ? ' delayed' : ''}`}>
+            <div key={i.id} className={`cs-card${i.status !== 'resolved' ? ' alert' : ''}`}>
               <div className="cs-card-top">
                 <span className="cs-badge">{i.issue_type.replace('_', ' ')}</span>
                 <span className="cs-num">Order {i.wc_order_id}</span>

@@ -7,13 +7,11 @@ import { CS_STATUSES, CS_STATUS_LABEL } from './csShared';
 
 interface Props {
   order: CsOrder;
-  mode: 'queue' | 'delay';
   onChanged: () => void;
 }
 
-// Shared order card used by both Call Queue and Delay Flags — they read the
-// same /api/cs/orders list, just filtered differently, so they share one row.
-export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
+// Order card used by the Call Queue (reads /api/cs/orders).
+export default function CsOrderRow({ order: o, onChanged }: Props) {
   const [status, setStatus] = useState(o.csStatus);
   const [note, setNote] = useState('');
   const [depositRequired, setDepositRequired] = useState(o.depositRequired);
@@ -23,7 +21,6 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
 
   const wp = o.customerPhone ? waPhone(o.customerPhone) : '';
-  const delayedItems = o.lineItems.filter(li => li.isDelayed);
 
   async function updateStatus(toStatus: string, autoNote?: string) {
     setBusy(true);
@@ -71,7 +68,7 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
   }
 
   return (
-    <div className={`cs-card${o.isDelayed ? ' delayed' : ''}`}>
+    <div className="cs-card">
       <div className="cs-card-top">
         <span className="cs-badge">{o.daysOpen}d</span>
         <span className="cs-num">{o.number}</span>
@@ -89,24 +86,11 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
 
       <div className="cs-items">
         {o.lineItems.map(li => (
-          <span key={li.id} className={`cs-item${li.isDelayed ? ' delayed' : ''}`}>
+          <span key={li.id} className="cs-item">
             {li.quantity}× {li.name} · {li.phase}
-            {li.isDelayed && li.daysInPhase != null ? ` (${li.daysInPhase}d, expected ${li.expectedDays}d)` : ''}
           </span>
         ))}
       </div>
-
-      {mode === 'delay' && delayedItems.length > 0 && o.csStatus !== 'delayed' && (
-        <div className="cs-row-actions">
-          <button
-            className="cs-btn danger"
-            disabled={busy}
-            onClick={() => updateStatus('delayed', 'Customer notified of production delay')}
-          >
-            Flag delayed &amp; log notification
-          </button>
-        </div>
-      )}
 
       <div className="cs-row-actions">
         <select className="cs-select" value={status} onChange={e => setStatus(e.target.value)} disabled={busy}>
@@ -124,8 +108,7 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
         )}
       </div>
 
-      {mode === 'queue' && (
-        <>
+      <>
           <div className="cs-row-actions">
             <label className="cs-check">
               <input type="checkbox" checked={depositRequired} onChange={e => setDepositRequired(e.target.checked)} />
@@ -157,8 +140,7 @@ export default function CsOrderRow({ order: o, mode, onChanged }: Props) {
             </label>
             <button className="cs-btn ghost" disabled={busy} onClick={saveUpsell}>Save upsell</button>
           </div>
-        </>
-      )}
+      </>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CsOrder } from '@/app/api/cs/orders/route';
 
-/** Shared fetch for the "processing" orders view (Call Queue + Delay Flags read the same list). */
+/** Shared fetch for the "processing" orders view (Call Queue). */
 export function useCsOrders() {
   const [orders, setOrders] = useState<CsOrder[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'done' | 'error'>('loading');
@@ -41,7 +41,7 @@ export function useCsToast() {
 
 export const CS_STATUSES = [
   'new', 'called', 'confirmed', 'deposit_pending', 'deposit_paid',
-  'in_production', 'delayed', 'delivered', 'review_requested', 'closed',
+  'in_production', 'delivered', 'review_requested', 'closed',
 ] as const;
 
 export type CsStatus = typeof CS_STATUSES[number] | 'cancelled';
@@ -53,7 +53,6 @@ export const CS_STATUS_LABEL: Record<string, string> = {
   deposit_pending: 'Deposit Pending',
   deposit_paid: 'Deposit Paid',
   in_production: 'In Production',
-  delayed: 'Delayed',
   delivered: 'Delivered',
   review_requested: 'Review Requested',
   closed: 'Closed',
@@ -80,7 +79,7 @@ export const CS_CSS = `
 .cs-state { background:#fff; border-radius:10px; padding:32px; text-align:center; color:#999; font-size:14px; border:1px solid #e8ddd4; }
 .cs-list { display:flex; flex-direction:column; gap:10px; }
 .cs-card { background:#fff; border:1px solid #e8ddd4; border-radius:10px; padding:12px 14px; }
-.cs-card.delayed { border-color:#f1a9a0; background:#fdf7f6; }
+.cs-card.alert { border-color:#f1a9a0; background:#fdf7f6; }
 .cs-card-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .cs-num { font-weight:700; color:#7A4610; font-size:13px; }
 .cs-cust { font-size:13px; color:#333; flex:1; min-width:0; }
@@ -91,7 +90,6 @@ export const CS_CSS = `
 .cs-sub { font-size:12px; color:#888; margin-top:6px; display:flex; gap:12px; flex-wrap:wrap; }
 .cs-items { margin-top:6px; display:flex; flex-wrap:wrap; gap:6px; }
 .cs-item { font-size:11px; color:#777; background:#f6f1ea; border-radius:6px; padding:2px 7px; }
-.cs-item.delayed { background:#fdecea; color:#c0392b; }
 .cs-contact { display:flex; gap:8px; margin-top:8px; }
 .cs-contact-btn { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; border-radius:20px; padding:4px 12px; text-decoration:none; border:none; cursor:pointer; flex-shrink:0; }
 .cs-contact-btn.wa { background:#25D366; color:#fff; }
@@ -107,8 +105,6 @@ export const CS_CSS = `
 .cs-btn:disabled { opacity:.5; cursor:not-allowed; }
 .cs-btn.ghost { background:#f5f0eb; color:#7A4610; }
 .cs-btn.ghost:hover { background:#ede5dc; }
-.cs-btn.danger { background:#c0392b; }
-.cs-btn.danger:hover { background:#a53125; }
 .cs-check { display:inline-flex; align-items:center; margin-top:8px; }
 .cs-notes { margin-top:8px; border-top:1px solid #f0e8e0; padding-top:8px; }
 .cs-note { font-size:11px; color:#777; padding:3px 0; }

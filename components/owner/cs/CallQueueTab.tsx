@@ -29,7 +29,7 @@ export default function CallQueueTab() {
       {loadState === 'done' && queue.length > 0 && (
         <>
           <div className="cs-list">
-            {pageItems.map(o => <CsOrderRow key={o.id} order={o} mode="queue" onChanged={reload} />)}
+            {pageItems.map(o => <CsOrderRow key={o.id} order={o} onChanged={reload} />)}
           </div>
           {totalPages > 1 && (
             <div className="cs-pager">

@@ -7,9 +7,7 @@ export async function GET(req: Request) {
   const db = createAdminClient();
   let q = db
     .from('phases')
-    // '*' rather than a column list: expected_days is read by the Phases page but the
-    // column may not exist in the database, and naming it made this whole list fail.
-    .select('*')
+    .select('id, phase_group_id, name, sort_order')
     .eq('is_active', true)
     .order('sort_order', { ascending: true });
   if (groupId) q = q.eq('phase_group_id', groupId);

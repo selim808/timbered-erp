@@ -4,7 +4,6 @@ import { useState } from 'react';
 import CancelledOrdersTab from '@/components/owner/CancelledOrdersTab';
 import { CS_CSS } from '@/components/owner/cs/csShared';
 import CallQueueTab from '@/components/owner/cs/CallQueueTab';
-import DelayFlagsTab from '@/components/owner/cs/DelayFlagsTab';
 import PostDeliveryIssuesTab from '@/components/owner/cs/PostDeliveryIssuesTab';
 import ReviewFollowupTab from '@/components/owner/cs/ReviewFollowupTab';
 import ReturnsTab from '@/components/owner/cs/ReturnsTab';
@@ -14,7 +13,6 @@ import UpsellTab from '@/components/owner/cs/UpsellTab';
 
 const TABS = [
   { key: 'queue', label: 'Call Queue' },
-  { key: 'delay', label: 'Delay Flags' },
   { key: 'cancellations', label: 'Cancellations' },
   { key: 'issues', label: 'Post-Delivery Issues' },
   { key: 'followup', label: 'Review Follow-up' },
@@ -47,7 +45,6 @@ export default function CustomerServicePage() {
 
       <div className="cs-body">
         {tab === 'queue' && <CallQueueTab />}
-        {tab === 'delay' && <DelayFlagsTab />}
         {tab === 'cancellations' && <CancelledOrdersTab />}
         {tab === 'issues' && <PostDeliveryIssuesTab />}
         {tab === 'followup' && <ReviewFollowupTab />}

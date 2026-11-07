@@ -95,7 +95,7 @@ export default function IssueFlagsTab() {
       {loadState === 'done' && flags.length > 0 && (
         <div className="cs-list">
           {flags.map(f => (
-            <div key={f.id} className={`cs-card${f.severity === 'high' && f.status === 'open' ? ' delayed' : ''}`}>
+            <div key={f.id} className={`cs-card${f.severity === 'high' && f.status === 'open' ? ' alert' : ''}`}>
               <div className="cs-card-top">
                 <span className="cs-badge">{f.severity}</span>
                 <span className="cs-cust">{f.product_name ?? `Product ${f.product_id}`}</span>
