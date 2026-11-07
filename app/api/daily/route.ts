@@ -3,7 +3,6 @@ import { fetchOrders } from '@/lib/commerce/orders';
 import type { CommerceOrder } from '@/lib/commerce/types';
 import { getActivePhases } from '@/lib/phases/kanban';
 import { fetchAdSpend } from '@/lib/meta';
-import { dailySalesTarget } from '@/lib/salesTargets';
 
 export const maxDuration = 60;
 
@@ -11,6 +10,8 @@ const TZ = 'Africa/Cairo';
 const DAY_MS = 86_400_000;
 const STUCK_DAYS = 7;
 const MAX_DAYS_BACK = 60;
+/** Placed-orders value aimed for each day (EGP). */
+const DAILY_TARGET = 50_000;
 
 // ─── Response shape ─────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ export interface DailyResponse {
   /** YYYY-MM-DD, Cairo. */
   date: string;
   isToday: boolean;
-  /** This month's sales plan ÷ days in the month. */
+  /** Fixed daily placed-value target (DAILY_TARGET). */
   target: number;
   placed: DayTotals & { yday: DayTotals };
   completed: DayTotals & { yday: DayTotals };
@@ -227,10 +228,9 @@ export async function GET(req: Request) {
       stuck.sort((a, b) => b.days - a.days);
     }
 
-    const [y, m] = date.split('-').map(Number);
     const body: DailyResponse = {
       date, isToday,
-      target: dailySalesTarget(y, m),
+      target: DAILY_TARGET,
       placed:    { ...totals(placedOn(day)),    yday: totals(placedOn(prev)) },
       completed: { ...totals(completedOn(day)), yday: totals(completedOn(prev)) },
       cancelled: {
