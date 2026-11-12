@@ -9,7 +9,7 @@ import type { WeekEntry } from '@/app/api/weekly/route';
 import type { OrderRow } from '@/app/api/weekly/orders/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
-import CashExpenseCards from '@/components/shared/CashExpenseCards';
+import CashExpenseCards, { CashExpenseDaily } from '@/components/shared/CashExpenseCards';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -387,6 +387,13 @@ export default function WeeklySection() {
             </tbody>
           </table>
         </div>
+
+        {/* Daily cash in / expenses table (accounting sheet) */}
+        <CashExpenseDaily
+          dates={dayDates}
+          highlight={isCurWeek ? today : undefined}
+          periodLabel={`W${String(selWeek.weekNo).padStart(2, '0')} (${fmtDay(selWeek.startDate, { day: '2-digit', month: 'short' })} – ${fmtDay(selWeek.endDate, { day: '2-digit', month: 'short' })})`}
+        />
 
         {/* Year + range selectors */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'start' }}>

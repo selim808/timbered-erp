@@ -92,7 +92,6 @@ export function expenseGroup(bucket: string): string {
   return 'Other';
 }
 
-export const EXPENSE_GROUPS = ['COGS', 'Marketing', 'Fixed costs', 'Logistics', 'Losses', 'Other'];
 
 // ─── Reading ────────────────────────────────────────────────────────────────
 

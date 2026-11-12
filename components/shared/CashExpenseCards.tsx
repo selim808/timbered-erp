@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { AccountingResponse, AccountingSide } from '@/app/api/accounting/route';
+import { Fragment, useEffect, useState } from 'react';
+import type { AccountingResponse } from '@/app/api/accounting/route';
+import { EXPENSE_GROUPS, summarise, type AccountingSide } from '@/lib/accountingSummary';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 
@@ -50,6 +51,17 @@ const STYLES = `
 .cx-tag.warn { background:#fdecea; color:#c0392b; }
 .cx-ord { font-weight:700; color:#7A4610; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; font:inherit; font-size:12px; }
 .cx-empty { padding:20px; text-align:center; color:#9e9087; font-size:13px; }
+.cx-dwrap { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:10px 12px; }
+.cx-dtitle { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#7A6F65; margin-bottom:6px; }
+.cx-dtitle span { font-weight:600; text-transform:none; letter-spacing:0; color:#9e9087; }
+.cx-dtbl { width:100%; border-collapse:collapse; font-size:12px; }
+.cx-dtbl th { text-align:center; font-size:11px; font-weight:600; padding:4px 6px; color:#888; border-bottom:1px solid #E8D9C4; }
+.cx-dtbl td { text-align:center; padding:4px 6px; }
+.cx-dlbl { text-align:left !important; font-size:11px; font-weight:600; white-space:nowrap; padding-right:8px !important; }
+.cx-dcell { background:none; border:none; padding:4px 6px; cursor:pointer; width:100%; text-align:center; font:inherit; font-size:12px; }
+.cx-dcell:hover { text-decoration:underline; }
+.cx-dnone { display:block; text-align:center; padding:4px 6px; color:#ccc; }
+.cx-dnet td { border-top:1px solid #F0E6D8; }
 `;
 
 /**
@@ -110,6 +122,117 @@ export default function CashExpenseCards({ from, to, periodLabel }: { from: stri
       </div>
       {open && data && (
         <Breakdown side={data[open]} sideKey={open} periodLabel={periodLabel} onClose={() => setOpen(null)} />
+      )}
+    </>
+  );
+}
+
+/** "46K", "4.2K", "435" */
+const fmtShort = (n: number) => {
+  const a = Math.abs(n);
+  if (a < 1000) return String(Math.round(n));
+  return `${(n / 1000).toFixed(a < 10_000 ? 1 : 0)}K`;
+};
+
+/**
+ * Cash in / Expenses / Net per day for a run of days (e.g. a week), from the
+ * accounting sheet. Each cash-in or expense cell opens that day's breakdown;
+ * the Total column opens the whole period's.
+ */
+export function CashExpenseDaily({ dates, highlight, periodLabel }: {
+  /** YYYY-MM-DD, in display order. */
+  dates: string[];
+  /** A date to emphasise (today). */
+  highlight?: string;
+  periodLabel: string;
+}) {
+  const from = dates[0], to = dates[dates.length - 1];
+  const [loaded, setData] = useState<AccountingResponse | null>(null);
+  const [error, setError] = useState('');
+  const [open, setOpen] = useState<{ key: SideKey; side: AccountingSide; label: string } | null>(null);
+  // Only show data for the days on screen (a week switch shows "Loading…" until it arrives).
+  const data = loaded && loaded.from === from && loaded.to === to ? loaded : null;
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/accounting?from=${from}&to=${to}`)
+      .then(r => r.json())
+      .then((d: AccountingResponse & { error?: string }) => {
+        if (!live) return;
+        if (d.error) throw new Error(d.error);
+        setData(d);
+        setError('');
+      })
+      .catch((e: Error) => { if (live) setError(e.message); });
+    return () => { live = false; };
+  }, [from, to]);
+
+  const dayOf = (key: SideKey, date: string) => {
+    const side = data![key];
+    return summarise(side.entries.filter(e => e.date === date), key === 'expenses' ? EXPENSE_GROUPS : undefined);
+  };
+
+  const cell = (key: SideKey, side: AccountingSide, label: string, bold: boolean) => (
+    <td style={{ padding: 0 }}>
+      {side.count ? (
+        <button className="cx-dcell" style={{ color: SIDES[key].color, fontWeight: bold ? 700 : 600 }}
+          onClick={() => setOpen({ key, side, label })}>{fmtShort(side.total)}</button>
+      ) : <span className="cx-dnone">—</span>}
+    </td>
+  );
+
+  return (
+    <>
+      <style>{STYLES}</style>
+      <div className="cx-dwrap">
+        <div className="cx-dtitle">Cash in &amp; expenses <span>· accounting sheet</span></div>
+        {error ? (
+          <div className="cx-note" style={{ color: '#b0341e' }}>Unavailable — {error}</div>
+        ) : !data ? (
+          <div className="cx-note">Loading…</div>
+        ) : (
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table className="cx-dtbl">
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left' }}></th>
+                  {dates.map(d => {
+                    const lbl = new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short' });
+                    return (
+                      <th key={d} style={d === highlight ? { color: '#B86E1A', fontWeight: 700 } : undefined}>
+                        {d === highlight ? <span style={{ background: '#fef3e2', borderRadius: 4, padding: '1px 5px' }}>{lbl}</span> : lbl}
+                      </th>
+                    );
+                  })}
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(['cashIn', 'expenses'] as const).map(key => (
+                  <tr key={key}>
+                    <td className="cx-dlbl" style={{ color: SIDES[key].color }}>{SIDES[key].title}</td>
+                    {dates.map(d => (
+                      <Fragment key={d}>{cell(key, dayOf(key, d), dayLabel(d), d === highlight)}</Fragment>
+                    ))}
+                    {cell(key, data[key], periodLabel, true)}
+                  </tr>
+                ))}
+                <tr className="cx-dnet">
+                  <td className="cx-dlbl">Net</td>
+                  {[...dates.map(d => dayOf('cashIn', d).total - dayOf('expenses', d).total),
+                    data.cashIn.total - data.expenses.total].map((n, i) => (
+                    <td key={i} style={{ color: n === 0 ? '#ccc' : n > 0 ? '#1e8449' : '#c0392b', fontWeight: i === dates.length ? 700 : 600 }}>
+                      {n === 0 ? '—' : `${n > 0 ? '+' : '−'}${fmtShort(Math.abs(n))}`}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {open && (
+        <Breakdown side={open.side} sideKey={open.key} periodLabel={open.label} onClose={() => setOpen(null)} />
       )}
     </>
   );
