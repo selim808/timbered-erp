@@ -7,12 +7,11 @@
 
 const SHEET_ID = process.env.ACCOUNTING_SHEET_ID ?? '1iToqTUU7m7B03UstNvavVt1MGoFzAmo_K88LcgtyU9o';
 
-/** Tabs read, by gid. "Copy of Expenses Omar" is deliberately left out. */
+/** Tabs read, by gid. "Copy of Expenses Omar" and "Expenses others" are deliberately left out. */
 const CASH_TABS = [{ name: 'Cash in', gid: '766490067' }];
 const EXPENSE_TABS = [
   { name: 'Expenses Omar',      gid: '43369540' },
   { name: 'Expenses Saied',     gid: '0' },
-  { name: 'Expenses others',    gid: '1260930337' },
   { name: 'Marketing Expenses', gid: '185202289' },
 ];
 
