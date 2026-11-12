@@ -5,6 +5,7 @@ import LoadingDots from './LoadingDots';
 import type { DailyResponse, DayTotals, MoveRow, StuckRow } from '@/app/api/daily/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
+import CashExpenseCards from '@/components/shared/CashExpenseCards';
 import { groupColor } from '@/lib/phaseGroupColors';
 import { cairoNowLabel, shareElementAsImage } from '@/lib/shareImage';
 
@@ -214,6 +215,9 @@ export default function DailySection() {
           {card('Completed', completed, '#1e8449', true)}
           {card('Cancelled', cancelled, '#c0392b', false)}
         </div>
+
+        {/* Cash in & expenses (accounting sheet) */}
+        <CashExpenseCards from={data.date} to={data.date} periodLabel={dayLabel(data.date)} />
 
         {/* Target & ad spend */}
         <div className="dl-panel">

@@ -9,6 +9,7 @@ import type { DurationBuckets, MonthEntry, WeekInMonth } from '@/app/api/monthly
 import type { OrderRow } from '@/app/api/monthly/orders/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
+import CashExpenseCards from '@/components/shared/CashExpenseCards';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -447,6 +448,9 @@ export default function MonthlySection() {
             </div>
           ))}
         </div>
+
+        {/* Cash in & expenses (accounting sheet) */}
+        <CashExpenseCards from={startDate} to={endDate} periodLabel={`${MONTH_FULL[selMonth.month - 1]} ${selMonth.year}`} />
 
         {/* Weekly breakdown table */}
         <div className="mo-card" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
