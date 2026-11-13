@@ -50,6 +50,9 @@ const STYLES = `
 .cx-tag { display:inline-block; font-size:10px; font-weight:700; border-radius:8px; padding:0 6px; margin-left:4px; background:#fef3e2; color:#7A4610; }
 .cx-tag.warn { background:#fdecea; color:#c0392b; }
 .cx-ord { font-weight:700; color:#7A4610; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; font:inherit; font-size:12px; }
+.cx-sort { display:flex; align-items:center; gap:6px; padding:6px 12px; border-bottom:1px solid #F0E6D8; font-size:11px; color:#9e9087; }
+.cx-sort-btn { border:1px solid #E8D9C4; background:#fff; border-radius:10px; padding:2px 9px; font:inherit; font-size:11px; font-weight:600; color:#7A6F65; cursor:pointer; }
+.cx-sort-btn.active { border-color:#7A4610; color:#7A4610; background:#fef3e2; }
 .cx-empty { padding:20px; text-align:center; color:#9e9087; font-size:13px; }
 .cx-dwrap { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:10px 12px; }
 .cx-dtitle { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#7A6F65; margin-bottom:6px; }
@@ -260,6 +263,7 @@ function Breakdown({ side, sideKey, periodLabel, onClose }: {
 }) {
   const s = SIDES[sideKey];
   const [group, setGroup] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'value'>('newest');
   const [order, setOrder] = useState<PipelineOrder | null>(null);
   const [orderState, setOrderState] = useState<'idle' | 'loading' | 'error'>('idle');
 
@@ -269,7 +273,11 @@ function Breakdown({ side, sideKey, periodLabel, onClose }: {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, order]);
 
-  const entries = group ? side.entries.filter(e => e.group === group) : side.entries;
+  const filtered = group ? side.entries.filter(e => e.group === group) : side.entries;
+  const entries = [...filtered].sort((a, b) =>
+    sortBy === 'value' ? b.amount - a.amount || b.date.localeCompare(a.date)
+    : sortBy === 'oldest' ? a.date.localeCompare(b.date) || b.amount - a.amount
+    : b.date.localeCompare(a.date) || b.amount - a.amount);
   const sel = group ? side.groups.find(g => g.name === group) : null;
 
   function openOrder(num: string) {
@@ -311,6 +319,13 @@ function Breakdown({ side, sideKey, periodLabel, onClose }: {
             {sel.buckets.map(b => <span key={b.name}>{b.name}: <b>{fmt(b.total)}</b></span>)}
           </div>
         )}
+
+        <div className="cx-sort">
+          <span>Sort</span>
+          {([['newest', 'Newest'], ['oldest', 'Oldest'], ['value', 'Highest value']] as const).map(([k, l]) => (
+            <button key={k} className={`cx-sort-btn${sortBy === k ? ' active' : ''}`} onClick={() => setSortBy(k)}>{l}</button>
+          ))}
+        </div>
 
         <div style={{ overflowY: 'auto' }}>
           {entries.length === 0 ? <div className="cx-empty">No entries.</div> : (
