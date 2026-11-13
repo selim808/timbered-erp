@@ -9,7 +9,7 @@ import type { DurationBuckets, MonthEntry, WeekInMonth } from '@/app/api/monthly
 import type { OrderRow } from '@/app/api/monthly/orders/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
-import CashExpenseCards from '@/components/shared/CashExpenseCards';
+import CashExpenseCards, { CashExpenseTable } from '@/components/shared/CashExpenseCards';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -238,6 +238,7 @@ export default function MonthlySection() {
     const data   = weeksMap[key];
     return {
       label: `W${i + 1}`,
+      sunStr, endDt,
       rangeLabel: `${fmtDay(sunStr, { day: '2-digit', month: 'short' })} – ${fmtDay(endDt, { day: '2-digit', month: 'short' })}`,
       completed: data?.completed ?? 0,
       cancelled: data?.cancelled ?? 0,
@@ -485,6 +486,20 @@ export default function MonthlySection() {
             </tbody>
           </table>
         </div>
+
+        {/* Weekly cash in / expenses table (accounting sheet), each week clipped to this month */}
+        <CashExpenseTable
+          periodLabel={`${MONTH_FULL[selMonth.month - 1]} ${selMonth.year}`}
+          columns={tableWeeks.map(w => {
+            const from = w.sunStr < startDate ? startDate : w.sunStr;
+            const to = w.endDt > endDate ? endDate : w.endDt;
+            return {
+              label: w.label, sub: w.rangeLabel, from, to,
+              popupLabel: `${w.label} of ${MONTH_FULL[selMonth.month - 1]} (${fmtDay(from, { day: '2-digit', month: 'short' })} – ${fmtDay(to, { day: '2-digit', month: 'short' })})`,
+              highlight: isCurMonth && from <= toDateStr(today) && toDateStr(today) <= to,
+            };
+          })}
+        />
 
         {/* Year + range selectors */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, alignItems: 'start' }}>

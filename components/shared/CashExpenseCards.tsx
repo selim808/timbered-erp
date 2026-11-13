@@ -134,26 +134,42 @@ const fmtShort = (n: number) => {
   return `${(n / 1000).toFixed(a < 10_000 ? 1 : 0)}K`;
 };
 
+export interface CashExpenseColumn {
+  /** Column heading, e.g. "Thu" or "W2". */
+  label: string;
+  /** Small second heading line, e.g. "08 Nov – 14 Nov". */
+  sub?: string;
+  /** Inclusive YYYY-MM-DD range the column covers. */
+  from: string;
+  to: string;
+  /** Title of the breakdown popup for this column. */
+  popupLabel: string;
+  /** Emphasise this column (today / this week). */
+  highlight?: boolean;
+}
+
+/** A column for each day, headed by weekday. */
+export const dayColumns = (dates: string[], today?: string): CashExpenseColumn[] => dates.map(d => ({
+  label: new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short' }),
+  from: d, to: d, popupLabel: dayLabel(d), highlight: d === today,
+}));
+
 /**
- * Cash in / Expenses / Net per day for a run of days (e.g. a week), from the
- * accounting sheet. Each cash-in or expense cell opens that day's breakdown;
- * the Total column opens the whole period's.
+ * Cash in / Expenses / Net per column (days of a week, weeks of a month), from
+ * the accounting sheet. Each cash-in or expense cell opens that column's
+ * breakdown; the Total column opens the whole period's.
  */
-export function CashExpenseDaily({ dates, highlight, periodLabel }: {
-  /** YYYY-MM-DD, in display order. */
-  dates: string[];
-  /** A date to emphasise (today). */
-  highlight?: string;
-  periodLabel: string;
-}) {
-  const from = dates[0], to = dates[dates.length - 1];
+export function CashExpenseTable({ columns, periodLabel }: { columns: CashExpenseColumn[]; periodLabel: string }) {
+  const from = columns.reduce((m, c) => (c.from < m ? c.from : m), columns[0]?.from ?? '');
+  const to = columns.reduce((m, c) => (c.to > m ? c.to : m), columns[0]?.to ?? '');
   const [loaded, setData] = useState<AccountingResponse | null>(null);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<{ key: SideKey; side: AccountingSide; label: string } | null>(null);
-  // Only show data for the days on screen (a week switch shows "Loading…" until it arrives).
+  // Only show data for the period on screen (switching shows "Loading…" until it arrives).
   const data = loaded && loaded.from === from && loaded.to === to ? loaded : null;
 
   useEffect(() => {
+    if (!from) return;
     let live = true;
     fetch(`/api/accounting?from=${from}&to=${to}`)
       .then(r => r.json())
@@ -167,10 +183,8 @@ export function CashExpenseDaily({ dates, highlight, periodLabel }: {
     return () => { live = false; };
   }, [from, to]);
 
-  const dayOf = (key: SideKey, date: string) => {
-    const side = data![key];
-    return summarise(side.entries.filter(e => e.date === date), key === 'expenses' ? EXPENSE_GROUPS : undefined);
-  };
+  const colSide = (key: SideKey, c: CashExpenseColumn) =>
+    summarise(data![key].entries.filter(e => e.date >= c.from && e.date <= c.to), key === 'expenses' ? EXPENSE_GROUPS : undefined);
 
   const cell = (key: SideKey, side: AccountingSide, label: string, bold: boolean) => (
     <td style={{ padding: 0 }}>
@@ -181,6 +195,11 @@ export function CashExpenseDaily({ dates, highlight, periodLabel }: {
     </td>
   );
 
+  const sides = data && {
+    cashIn: columns.map(c => colSide('cashIn', c)),
+    expenses: columns.map(c => colSide('expenses', c)),
+  };
+
   return (
     <>
       <style>{STYLES}</style>
@@ -188,7 +207,7 @@ export function CashExpenseDaily({ dates, highlight, periodLabel }: {
         <div className="cx-dtitle">Cash in &amp; expenses <span>· accounting sheet</span></div>
         {error ? (
           <div className="cx-note" style={{ color: '#b0341e' }}>Unavailable — {error}</div>
-        ) : !data ? (
+        ) : !data || !sides ? (
           <div className="cx-note">Loading…</div>
         ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -196,14 +215,12 @@ export function CashExpenseDaily({ dates, highlight, periodLabel }: {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}></th>
-                  {dates.map(d => {
-                    const lbl = new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short' });
-                    return (
-                      <th key={d} style={d === highlight ? { color: '#B86E1A', fontWeight: 700 } : undefined}>
-                        {d === highlight ? <span style={{ background: '#fef3e2', borderRadius: 4, padding: '1px 5px' }}>{lbl}</span> : lbl}
-                      </th>
-                    );
-                  })}
+                  {columns.map(c => (
+                    <th key={c.from} style={c.highlight ? { color: '#B86E1A', fontWeight: 700 } : undefined}>
+                      <div>{c.highlight ? <span style={{ background: '#fef3e2', borderRadius: 4, padding: '1px 5px' }}>{c.label}</span> : c.label}</div>
+                      {c.sub && <div style={{ fontSize: 10, color: '#bbb', fontWeight: 500 }}>{c.sub}</div>}
+                    </th>
+                  ))}
                   <th>Total</th>
                 </tr>
               </thead>
@@ -211,17 +228,17 @@ export function CashExpenseDaily({ dates, highlight, periodLabel }: {
                 {(['cashIn', 'expenses'] as const).map(key => (
                   <tr key={key}>
                     <td className="cx-dlbl" style={{ color: SIDES[key].color }}>{SIDES[key].title}</td>
-                    {dates.map(d => (
-                      <Fragment key={d}>{cell(key, dayOf(key, d), dayLabel(d), d === highlight)}</Fragment>
+                    {columns.map((c, i) => (
+                      <Fragment key={c.from}>{cell(key, sides[key][i], c.popupLabel, !!c.highlight)}</Fragment>
                     ))}
                     {cell(key, data[key], periodLabel, true)}
                   </tr>
                 ))}
                 <tr className="cx-dnet">
                   <td className="cx-dlbl">Net</td>
-                  {[...dates.map(d => dayOf('cashIn', d).total - dayOf('expenses', d).total),
+                  {[...columns.map((_, i) => sides.cashIn[i].total - sides.expenses[i].total),
                     data.cashIn.total - data.expenses.total].map((n, i) => (
-                    <td key={i} style={{ color: n === 0 ? '#ccc' : n > 0 ? '#1e8449' : '#c0392b', fontWeight: i === dates.length ? 700 : 600 }}>
+                    <td key={i} style={{ color: n === 0 ? '#ccc' : n > 0 ? '#1e8449' : '#c0392b', fontWeight: i === columns.length ? 700 : 600 }}>
                       {n === 0 ? '—' : `${n > 0 ? '+' : '−'}${fmtShort(Math.abs(n))}`}
                     </td>
                   ))}
