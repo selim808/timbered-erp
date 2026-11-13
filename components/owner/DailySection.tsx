@@ -86,6 +86,9 @@ const STYLES = `
 .dl-tbl .num { text-align:right; white-space:nowrap; }
 .dl-ord { font-weight:700; color:#7A4610; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; font:inherit; font-size:12px; }
 .dl-move { font-size:11px; color:#7A6F65; }
+.dl-sort { display:flex; align-items:center; gap:6px; padding:6px 12px; border-bottom:1px solid #F0E6D8; font-size:11px; color:#9e9087; }
+.dl-sort-btn { border:1px solid #E8D9C4; background:#fff; border-radius:10px; padding:2px 9px; font:inherit; font-size:11px; font-weight:600; color:#7A6F65; cursor:pointer; }
+.dl-sort-btn.active { border-color:#7A4610; color:#7A4610; background:#fef3e2; }
 .dl-move b { color:#1C1A17; }
 `;
 
@@ -94,6 +97,21 @@ interface ListModal {
   color: string;
   kind: 'moves' | 'stuck';
   rows: (MoveRow | StuckRow)[];
+  /** Unset: newest first for movements, longest stuck first for stuck items. */
+  sort?: ListSort;
+}
+
+type ListSort = 'newest' | 'oldest' | 'value';
+
+/** When the row happened: the move's time, or when the item entered its phase. */
+const rowTime = (r: MoveRow | StuckRow) => ('to' in r ? r.at : r.since);
+
+function sortRows(list: ListModal): (MoveRow | StuckRow)[] {
+  const by = list.sort ?? (list.kind === 'stuck' ? 'oldest' : 'newest');
+  return [...list.rows].sort((a, b) =>
+    by === 'value' ? b.value - a.value || rowTime(b).localeCompare(rowTime(a))
+    : by === 'oldest' ? rowTime(a).localeCompare(rowTime(b))
+    : rowTime(b).localeCompare(rowTime(a)));
 }
 
 export default function DailySection() {
@@ -289,6 +307,18 @@ export default function DailySection() {
               </div>
               <button className="dl-modal-close" onClick={() => setList(null)} aria-label="Close">×</button>
             </div>
+            <div className="dl-sort">
+              <span>Sort</span>
+              {([
+                ['newest', list.kind === 'stuck' ? 'Most recent' : 'Newest'],
+                ['oldest', list.kind === 'stuck' ? 'Longest stuck' : 'Oldest'],
+                ['value', 'Highest value'],
+              ] as const).map(([k, l]) => (
+                <button key={k}
+                  className={`dl-sort-btn${(list.sort ?? (list.kind === 'stuck' ? 'oldest' : 'newest')) === k ? ' active' : ''}`}
+                  onClick={() => setList({ ...list, sort: k })}>{l}</button>
+              ))}
+            </div>
             <div style={{ overflowY: 'auto' }}>
               <table className="dl-tbl">
                 <thead>
@@ -298,7 +328,7 @@ export default function DailySection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.rows.map((r, i) => (
+                  {sortRows(list).map((r, i) => (
                     <tr key={`${r.orderNumber}-${i}`}>
                       <td><button className="dl-ord" onClick={() => openOrder(r.orderId)}>{r.orderNumber}</button></td>
                       <td>
