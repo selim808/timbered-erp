@@ -72,6 +72,9 @@ function chartLabelDisplay(l: string): string {
 
 // ─── CSS ─────────────────────────────────────────────────────────
 const STYLES = `
+.mo-sort { display:flex; align-items:center; gap:6px; padding:0 0 8px; font-size:11px; color:#9e9087; }
+.mo-sort-btn { border:1px solid #E8D9C4; background:#fff; border-radius:10px; padding:2px 9px; font:inherit; font-size:11px; font-weight:600; color:#7A6F65; cursor:pointer; }
+.mo-sort-btn.active { border-color:#7A4610; color:#7A4610; background:#fef3e2; }
   .mo-chart-title { text-align:center; font-size:14px; font-weight:700; color:#666; margin-bottom:-2px; }
   .mo-legend { display:grid; grid-template-columns:repeat(3, minmax(0, max-content)); justify-content:center; gap:4px 24px; font-size:12px; color:#666; }
   .mo-legend-col { display:flex; flex-direction:column; gap:4px; }
@@ -142,6 +145,7 @@ export default function MonthlySection() {
   const [errMsg, setErr]        = useState('');
   const [modal, setModal]       = useState<{ metric: string; label: string } | null>(null);
   const [modalOrders, setModalOrders] = useState<OrderRow[]>([]);
+  const [modalSort, setModalSort] = useState<'newest' | 'oldest' | 'value'>('value');
   const [modalLoad, setModalLoad]     = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [modalErr, setModalErr]       = useState('');
   const [selOrder, setSelOrder]       = useState<PipelineOrder | null>(null);
@@ -283,6 +287,7 @@ export default function MonthlySection() {
     setModal({ metric: m, label: `${metric} — ${MONTH_FULL[selMonth!.month - 1]} ${selMonth!.year}` });
     setModalLoad('loading');
     setModalOrders([]);
+    setModalSort('value');
     setModalErr('');
     fetch(`/api/monthly/orders?month=${selMonth!.key}&metric=${m}`)
       .then(r => r.json())
@@ -574,6 +579,14 @@ export default function MonthlySection() {
               {modalLoad === 'done' && modalOrders.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>No orders found</div>
               )}
+              {modalLoad === 'done' && modalOrders.length > 1 && (
+                <div className="mo-sort">
+                  <span>Sort</span>
+                  {([['newest', 'Newest'], ['oldest', 'Oldest'], ['value', 'Highest value']] as const).map(([k, l]) => (
+                    <button key={k} className={`mo-sort-btn${modalSort === k ? ' active' : ''}`} onClick={() => setModalSort(k)}>{l}</button>
+                  ))}
+                </div>
+              )}
               {modalLoad === 'done' && modalOrders.length > 0 && (
                 <table className="mo-ord-tbl">
                   <thead>
@@ -585,10 +598,16 @@ export default function MonthlySection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {modalOrders.map(o => (
+                    {[...modalOrders].sort((a, b) =>
+                      modalSort === 'value' ? b.total - a.total
+                      : modalSort === 'oldest' ? (a.at ?? '').localeCompare(b.at ?? '')
+                      : (b.at ?? '').localeCompare(a.at ?? '')).map(o => (
                       <tr key={o.id}>
                         <td><button className="mo-ord-num-btn" onClick={() => openOrderDetail(o.id)}>{o.number}</button></td>
-                        <td style={{ color: '#555' }}>{o.customer || '—'}</td>
+                        <td style={{ color: '#555' }}>
+                          {o.customer || '—'}
+                          {o.at && <div style={{ fontSize: 10, color: '#9e9087' }}>{new Date(o.at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}</div>}
+                        </td>
                         <td className="right" style={{ color: '#888' }}>{o.items}</td>
                         <td className="right" style={{ fontWeight: 600 }}>{Math.round(o.total).toLocaleString('en-GB')}</td>
                       </tr>

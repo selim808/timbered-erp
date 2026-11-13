@@ -37,6 +37,9 @@ function fmtDay(dateStr: string, opts: Intl.DateTimeFormatOptions) {
 
 // ─── CSS ─────────────────────────────────────────────────────────
 const STYLES = `
+.wk-sort { display:flex; align-items:center; gap:6px; padding:0 0 8px; font-size:11px; color:#9e9087; }
+.wk-sort-btn { border:1px solid #E8D9C4; background:#fff; border-radius:10px; padding:2px 9px; font:inherit; font-size:11px; font-weight:600; color:#7A6F65; cursor:pointer; }
+.wk-sort-btn.active { border-color:#7A4610; color:#7A4610; background:#fef3e2; }
 .wk-card { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:10px 12px; }
 .wk-label { display:block; font-size:10px; color:#9e9087; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; margin-bottom:3px; }
 .wk-kpi { font-size:18px; font-weight:700; margin-top:2px; }
@@ -101,6 +104,7 @@ export default function WeeklySection() {
   const [errMsg, setErr]        = useState('');
   const [modal, setModal]       = useState<{ date: string; metric: string; label: string } | null>(null);
   const [modalOrders, setModalOrders] = useState<OrderRow[]>([]);
+  const [modalSort, setModalSort] = useState<'newest' | 'oldest' | 'value'>('value');
   const [modalLoad, setModalLoad]     = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [modalErr, setModalErr]       = useState('');
   const [selOrder, setSelOrder]       = useState<PipelineOrder | null>(null);
@@ -229,6 +233,7 @@ export default function WeeklySection() {
     setModal({ date, metric: m, label: `${metric} — ${fmtDay(date, { weekday: 'short', day: '2-digit', month: 'short' })}` });
     setModalLoad('loading');
     setModalOrders([]);
+    setModalSort('value');
     setModalErr('');
     fetch(`/api/weekly/orders?date=${date}&metric=${m}`)
       .then(r => r.json())
@@ -246,6 +251,7 @@ export default function WeeklySection() {
     setModal({ date: '', metric: m, label: `${metric} — W${String(selWeek.weekNo).padStart(2, '0')} (${fmtDay(selWeek.startDate, { day: '2-digit', month: 'short' })} – ${fmtDay(selWeek.endDate, { day: '2-digit', month: 'short' })})` });
     setModalLoad('loading');
     setModalOrders([]);
+    setModalSort('value');
     setModalErr('');
     fetch(`/api/weekly/orders?start=${selWeek.startDate}&end=${selWeek.endDate}&metric=${m}`)
       .then(r => r.json())
@@ -453,6 +459,14 @@ export default function WeeklySection() {
               {modalLoad === 'done' && modalOrders.length === 0 && (
                 <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 13, color: '#7A6F65' }}>No orders found</div>
               )}
+              {modalLoad === 'done' && modalOrders.length > 1 && (
+                <div className="wk-sort">
+                  <span>Sort</span>
+                  {([['newest', 'Newest'], ['oldest', 'Oldest'], ['value', 'Highest value']] as const).map(([k, l]) => (
+                    <button key={k} className={`wk-sort-btn${modalSort === k ? ' active' : ''}`} onClick={() => setModalSort(k)}>{l}</button>
+                  ))}
+                </div>
+              )}
               {modalLoad === 'done' && modalOrders.length > 0 && (
                 <table className="wk-ord-tbl">
                   <thead>
@@ -464,10 +478,16 @@ export default function WeeklySection() {
                     </tr>
                   </thead>
                   <tbody>
-                    {modalOrders.map(o => (
+                    {[...modalOrders].sort((a, b) =>
+                      modalSort === 'value' ? b.total - a.total
+                      : modalSort === 'oldest' ? (a.at ?? '').localeCompare(b.at ?? '')
+                      : (b.at ?? '').localeCompare(a.at ?? '')).map(o => (
                       <tr key={o.id}>
                         <td><button className="wk-ord-num-btn" onClick={() => openOrderDetail(o.id)}>{o.number}</button></td>
-                        <td style={{ color: '#555' }}>{o.customer || '—'}</td>
+                        <td style={{ color: '#555' }}>
+                          {o.customer || '—'}
+                          {o.at && <div style={{ fontSize: 10, color: '#9e9087' }}>{new Date(o.at).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}</div>}
+                        </td>
                         <td className="right" style={{ color: '#888' }}>{o.items}</td>
                         <td className="right" style={{ fontWeight: 600 }}>{Math.round(o.total).toLocaleString('en-GB')}</td>
                       </tr>

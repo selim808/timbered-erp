@@ -9,6 +9,8 @@ export interface OrderRow {
   total: number;
   customer: string;
   items: number;
+  /** When it was placed / completed / cancelled (matching the metric asked for), ISO. */
+  at: string;
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -58,6 +60,9 @@ export async function GET(request: Request) {
       total: parseFloat(o.total) || 0,
       customer: `${o.billing.first_name} ${o.billing.last_name}`.trim(),
       items: o.line_items.reduce((s, i) => s + (i.quantity || 0), 0),
+      at: (metric === 'completed' ? o.date_completed
+        : metric === 'cancelled' ? (o.date_cancelled ?? o.date_modified)
+        : o.date_created) ?? o.date_created,
     }));
 
     rows.sort((a, b) => b.total - a.total);
