@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-interface TableInfo { name: string; columns: string[] }
 interface TableData { columns: string[]; rows: Record<string, unknown>[]; total: number; limit: number }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -29,100 +28,102 @@ function show(v: unknown): string {
   return s;
 }
 
-// Tables shown as collapsible sections, grouped by a parent list.
-const GROUP_BY: Record<string, { column: string; table: string; label: string }> = {
-  phases: { column: 'phase_group_id', table: 'phase_groups', label: 'name' },
-  expense_buckets: { column: 'group_id', table: 'expense_bucket_groups', label: 'name' },
-};
+// The page's tabs. Each tab is either one list grouped by its parent list,
+// or several lists shown one after another as sections.
+type Tab =
+  | { key: string; label: string; kind: 'grouped'; table: string; parent: string; column: string; parentLabel: string }
+  | { key: string; label: string; kind: 'sections'; tables: { table: string; label: string }[] };
 
-// Parent lists that are already shown as the groups of another list — no separate chip.
-const HIDDEN = new Set(['expense_bucket_groups']);
+const TABS: Tab[] = [
+  {
+    key: 'cancellation', label: 'Cancellation', kind: 'sections',
+    tables: [
+      { table: 'cancellation_reasons', label: 'Reasons' },
+      { table: 'cancellation_timing', label: 'Timing' },
+      { table: 'cancellation_impact', label: 'Impact' },
+    ],
+  },
+  { key: 'expenses', label: 'Expenses', kind: 'grouped', table: 'expense_buckets', parent: 'expense_bucket_groups', column: 'group_id', parentLabel: 'name' },
+  { key: 'phases', label: 'Phases', kind: 'grouped', table: 'phases', parent: 'phase_groups', column: 'phase_group_id', parentLabel: 'name' },
+];
 
-interface Group { id: string; name: string; rows: Record<string, unknown>[] }
+interface Group { id: string; name: string; columns: string[]; rows: Record<string, unknown>[] }
 
-function readInitialTable(): string | null {
+function readInitialTab(): string | null {
   if (typeof window === 'undefined') return null;
   return new URLSearchParams(window.location.search).get('t');
 }
 
+function loadTable(t: string): Promise<TableData> {
+  return fetch(`/api/lists/${encodeURIComponent(t)}`)
+    .then(r => r.json())
+    .then((d: TableData | { error: string }) => {
+      if (!('rows' in d)) throw new Error(d?.error ?? `Failed to load ${t}`);
+      return d;
+    });
+}
+
+// Hide internal ids and the grouping column; keep the rest in table order.
+function visibleColumns(cols: string[], hide?: string) {
+  return cols.filter(c => c !== 'id' && c !== hide);
+}
+
 export default function ListsPage() {
-  const [tables, setTables] = useState<TableInfo[]>([]);
-  const [tablesState, setTablesState] = useState<'loading' | 'done' | 'error'>('loading');
   const [selected, setSelected] = useState<string | null>(null);
-  const [data, setData] = useState<TableData | null>(null);
-  const [dataState, setDataState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [parents, setParents] = useState<Record<string, unknown>[]>([]);
 
-  // Load one table's rows. Called from event handlers / async callbacks only.
-  function openTable(name: string) {
-    setSelected(name);
+  // Load one tab's lists. Called from event handlers / effects only.
+  function openTab(key: string) {
+    const tab = TABS.find(t => t.key === key) ?? TABS[0];
+    setSelected(tab.key);
     setSearch('');
-    setDataState('loading');
+    setState('loading');
     const url = new URL(window.location.href);
-    url.searchParams.set('t', name);
+    url.searchParams.set('t', tab.key);
     window.history.replaceState(null, '', url);
 
-    const load = (t: string) =>
-      fetch(`/api/lists/${encodeURIComponent(t)}`)
-        .then(r => r.json())
-        .then((d: TableData | { error: string }) => {
-          if (!('rows' in d)) throw new Error(d?.error ?? 'Failed to load');
-          return d;
-        });
+    const work: Promise<Group[]> = tab.kind === 'grouped'
+      ? Promise.all([loadTable(tab.table), loadTable(tab.parent)]).then(([d, p]) => {
+          const columns = visibleColumns(d.columns, tab.column);
+          const list: Group[] = p.rows.map(r => ({
+            id: String(r.id), name: String(r[tab.parentLabel] ?? '—'), columns, rows: [],
+          }));
+          const byId = new Map(list.map(g => [g.id, g]));
+          const other: Group = { id: '_other', name: 'Ungrouped', columns, rows: [] };
+          d.rows.forEach(r => (byId.get(String(r[tab.column])) ?? other).rows.push(r));
+          if (other.rows.length) list.push(other);
+          return list;
+        })
+      : Promise.all(tab.tables.map(s => loadTable(s.table))).then(all =>
+          all.map((d, i) => ({
+            id: tab.tables[i].table, name: tab.tables[i].label,
+            columns: visibleColumns(d.columns), rows: d.rows,
+          }))
+        );
 
-    const group = GROUP_BY[name];
-    Promise.all([load(name), group ? load(group.table) : Promise.resolve(null)])
-      .then(([d, p]) => {
-        setData(d);
-        setParents(p?.rows ?? []);
-        setDataState('done');
-      })
-      .catch((e: Error) => { setError(e.message); setDataState('error'); });
+    work
+      .then(g => { setGroups(g); setState('done'); })
+      .catch((e: Error) => { setError(e.message); setState('error'); });
   }
 
   useEffect(() => {
-    fetch('/api/lists')
-      .then(r => r.json())
-      .then((list: TableInfo[] | { error: string }) => {
-        if (!Array.isArray(list)) throw new Error(list?.error ?? 'Failed to load');
-        list = list.filter(t => !HIDDEN.has(t.name));
-        setTables(list);
-        setTablesState('done');
-        const wanted = readInitialTable();
-        const first = list.find(t => t.name === wanted)?.name ?? list[0]?.name;
-        if (first) openTable(first);
-      })
-      .catch((e: Error) => { setError(e.message); setTablesState('error'); });
+    // Deferred so the first load runs outside the effect body (as a callback).
+    queueMicrotask(() => openTab(readInitialTab() ?? TABS[0].key));
   }, []);
 
-  const group = selected ? GROUP_BY[selected] : undefined;
-
-  // Hide the internal row id (and the grouping column); keep the rest in table order.
-  const columns = useMemo(
-    () => (data?.columns ?? []).filter(c => c !== 'id' && c !== group?.column),
-    [data, group]
-  );
-
-  const rows = useMemo(() => {
+  const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!data || !q) return data?.rows ?? [];
-    return data.rows.filter(r => columns.some(c => show(r[c]).toLowerCase().includes(q)));
-  }, [data, search, columns]);
+    if (!q) return groups;
+    return groups
+      .map(g => ({ ...g, rows: g.rows.filter(r => g.columns.some(c => show(r[c]).toLowerCase().includes(q))) }))
+      .filter(g => g.rows.length);
+  }, [groups, search]);
 
-  // For grouped tables: one section per parent, in the parent's sort order.
-  const groups = useMemo<Group[] | null>(() => {
-    if (!group) return null;
-    const list: Group[] = parents.map(p => ({
-      id: String(p.id), name: String(p[group.label] ?? '—'), rows: [],
-    }));
-    const byId = new Map(list.map(g => [g.id, g]));
-    const other: Group = { id: '_other', name: 'Ungrouped', rows: [] };
-    rows.forEach(r => (byId.get(String(r[group.column])) ?? other).rows.push(r));
-    if (other.rows.length) list.push(other);
-    return search ? list.filter(g => g.rows.length) : list;
-  }, [group, parents, rows, search]);
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  const matched = shown.reduce((n, g) => n + g.rows.length, 0);
 
   return (
     <div className="min-h-screen bg-background pb-28">
@@ -132,74 +133,62 @@ export default function ListsPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 pt-4 space-y-4">
-        {tablesState === 'loading' && <Box>Loading lists…</Box>}
-        {tablesState === 'error' && <Box>Failed to load: {error}</Box>}
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => openTab(t.key)}
+              className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-colors ${
+                selected === t.key
+                  ? 'bg-brown text-white border-brown'
+                  : 'bg-surface text-text border-border hover:border-brown'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-        {tablesState === 'done' && (
-          <>
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-              {tables.map(t => (
-                <button
-                  key={t.name}
-                  onClick={() => openTable(t.name)}
-                  className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold border transition-colors ${
-                    selected === t.name
-                      ? 'bg-brown text-white border-brown'
-                      : 'bg-surface text-text border-border hover:border-brown'
-                  }`}
-                >
-                  {pretty(t.name)}
-                </button>
-              ))}
+        {state === 'loading' && <Box>Loading…</Box>}
+        {state === 'error' && <Box>Failed to load: {error}</Box>}
+
+        {state === 'done' && (
+          <div className="bg-surface border border-border rounded-xl overflow-hidden">
+            <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="flex-1 min-w-0 border border-border rounded-md px-3 py-1.5 text-sm bg-background outline-none focus:border-brown"
+              />
+              <span className="text-xs text-text-muted whitespace-nowrap">
+                {search ? `${matched} of ${total}` : total}
+              </span>
             </div>
 
-            {dataState === 'loading' && <Box>Loading…</Box>}
-            {dataState === 'error' && <Box>Failed to load: {error}</Box>}
-
-            {dataState === 'done' && data && (
-              <div className="bg-surface border border-border rounded-xl overflow-hidden">
-                <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border">
-                  <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search…"
-                    className="flex-1 min-w-0 border border-border rounded-md px-3 py-1.5 text-sm bg-background outline-none focus:border-brown"
-                  />
-                  <span className="text-xs text-text-muted whitespace-nowrap">
-                    {search ? `${rows.length} of ${data.rows.length}` : data.total}
-                    {data.total > data.limit && ` (first ${data.limit})`}
-                  </span>
-                </div>
-
-                {rows.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-text-muted">
-                    {data.rows.length === 0 ? 'This list is empty.' : 'No matches.'}
-                  </p>
-                ) : groups ? (
-                  <div>
-                    {groups.map(g => (
-                      <details key={g.id} open={!!search} className="border-t border-border first:border-t-0 group">
-                        <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none bg-surface-2 hover:bg-cream list-none">
-                          <svg className="w-3.5 h-3.5 text-brown transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                          </svg>
-                          <span className="text-sm font-bold text-brown flex-1">{g.name}</span>
-                          <span className="text-xs text-text-muted">{g.rows.length}</span>
-                        </summary>
-                        {g.rows.length === 0
-                          ? <p className="px-4 py-3 text-xs text-text-muted italic">Nothing in this group.</p>
-                          : <DataTable columns={columns} rows={g.rows} />}
-                      </details>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="overflow-auto max-h-[70vh]">
-                    <DataTable columns={columns} rows={rows} sticky />
-                  </div>
-                )}
+            {shown.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-text-muted">
+                {total === 0 ? 'This list is empty.' : 'No matches.'}
+              </p>
+            ) : (
+              <div>
+                {shown.map(g => (
+                  <details key={g.id} open={!!search} className="border-t border-border first:border-t-0 group">
+                    <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none bg-surface-2 hover:bg-cream list-none">
+                      <svg className="w-3.5 h-3.5 text-brown transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="text-sm font-bold text-brown flex-1">{g.name}</span>
+                      <span className="text-xs text-text-muted">{g.rows.length}</span>
+                    </summary>
+                    {g.rows.length === 0
+                      ? <p className="px-4 py-3 text-xs text-text-muted italic">Nothing in this group.</p>
+                      : <DataTable columns={g.columns} rows={g.rows} />}
+                  </details>
+                ))}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
