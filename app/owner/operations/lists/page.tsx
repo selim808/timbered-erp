@@ -32,7 +32,11 @@ function show(v: unknown): string {
 // Tables shown as collapsible sections, grouped by a parent list.
 const GROUP_BY: Record<string, { column: string; table: string; label: string }> = {
   phases: { column: 'phase_group_id', table: 'phase_groups', label: 'name' },
+  expense_buckets: { column: 'group_id', table: 'expense_bucket_groups', label: 'name' },
 };
+
+// Parent lists that are already shown as the groups of another list — no separate chip.
+const HIDDEN = new Set(['expense_bucket_groups']);
 
 interface Group { id: string; name: string; rows: Record<string, unknown>[] }
 
@@ -83,6 +87,7 @@ export default function ListsPage() {
       .then(r => r.json())
       .then((list: TableInfo[] | { error: string }) => {
         if (!Array.isArray(list)) throw new Error(list?.error ?? 'Failed to load');
+        list = list.filter(t => !HIDDEN.has(t.name));
         setTables(list);
         setTablesState('done');
         const wanted = readInitialTable();
