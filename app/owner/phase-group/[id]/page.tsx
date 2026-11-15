@@ -9,9 +9,31 @@ import ProductPopup from '@/components/shared/ProductPopup';
 import { getPhaseGroups, getPhases, onPhasesUpdated } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 import {
-  readFeedCache, writeFeedCache, fetchFeedOrders,
+  readFeedCache, writeFeedCache, fetchFeedOrders, clearFeedCache,
   type OrdersFeed, type OrdersFeedResponse,
 } from '@/lib/ordersFeedCache';
+
+/** Phone digits without country code / trunk zero, so 010…, +2010… and 2010… all match. */
+function phoneDigits(s: string): string {
+  return s.replace(/\D/g, '').replace(/^(20|0)/, '');
+}
+
+/** Client-side match for the in-memory (active) tabs: number, name, phone, address, note, items. */
+function matchesSearch(o: PipelineOrder, query: string): boolean {
+  const words = query.toLowerCase().replace(/#/g, ' ').split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = [
+    o.number, String(o.id), o.customerName, o.customerPhone, o.customerAddress,
+    o.customerAddress2, o.customerCity, o.customerState, o.customerNote, o.cancelReason,
+    ...o.lineItems.map(li => li.name),
+  ].filter(Boolean).join(' ').toLowerCase();
+  const phone = phoneDigits(o.customerPhone ?? '');
+  return words.every(w => {
+    if (hay.includes(w)) return true;
+    const d = phoneDigits(w);
+    return d.length >= 4 && phone.includes(d);
+  });
+}
 
 const AFTER_SALES_GROUP = 'After-Sales';
 const FOLLOWUP_PHASE    = 'Follow-up';
@@ -108,6 +130,9 @@ export default function PhaseGroupPage() {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [noteFilter, setNoteFilter]   = useState(false);
   const [toast, setToast]             = useState('');
+  const [search, setSearch]           = useState('');
+  const [query, setQuery]             = useState('');   // debounced copy of search
+  const [reopeningIds, setReopeningIds] = useState<Set<number>>(new Set());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Closed-order feeds (After-Sales → Follow-up = completed, Cancelled = cancelled)
@@ -199,22 +224,44 @@ export default function PhaseGroupPage() {
     setFeedTotals(t => ({ ...seeded, ...t }));
   }, [isAfterSales]);
 
-  // Reset to page 1 whenever the user switches feeds
+  // Debounce the search box so the feed search doesn't hit the server per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Reset to page 1 whenever the user switches feeds or changes the search
   useEffect(() => {
     if (feed) setFeedPage(1);
-  }, [feed]);
+  }, [feed, query]);
 
-  const applyFeed = useCallback((f: OrdersFeed, d: OrdersFeedResponse) => {
+  const [feedMatches, setFeedMatches] = useState<number | null>(null);
+
+  const applyFeed = useCallback((f: OrdersFeed, d: OrdersFeedResponse, q = '') => {
     setFeedOrders(Array.isArray(d.orders) ? d.orders : []);
     setFeedTotalPages(Number(d.totalPages) || 1);
-    setFeedTotals(t => ({ ...t, [f]: Number(d.total) || 0 }));
+    // A search result's total is the match count, not the feed's size, so it
+    // must not overwrite the tab badge.
+    if (q) setFeedMatches(Number(d.total) || 0);
+    else { setFeedMatches(null); setFeedTotals(t => ({ ...t, [f]: Number(d.total) || 0 })); }
   }, []);
 
   // Load one page of a feed. Serves the cached copy instantly and only hits the
   // network when the cache is missing/stale (>5h) or a refresh is forced.
-  const loadFeed = useCallback((f: OrdersFeed, page: number, opts?: { force?: boolean }) => {
+  // A search (q) always goes to the server, over the whole feed, uncached.
+  const loadFeed = useCallback((f: OrdersFeed, page: number, opts?: { force?: boolean; q?: string }) => {
     const force = opts?.force ?? false;
+    const q = opts?.q ?? '';
     setFeedError('');
+
+    if (q) {
+      setFeedLoading(true);
+      fetchFeedOrders(f, page, q)
+        .then(d => applyFeed(f, d, q))
+        .catch((e: Error) => setFeedError(e.message))
+        .finally(() => setFeedLoading(false));
+      return;
+    }
 
     const cached = force ? null : readFeedCache(f, page);
     if (cached) {
@@ -237,7 +284,7 @@ export default function PhaseGroupPage() {
   }, [applyFeed]);
 
   function handleRefreshFeed() {
-    if (feed) loadFeed(feed, feedPage, { force: true });
+    if (feed) loadFeed(feed, feedPage, { force: true, q: query });
   }
 
   useEffect(() => {
@@ -245,24 +292,66 @@ export default function PhaseGroupPage() {
     // Switching feeds leaves the previous feed's orders on screen for a beat;
     // clearing them keeps the two lists from bleeding into each other.
     setFeedOrders([]);
-    loadFeed(feed, feedPage);
-  }, [feed, feedPage, loadFeed]);
+    loadFeed(feed, feedPage, { q: query });
+  }, [feed, feedPage, query, loadFeed]);
 
-  async function handlePhaseChange(orderId: number, liId: number, phase: string) {
-    const prev = orders.find(o => o.id === orderId)?.lineItems.find(li => li.id === liId)?.phase ?? '';
-    setOrders(os => os.map(o =>
-      o.id !== orderId ? o : { ...o, lineItems: o.lineItems.map(li => li.id === liId ? { ...li, phase } : li) }
+  function reloadActiveOrders() {
+    fetch('/api/pipeline/orders')
+      .then(r => r.json())
+      .then(ords => { if (Array.isArray(ords)) setOrders(ords); })
+      .catch(() => {});
+  }
+
+  // Phase change works on both the active pipeline and the After-Sales feeds
+  // (Follow-up / Cancelled), so update whichever list holds the item.
+  async function handlePhaseChange(orderId: number, liId: number, phase: string): Promise<boolean> {
+    const inFeed = !!feed && feedOrders.some(o => o.id === orderId);
+    const source = inFeed ? feedOrders : orders;
+    const setList = inFeed ? setFeedOrders : setOrders;
+    const prev = source.find(o => o.id === orderId)?.lineItems.find(li => li.id === liId)?.phase ?? '';
+    const setPhase = (p: string) => setList(os => os.map(o =>
+      o.id !== orderId ? o : { ...o, lineItems: o.lineItems.map(li => li.id === liId ? { ...li, phase: p } : li) }
     ));
+    if (!phase) return false;  // "— phase —" placeholder isn't a phase
+    setPhase(phase);
     const res = await fetch(`/api/pipeline/orders/${orderId}/phase`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lineItemId: String(liId), phase }),
     });
     if (!res.ok) {
-      setOrders(os => os.map(o =>
-        o.id !== orderId ? o : { ...o, lineItems: o.lineItems.map(li => li.id === liId ? { ...li, phase: prev } : li) }
-      ));
-      showToast('Failed to save phase change');
+      setPhase(prev);
+      const msg = (await res.json().catch(() => null))?.error;
+      showToast(msg ? `Phase not saved: ${msg}` : 'Failed to save phase change');
+      return false;
+    }
+    if (inFeed && feed) clearFeedCache(feed);  // cached pages hold the old phase
+    return true;
+  }
+
+  // Mark a completed order as not completed: it leaves Follow-up and goes back
+  // into the active pipeline.
+  async function handleReopen(o: PipelineOrder) {
+    const ok = window.confirm(
+      `Mark order #${o.number} (${o.customerName}) as NOT completed?\n\n` +
+      'It moves back to the active pipeline. On Shopify its fulfilment is cancelled ' +
+      '(items become unfulfilled again) and the order is unarchived. The customer is not notified.'
+    );
+    if (!ok) return;
+    setReopeningIds(s => new Set(s).add(o.id));
+    try {
+      const res = await fetch(`/api/pipeline/orders/${o.id}/reopen`, { method: 'POST' });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(d?.error ?? 'Failed to reopen order');
+      setFeedOrders(os => os.filter(x => x.id !== o.id));
+      setFeedTotals(t => ({ ...t, completed: Math.max(0, (t.completed ?? 1) - 1) }));
+      clearFeedCache('completed');
+      reloadActiveOrders();
+      showToast(`#${o.number} moved back to the pipeline`);
+    } catch (e) {
+      showToast((e as Error).message);
+    } finally {
+      setReopeningIds(s => { const n = new Set(s); n.delete(o.id); return n; });
     }
   }
 
@@ -311,9 +400,12 @@ export default function PhaseGroupPage() {
       const [orderId, liId] = key.split('-').map(Number);
       return { orderId, liId };
     });
-    for (const { orderId, liId } of updates) await handlePhaseChange(orderId, liId, bulkPhase);
+    let saved = 0;
+    for (const { orderId, liId } of updates) if (await handlePhaseChange(orderId, liId, bulkPhase)) saved++;
     setSelectedItems(new Set());
-    showToast(`Applied "${bulkPhase}" to ${updates.length} items`);
+    showToast(saved === updates.length
+      ? `Applied "${bulkPhase}" to ${saved} items`
+      : `Applied "${bulkPhase}" to ${saved} of ${updates.length} items — ${updates.length - saved} failed`);
   }
 
   function toggleItem(key: string) {
@@ -331,12 +423,14 @@ export default function PhaseGroupPage() {
   // Orders that have at least one item in the active phase
   const visibleOrders = useMemo(() => {
     if (feed) {
+      // Feeds are already searched server-side (across every page).
       return feedOrders.filter(o => !noteFilter || !!o.customerNote);
     }
     return orders
       .filter(o => o.lineItems.some(li => li.phase === activePhase))
-      .filter(o => !noteFilter || !!o.customerNote);
-  }, [feed, feedOrders, orders, activePhase, noteFilter]);
+      .filter(o => !noteFilter || !!o.customerNote)
+      .filter(o => !query || matchesSearch(o, query));
+  }, [feed, feedOrders, orders, activePhase, noteFilter, query]);
 
   const filterLineItems = useMemo(
     () => feed
@@ -366,7 +460,12 @@ export default function PhaseGroupPage() {
     <>
       <style>{`
         .pg-state   { text-align:center; color:#aaa; padding:60px 20px; font-size:14px; }
-        .pg-sub-nav { display:flex; background:#fff; border-bottom:1px solid #e8ddd4; position:sticky; top:64px; z-index:51; overflow-x:auto; }
+        .pg-head    { position:sticky; top:64px; z-index:51; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+        .pg-sub-nav { display:flex; background:#fff; border-bottom:1px solid #e8ddd4; overflow-x:auto; }
+        .pg-search  { display:flex; align-items:center; gap:6px; padding:6px 12px; background:#fff; border-bottom:1px solid #e8ddd4; }
+        .pg-search input { flex:1; min-width:0; font-size:13px; border:1.5px solid #e8ddd4; border-radius:20px; padding:6px 12px; outline:none; color:#333; background:#fdfaf7; }
+        .pg-search input:focus { border-color:#7A4610; background:#fff; }
+        .pg-search-clear { font-size:12px; font-weight:700; color:#888; background:none; border:none; cursor:pointer; padding:4px 6px; }
         .pg-sub-nav::-webkit-scrollbar { display:none; }
         .pg-sub-btn { font-size:12px; font-weight:700; color:#aaa; background:none; border:none; border-bottom:2px solid transparent; padding:8px 16px; cursor:pointer; white-space:nowrap; flex-shrink:0; }
         .pg-sub-btn.active { color:#7A4610; border-bottom-color:#7A4610; }
@@ -418,6 +517,8 @@ export default function PhaseGroupPage() {
         .wa-btn-send.disabled { background:#cde7d5; cursor:default; }
       `}</style>
 
+      {/* Fixed header: tabs, stats, search and toolbar stay put while the list scrolls */}
+      <div className="pg-head">
       {/* Phase tabs */}
       <div className="pg-sub-nav">
         {tabs.map(t => {
@@ -447,6 +548,25 @@ export default function PhaseGroupPage() {
       <div className="pg-badges">
         <span className="pg-badge brown">{totalItems} items · {visibleOrders.length} orders</span>
         {totalValue > 0 && <span className="pg-badge green">{fmtPrice(totalValue)} EGP</span>}
+        {feed && query && feedMatches != null && (
+          <span className="pg-badge brown">{feedMatches} match{feedMatches === 1 ? '' : 'es'}</span>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="pg-search">
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={feed
+            ? `Search all ${feed} orders — #, name, phone, item…`
+            : 'Search orders — #, name, phone, item…'}
+          aria-label="Search orders"
+        />
+        {search && (
+          <button className="pg-search-clear" onClick={() => setSearch('')} aria-label="Clear search">✕</button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -505,16 +625,19 @@ export default function PhaseGroupPage() {
           </button>
         )}
       </div>
+      </div>
 
       {/* Order list */}
       <div className="pg-content">
         {feed && feedError ? (
           <div className="pg-empty" style={{ color: '#e74c3c' }}>{feedError}</div>
         ) : feed && feedLoading ? (
-          <div className="pg-empty">Loading {feed} orders…</div>
+          <div className="pg-empty">{query ? `Searching ${feed} orders…` : `Loading ${feed} orders…`}</div>
         ) : visibleOrders.length === 0 ? (
           <div className="pg-empty">
-            {feed ? `No ${feed} orders` : 'No orders in this phase'}
+            {query
+              ? `No orders match “${query}”`
+              : feed ? `No ${feed} orders` : 'No orders in this phase'}
           </div>
         ) : (
           <>
@@ -531,6 +654,8 @@ export default function PhaseGroupPage() {
               onOpenDetail={o => setDetailOrder(o)}
               onImageClick={li => setProductPopup(li)}
               onWaClick={feed ? handleWaClick : undefined}
+              onReopen={feed === 'completed' ? handleReopen : undefined}
+              reopeningIds={reopeningIds}
             />
             {feed && feedTotalPages > 1 && (
               <div className="pg-pager">
@@ -542,7 +667,7 @@ export default function PhaseGroupPage() {
                   ← Newer
                 </button>
                 <span className="pg-pager-info">
-                  Page {feedPage} of {feedTotalPages} · {feedTotals[feed] ?? 0} orders
+                  Page {feedPage} of {feedTotalPages} · {query ? (feedMatches ?? 0) : (feedTotals[feed] ?? 0)} orders
                 </span>
                 <button
                   className="pg-pager-btn"

@@ -3,6 +3,7 @@ import { itemPhaseOf } from '@/lib/phases/kanban';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
+import { orderMatches } from '@/lib/commerce/search';
 import type { PipelineOrder, PipelineLineItem } from '@/app/api/pipeline/orders/route';
 
 export const maxDuration = 60;
@@ -30,12 +31,15 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10) || 1);
+    const q    = (url.searchParams.get('q') ?? '').trim();
 
     // Most recently cancelled first, so a fresh cancellation is at the top of
     // the retention list while the customer can still be won back. Two
     // storefronts can't share a server-side cursor, so the merged feed is
     // sorted and paged in memory.
-    const cancelled = await fetchOrders({ status: 'cancelled' });
+    const all = await fetchOrders({ status: 'cancelled' });
+    // Search runs over the whole feed (before paging), not just one page.
+    const cancelled = q ? all.filter(o => orderMatches(o, q)) : all;
     cancelled.sort((a, b) => cancelledAtOf(b).localeCompare(cancelledAtOf(a)));
 
     const total      = cancelled.length;

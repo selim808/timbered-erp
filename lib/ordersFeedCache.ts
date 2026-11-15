@@ -53,8 +53,22 @@ export function writeFeedCache(feed: OrdersFeed, page: number, data: OrdersFeedR
   }
 }
 
-export async function fetchFeedOrders(feed: OrdersFeed, page: number): Promise<OrdersFeedResponse> {
-  const r = await fetch(`/api/wc/${feed}-orders?page=${page}`);
+/** Drop every cached page of a feed (after an order leaves or changes in it). */
+export function clearFeedCache(feed: OrdersFeed) {
+  try {
+    const prefix = `tg_${feed}_orders_p`;
+    Object.keys(window.localStorage)
+      .filter(k => k.startsWith(prefix))
+      .forEach(k => window.localStorage.removeItem(k));
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** `q` searches the whole feed server-side; search results are never cached. */
+export async function fetchFeedOrders(feed: OrdersFeed, page: number, q = ''): Promise<OrdersFeedResponse> {
+  const qs = q ? `&q=${encodeURIComponent(q)}` : '';
+  const r = await fetch(`/api/wc/${feed}-orders?page=${page}${qs}`);
   const d = await r.json();
   if (d?.error) throw new Error(d.error);
   return d as OrdersFeedResponse;

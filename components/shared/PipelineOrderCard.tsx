@@ -115,7 +115,8 @@ export function ItemRow({ li, orderNum, liIndex, daysOpen, groups, phases, bulkM
 
 function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, selectedItems,
   onToggleItem, onToggleGroup, onPhaseChange, completeMode, cancelMode,
-  isSelected, onToggleOrder, onOpenDetail, accentColor, onImageClick, waMessage, onWaClick }: {
+  isSelected, onToggleOrder, onOpenDetail, accentColor, onImageClick, waMessage, onWaClick,
+  onReopen, reopening }: {
   o: PipelineOrder; groups: PhaseGroup[]; phases: Phase[]; items: PipelineLineItem[];
   isOpen: boolean; onToggleOpen: () => void;
   bulkMode: boolean; selectedItems: Set<string>;
@@ -125,6 +126,7 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
   onToggleOrder: () => void; onOpenDetail: () => void;
   accentColor?: string; onImageClick?: (li: PipelineLineItem) => void;
   waMessage?: string; onWaClick?: (o: PipelineOrder) => void;
+  onReopen?: (o: PipelineOrder) => void; reopening?: boolean;
 }) {
   const wp = o.customerPhone ? waPhone(o.customerPhone) : '';
   const waHref = wp
@@ -189,6 +191,13 @@ function OrderCard({ o, groups, phases, items, isOpen, onToggleOpen, bulkMode, s
             </a>
           </>
         )}
+        {onReopen && (
+          <button type="button" className="poc-reopen" disabled={reopening}
+            title="Mark as not completed — move the order back to the active pipeline"
+            onClick={e => { e.stopPropagation(); onReopen(o); }}>
+            {reopening ? '…' : '↩ Reopen'}
+          </button>
+        )}
         <span className={`poc-chevron${isOpen ? ' open' : ''}`}>▼</span>
       </div>
 
@@ -246,6 +255,9 @@ export const PIPELINE_ORDER_CARD_STYLES = `
   .poc-phone { font-size:11px; color:#888; flex-shrink:0; white-space:nowrap; }
   .poc-call { display:flex; align-items:center; flex-shrink:0; }
   .poc-call:hover { opacity:.7; }
+  .poc-reopen { font-size:10px; font-weight:700; color:#7A4610; background:#fef3e2; border:1px solid #e8ddd4; border-radius:20px; padding:2px 8px; cursor:pointer; flex-shrink:0; white-space:nowrap; }
+  .poc-reopen:hover:not(:disabled) { background:#7A4610; color:#fff; }
+  .poc-reopen:disabled { opacity:.6; cursor:default; }
   .poc-chevron { font-size:9px; color:#bbb; flex-shrink:0; transition:transform .2s ease; }
   .poc-chevron.open { transform:rotate(180deg); }
   .poc-addr { display:flex; align-items:center; padding:2px 10px 6px; gap:8px; }
@@ -295,6 +307,9 @@ export interface PipelineOrderListProps {
   onImageClick?: (li: PipelineLineItem) => void;
   waMessage?: string;
   onWaClick?: (o: PipelineOrder) => void;
+  /** Shows a Reopen (mark not completed) button on each card. */
+  onReopen?: (o: PipelineOrder) => void;
+  reopeningIds?: Set<number>;
 }
 
 export default function PipelineOrderList({
@@ -303,7 +318,7 @@ export default function PipelineOrderList({
   onToggleGroup = () => {}, onPhaseChange,
   completeMode = false, cancelMode = false,
   selectedOrders = new Set(), onToggleOrder = () => {},
-  onOpenDetail, onImageClick, waMessage, onWaClick,
+  onOpenDetail, onImageClick, waMessage, onWaClick, onReopen, reopeningIds,
 }: PipelineOrderListProps) {
   const [open, setOpen] = useState<Set<number>>(() =>
     defaultOpen ? new Set(orders.map(o => o.id)) : new Set()
@@ -336,6 +351,8 @@ export default function PipelineOrderList({
             onImageClick={onImageClick}
             waMessage={waMessage}
             onWaClick={onWaClick}
+            onReopen={onReopen}
+            reopening={reopeningIds?.has(o.id)}
           />
         );
       })}
