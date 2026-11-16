@@ -10,6 +10,7 @@ import type { OrderRow } from '@/app/api/monthly/orders/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import CashExpenseCards, { CashExpenseTable } from '@/components/shared/CashExpenseCards';
+import ChartImage from '@/components/shared/ChartImage';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -532,7 +533,8 @@ export default function MonthlySection() {
         </div>
 
         {/* Monthly chart */}
-        <div className="mo-chart-title">Monthly</div>
+        <ChartImage name="monthly-chart" title="Monthly performance">
+<div className="mo-chart-title">Monthly</div>
         <div className="mo-legend">
           {LEGEND_COLS.map(col => (
             <div key={col.title} className="mo-legend-col">
@@ -551,6 +553,7 @@ export default function MonthlySection() {
             <Bar data={chartData} options={chartOptions} />
           </div>
         </div>
+</ChartImage>
 
       </div>
 

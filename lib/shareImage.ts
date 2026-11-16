@@ -44,6 +44,8 @@ export async function shareElementAsImage(el: HTMLElement, opts: {
   width?: number;
   /** Adjust the off-screen copy before it is drawn (show headers, unclip scroll areas…). */
   prepare?: (clone: HTMLElement, doc: Document) => void;
+  /** 'download' always saves the file; otherwise the share menu is used where it can take files. */
+  mode?: 'share' | 'download';
 }): Promise<void> {
   const h2c = await loadHtml2canvas();
   const marker = `share-${Math.random().toString(36).slice(2)}`;
@@ -68,7 +70,7 @@ export async function shareElementAsImage(el: HTMLElement, opts: {
     const fileName = opts.addDate === false ? opts.name : `${opts.name}-${new Date().toISOString().slice(0, 10)}`;
     const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
 
-    if (navigator.canShare?.({ files: [file] })) {
+    if (opts.mode !== 'download' && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: opts.name, text: opts.text });
       } catch (e) {

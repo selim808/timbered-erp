@@ -10,6 +10,7 @@ import type { OrderRow } from '@/app/api/weekly/orders/route';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import CashExpenseCards, { CashExpenseTable, dayColumns } from '@/components/shared/CashExpenseCards';
+import ChartImage from '@/components/shared/ChartImage';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -426,11 +427,13 @@ export default function WeeklySection() {
         </div>
 
         {/* Weekly chart */}
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <ChartImage name="weekly-chart" title="Weekly performance">
+<div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ height: 320, minWidth: Math.max(visibleLabels.length * 22, 300) }}>
             <Bar data={chartData} options={chartOptions} />
           </div>
         </div>
+</ChartImage>
 
       </div>
 

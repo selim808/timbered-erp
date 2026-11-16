@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cairoNowLabel, shareElementAsImage } from '@/lib/shareImage';
+import ChartImage from '@/components/shared/ChartImage';
 import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
@@ -500,6 +501,7 @@ export default function FinanceSection() {
               </div>
             </li>
           </ul>
+          <ChartImage name="finance-expenses-chart" title="Expenses vs plan">
           <div style={{ position: 'relative', height: 240, width: '100%', marginTop: 16 }}>
             <Bar data={chartData} options={chartOptions} />
           </div>
@@ -510,6 +512,7 @@ export default function FinanceSection() {
               </span>
             ))}
           </div>
+          </ChartImage>
         </div>
 
         {/* ── Cash In vs Completed ── (the share icon sends this block as a picture) */}

@@ -1,5 +1,6 @@
 'use client';
 
+import ChartImage from '@/components/shared/ChartImage';
 import { useEffect, useRef, useState } from 'react';
 import LoadingDots from './LoadingDots';
 import { Bar } from 'react-chartjs-2';
@@ -391,9 +392,11 @@ export default function ProductionSection() {
         )}
 
         {/* WIP bar chart */}
+        <ChartImage name="production-wip-chart" title="Work in progress">
         <div style={{ width: '100%', height: 360 }}>
           <Bar data={chartData} options={chartOptions} />
         </div>
+        </ChartImage>
         <div data-html2canvas-ignore style={{ fontSize: 11, color: '#9e9087', textAlign: 'center', marginTop: -6 }}>Tap a bar to see its orders</div>
 
         {/* Legend: each phase group's colour, current value and share of processing value */}

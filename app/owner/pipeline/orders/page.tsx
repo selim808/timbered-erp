@@ -9,6 +9,7 @@ import { getPhaseGroups, getPhases, onPhasesUpdated } from '@/lib/phaseCache';
 import { PREDEFINED_PHASE_GROUPS, PREDEFINED_PHASES } from '@/data/phases';
 import CancelOrdersModal, { CancellationReason, CancelChoice } from '@/components/owner/CancelOrdersModal';
 import CancelledOrdersTab from '@/components/owner/CancelledOrdersTab';
+import ChartImage from '@/components/shared/ChartImage';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -367,9 +368,11 @@ function WipChart({ orders, phaseGroups, phases, onPhaseChange, onOpenDetail, on
             {showAllPhases ? 'By Group' : 'All Phases'}
           </button>
         </div>
-        <div style={{ height: 260 }}>
+        <ChartImage name="orders-by-phase-chart" title={drilledGroup ? `Orders · ${drilledGroup.name}` : `Orders · ${showAllPhases ? 'All phases' : 'By group'}`}>
+        <div style={{ height: 230 }}>
           <Bar data={chartData} options={chartOptions} />
         </div>
+        </ChartImage>
       </div>
 
       {groupStats.map(g => (
