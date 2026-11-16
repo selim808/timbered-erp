@@ -45,13 +45,14 @@ function Delta({ now, prev, goodWhenUp = true, money = false }: { now: number; p
 
 const STYLES = `
 .dl-wrap { padding:10px 12px; display:flex; flex-direction:column; gap:12px; }
-.dl-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.dl-bar { display:flex; align-items:center; gap:6px; }
 .dl-nav { border:1px solid #E8D9C4; background:#fff; border-radius:8px; width:32px; height:32px; font-size:14px; color:#7A4610; cursor:pointer; }
 .dl-nav:disabled { opacity:.35; cursor:default; }
 .dl-date { border:1.5px solid #C8AA88; border-radius:8px; padding:6px 8px; font:inherit; font-size:13px; color:#1C1A17; background:#fff; }
-.dl-day { font-weight:700; color:#1C1A17; font-size:13px; flex:1; }
-.dl-share { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; border:1px solid #E8D9C4; background:#fff; color:#25D366; cursor:pointer; padding:0; }
+.dl-day { font-weight:700; color:#1C1A17; font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dl-share { display:inline-flex; flex-shrink:0; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; border:1px solid #E8D9C4; background:#fff; color:#25D366; cursor:pointer; padding:0; }
 .dl-share:disabled { color:#bbb; cursor:default; }
+.dl-dl { color:#7A4610; }
 .dl-cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
 .dl-card { background:#fff; border:1px solid #E8D9C4; border-radius:12px; padding:10px 10px 9px; text-align:center; min-width:0; }
 .dl-card-lbl { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; color:#9e9087; }
@@ -156,11 +157,12 @@ export default function DailySection() {
       .catch(() => setDetailState('error'));
   }
 
-  async function share() {
+  async function share(mode: 'share' | 'download' = 'share') {
     if (!shareRef.current || !data) return;
     setSharing(true);
     try {
       await shareElementAsImage(shareRef.current, {
+        mode,
         name: `daily-flash-${data.date}`,
         addDate: false, // the picture is for data.date, which may not be today
         text: `Daily flash · ${dayLabel(data.date)}`,
@@ -187,6 +189,11 @@ export default function DailySection() {
         onChange={e => e.target.value && changeDate(e.target.value)} />
       <button className="dl-nav" onClick={() => changeDate(shiftDate(date, 1))} disabled={date >= today} aria-label="Next day">▶</button>
       <span className="dl-day">{date === today ? 'Today' : dayLabel(date)}</span>
+      <button className="dl-share dl-dl" onClick={() => void share('download')} disabled={!data || sharing} title="Download as image" aria-label="Download daily flash as image">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+        </svg>
+      </button>
       <button className="dl-share" onClick={() => void share()} disabled={!data || sharing} title="Share as image" aria-label="Share daily flash as image">
         {sharing ? '…' : (
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
