@@ -93,6 +93,49 @@ export async function reactivateOrder(id: string): Promise<void> {
   assertNoUserErrors(res.orderOpen.userErrors, 'orderOpen');
 }
 
+/**
+ * Undo "completed": move the order back into the active pipeline.
+ * Woo: status → processing. Shopify counts an order as completed when it is
+ * fulfilled OR archived, so this cancels any live fulfilments (the items go
+ * back to unfulfilled; nothing is sent to the customer) and unarchives it.
+ */
+export async function reopenOrder(id: string): Promise<void> {
+  const { source, gid } = await resolveOrder(id);
+
+  if (source === 'wc') {
+    await wc.put(`/orders/${id}`, { status: 'processing' });
+    return;
+  }
+
+  const state = await shopifyGql<{
+    order: { cancelledAt: string | null; closed: boolean; fulfillments: { id: string; status: string }[] } | null;
+  }>(
+    'query($id: ID!) { order(id: $id) { cancelledAt closed fulfillments(first: 50) { id status } } }',
+    { id: gid },
+  );
+  if (!state.order) throw new Error(`Shopify order ${id} not found`);
+  if (state.order.cancelledAt) {
+    throw new Error(`Shopify order ${id} is cancelled, not completed — Shopify has no un-cancel.`);
+  }
+
+  for (const f of state.order.fulfillments) {
+    if (f.status === 'CANCELLED' || f.status === 'ERROR' || f.status === 'FAILURE') continue;
+    const res = await shopifyGql<{ fulfillmentCancel: { userErrors: { message: string }[] } }>(
+      'mutation($id: ID!) { fulfillmentCancel(id: $id) { userErrors { message } } }',
+      { id: f.id },
+    );
+    assertNoUserErrors(res.fulfillmentCancel.userErrors, 'fulfillmentCancel');
+  }
+
+  if (state.order.closed) {
+    const res = await shopifyGql<{ orderOpen: { userErrors: { message: string }[] } }>(
+      'mutation($input: OrderOpenInput!) { orderOpen(input: $input) { userErrors { message } } }',
+      { input: { id: gid } },
+    );
+    assertNoUserErrors(res.orderOpen.userErrors, 'orderOpen');
+  }
+}
+
 export interface CancelDetails {
   reason: string;
   timing?: string;
