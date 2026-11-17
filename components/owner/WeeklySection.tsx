@@ -11,6 +11,7 @@ import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import CashExpenseCards, { CashExpenseTable, dayColumns } from '@/components/shared/CashExpenseCards';
 import ChartImage from '@/components/shared/ChartImage';
+import CashFlowChart from '@/components/shared/CashFlowChart';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -434,6 +435,12 @@ export default function WeeklySection() {
           </div>
         </div>
 </ChartImage>
+
+        {/* Cash flow: cash in vs expenses per week (accounting sheet), same weeks as the chart above */}
+        <CashFlowChart
+          by="week" name="weekly-cash-flow" title="Weekly cash flow"
+          columns={visibleLabels.map(l => ({ label: l, key: chartWeekMap[l]?.startDate ?? l }))}
+        />
 
       </div>
 

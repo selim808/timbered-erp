@@ -11,6 +11,7 @@ import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 import OrderDetailSheet from '@/components/shared/OrderDetailSheet';
 import CashExpenseCards, { CashExpenseTable } from '@/components/shared/CashExpenseCards';
 import ChartImage from '@/components/shared/ChartImage';
+import CashFlowChart from '@/components/shared/CashFlowChart';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend, Title, ChartDataLabels);
 
@@ -554,6 +555,12 @@ export default function MonthlySection() {
           </div>
         </div>
 </ChartImage>
+
+        {/* Cash flow: cash in vs expenses per month (accounting sheet), same months as the chart above */}
+        <CashFlowChart
+          by="month" name="monthly-cash-flow" title="Monthly cash flow" minColWidth={visibleLabels.length > 12 ? 30 : 0}
+          columns={visibleLabels.map(l => ({ label: l, key: chartMonthMap[l]?.key ?? l }))}
+        />
 
       </div>
 
