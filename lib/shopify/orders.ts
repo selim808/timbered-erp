@@ -186,6 +186,7 @@ function mapLineItem(li: RawLineItem, idx: number, cancelled: boolean): Commerce
     id: gidNumber(li.id) || idx + 1,
     name: li.title,
     product_id: wooId || gidNumber(li.product?.id),
+    shopify_product_id: gidNumber(li.product?.id) || undefined,
     quantity: qty,
     price,
     total: String(price * qty),

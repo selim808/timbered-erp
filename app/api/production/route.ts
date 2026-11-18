@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { getActivePhases } from '@/lib/phases/kanban';
 import { mapOrderBase } from '@/lib/commerce/map';
+import { getStockIndex, stockOf } from '@/lib/stock';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 
 /** One item sitting in a phase, for the click-through list on the WIP chart. */
@@ -36,9 +37,10 @@ const NO_PHASE = 'No phase';
 // matches the Processing Value. Phase order comes from the Supabase phase list.
 export async function GET() {
   try {
-    const [orders, active] = await Promise.all([
+    const [orders, active, stockIndex] = await Promise.all([
       fetchOrders({ status: 'processing' }),
       getActivePhases(),
+      getStockIndex(),
     ]);
 
     const byName = new Map<string, Phase>();
@@ -92,7 +94,7 @@ export async function GET() {
         total: parseFloat(li.total) || 0,
         imageUrl: li.image?.src ?? '',
         phase: o.kanban?.[String(li.id)]?.phase ?? '',
-        stock: 0,
+        stock: stockOf(stockIndex, li),
         orderedQty: li.quantity,
       })),
     }));

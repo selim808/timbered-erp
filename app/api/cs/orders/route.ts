@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { itemPhaseOf } from '@/lib/phases/kanban';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getStockIndex, stockOf } from '@/lib/stock';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
 import type { PipelineLineItem } from '@/app/api/pipeline/orders/route';
@@ -43,12 +44,9 @@ export async function GET() {
     const db = createAdminClient();
     const orderIds = wcOrders.map((o: any) => String(o.id));
 
-    const [{ data: csRows }, { data: stockRows }] = await Promise.all([
+    const [{ data: csRows }, stockIndex] = await Promise.all([
       db.from('cs_order_state').select('*').in('wc_order_id', orderIds),
-      db.from('stockcount').select('product_id, stock').in(
-        'product_id',
-        [...new Set(wcOrders.flatMap((o: any) => (o.line_items ?? []).map((li: any) => li.product_id as number)))]
-      ),
+      getStockIndex(),
     ]);
 
     const csMap = new Map<string, any>();
@@ -64,8 +62,6 @@ export async function GET() {
 
 
 
-    const stockMap = new Map<number, number>();
-    (stockRows ?? []).forEach((r: any) => stockMap.set(Number(r.product_id), r.stock ?? 0));
 
     const orders: CsOrder[] = wcOrders.map((o: any) => {
       const cs = csMap.get(String(o.id));
@@ -80,7 +76,7 @@ export async function GET() {
           total: parseFloat(li.total ?? '0'),
           imageUrl: li.image?.src ?? '',
           phase: entry?.phase ?? '',
-          stock: stockMap.get(li.product_id) ?? 0,
+          stock: stockOf(stockIndex, li),
           orderedQty: li.quantity,
           phaseUpdatedAt: entry?.updatedAt ?? null,
         };

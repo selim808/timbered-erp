@@ -8,6 +8,8 @@ export interface CommerceLineItem {
   id: number;
   name: string;
   product_id: number;
+  /** Shopify orders: the Shopify product id (product_id may hold the old Woo id). */
+  shopify_product_id?: number;
   quantity: number;
   price: number;
   total: string;

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { itemPhaseOf } from '@/lib/phases/kanban';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { getStockIndex, stockOf } from '@/lib/stock';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
 import { orderMatches } from '@/lib/commerce/search';
@@ -38,17 +38,7 @@ export async function GET(req: Request) {
     const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
     const data       = completed.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-    const db = createAdminClient();
-
-    const productIds = [...new Set(data.flatMap((o: any) =>
-      (o.line_items ?? []).map((li: any) => li.product_id as number)
-    ))];
-    const { data: stockRows } = await db
-      .from('stockcount')
-      .select('product_id, stock')
-      .in('product_id', productIds);
-    const stockMap = new Map<number, number>();
-    (stockRows ?? []).forEach((r: any) => stockMap.set(Number(r.product_id), r.stock ?? 0));
+    const stockIndex = await getStockIndex();
 
     const orders: PipelineOrder[] = data.map((o: any) => {
       const completedAt = o.date_completed ?? o.date_modified ?? o.date_created;
@@ -65,7 +55,7 @@ export async function GET(req: Request) {
         total: parseFloat(li.total ?? '0'),
         imageUrl: li.image?.src ?? '',
         phase: itemPhaseOf(o, li.id)?.phase ?? '',
-        stock: stockMap.get(li.product_id) ?? 0,
+        stock: stockOf(stockIndex, li),
         orderedQty: li.quantity ?? 0,
       }));
 

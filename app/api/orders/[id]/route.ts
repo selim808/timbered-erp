@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { fetchOrderById } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
 import { itemPhaseOf } from '@/lib/phases/kanban';
+import { getStockIndex, stockOf } from '@/lib/stock';
 import type { PipelineOrder } from '@/app/api/pipeline/orders/route';
 
 const DAY_MS = 86_400_000;
@@ -12,7 +13,7 @@ const DAY_MS = 86_400_000;
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    const o = await fetchOrderById(id);
+    const [o, stockIndex] = await Promise.all([fetchOrderById(id), getStockIndex()]);
     if (!o) return NextResponse.json({ error: `Order ${id} not found` }, { status: 404 });
 
     const cancelledAt = o.status === 'cancelled' ? (o.date_cancelled ?? o.date_modified) : null;
@@ -43,7 +44,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         total: parseFloat(li.total) || 0,
         imageUrl: li.image?.src ?? '',
         phase: itemPhaseOf(o, li.id)?.phase ?? '',
-        stock: 0,
+        stock: stockOf(stockIndex, li),
         orderedQty: li.quantity,
       })),
     };

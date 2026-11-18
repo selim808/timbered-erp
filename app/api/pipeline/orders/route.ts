@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getStockIndex, stockOf } from '@/lib/stock';
 import { fetchOrders } from '@/lib/commerce/orders';
 import { mapOrderBase } from '@/lib/commerce/map';
 import type { CommerceSource } from '@/lib/commerce/types';
@@ -69,10 +70,8 @@ export async function GET() {
     const startName = (await getStartPhase())?.name ?? '';
 
     // Stock per product
-    const productIds = [...new Set(wcOrders.flatMap((o: any) => (o.line_items ?? []).map((li: any) => li.product_id as number)))];
-    const { data: stockRows } = await db.from('stockcount').select('product_id, stock').in('product_id', productIds);
-    const stockMap = new Map<number, number>();
-    (stockRows ?? []).forEach((r: any) => stockMap.set(Number(r.product_id), r.stock ?? 0));
+    // Stock per product, from the warehouse stock database
+    const stockIndex = await getStockIndex();
 
     // Total ordered qty per product across all active orders
     const orderedQtyMap = new Map<number, number>();
@@ -92,7 +91,7 @@ export async function GET() {
         total: parseFloat(li.total ?? '0'),
         imageUrl: li.image?.src ?? '',
         phase: itemPhaseOf(o, li.id)?.phase ?? startName,
-        stock: stockMap.get(li.product_id) ?? 0,
+        stock: stockOf(stockIndex, li),
         orderedQty: orderedQtyMap.get(li.product_id) ?? li.quantity,
       }));
 
